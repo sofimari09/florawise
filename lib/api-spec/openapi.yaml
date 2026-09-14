@@ -1,22 +1,29 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: FloraWise plant care management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: dashboard
+  - name: species
+  - name: plants
+  - name: tasks
+  - name: reminders
+  - name: weather
+  - name: recommendations
+  - name: analytics
+  - name: reports
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +31,760 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get dashboard overview
+      responses:
+        "200":
+          description: Dashboard overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /species:
+    get:
+      operationId: listSpecies
+      tags: [species]
+      summary: List plant species
+      parameters:
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Species
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlantSpecies"
+    post:
+      operationId: createSpecies
+      tags: [species]
+      summary: Create plant species
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeciesInput"
+      responses:
+        "201":
+          description: Created species
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantSpecies"
+  /species/{id}:
+    patch:
+      operationId: updateSpecies
+      tags: [species]
+      summary: Update plant species
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeciesInput"
+      responses:
+        "200":
+          description: Updated species
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantSpecies"
+    delete:
+      operationId: deleteSpecies
+      tags: [species]
+      summary: Delete plant species
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /plants:
+    get:
+      operationId: listPlants
+      tags: [plants]
+      summary: List owned plants
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - name: speciesId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: location
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: overdue
+          in: query
+          schema:
+            type: boolean
+        - name: highPriority
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Plants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Plant"
+    post:
+      operationId: createPlant
+      tags: [plants]
+      summary: Add plant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlantInput"
+      responses:
+        "201":
+          description: Created plant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plant"
+  /plants/{id}:
+    get:
+      operationId: getPlant
+      tags: [plants]
+      summary: Get plant details
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Plant details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlantDetail"
+    patch:
+      operationId: updatePlant
+      tags: [plants]
+      summary: Update plant
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlantUpdate"
+      responses:
+        "200":
+          description: Updated plant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plant"
+    delete:
+      operationId: deletePlant
+      tags: [plants]
+      summary: Delete plant
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List care tasks
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: to
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: status
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: plantId
+          in: query
+          schema:
+            type: [integer, "null"]
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CareTask"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Schedule care task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareTask"
+  /tasks/{id}:
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update care task
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareTask"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Cancel care task
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Cancelled
+  /tasks/{id}/complete:
+    post:
+      operationId: completeTask
+      tags: [tasks]
+      summary: Complete care task
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletionInput"
+      responses:
+        "200":
+          description: Completed task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareTask"
+  /reminders:
+    get:
+      operationId: listReminders
+      tags: [reminders]
+      summary: List active reminders
+      responses:
+        "200":
+          description: Reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reminder"
+  /reminders/{id}:
+    patch:
+      operationId: updateReminder
+      tags: [reminders]
+      summary: Update reminder status
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReminderUpdate"
+      responses:
+        "200":
+          description: Updated reminder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+  /weather:
+    get:
+      operationId: getWeather
+      tags: [weather]
+      summary: Get seven day forecast
+      parameters:
+        - name: location
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Forecast
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeatherResponse"
+  /recommendations:
+    get:
+      operationId: listRecommendations
+      tags: [recommendations]
+      summary: List stored recommendations
+      parameters:
+        - name: plantId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: priority
+          in: query
+          schema:
+            type: [string, "null"]
+      responses:
+        "200":
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recommendation"
+    post:
+      operationId: generateRecommendation
+      tags: [recommendations]
+      summary: Generate rule based recommendation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecommendationInput"
+      responses:
+        "201":
+          description: Generated recommendations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecommendationResult"
+  /recommendations/{id}/apply:
+    post:
+      operationId: applyRecommendation
+      tags: [recommendations]
+      summary: Apply suggested schedule change
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Applied recommendation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareTask"
+  /history:
+    get:
+      operationId: listCareHistory
+      tags: [analytics]
+      summary: List completed care history
+      parameters:
+        - name: plantId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: taskType
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: from
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: to
+          in: query
+          schema:
+            type: [string, "null"]
+      responses:
+        "200":
+          description: Completed care history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CareHistory"
+  /statistics:
+    get:
+      operationId: getStatistics
+      tags: [analytics]
+      summary: Get care statistics
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: [string, "null"]
+        - name: to
+          in: query
+          schema:
+            type: [string, "null"]
+      responses:
+        "200":
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Statistics"
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List generated reports
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Generate care report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Generated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    Search:
+      name: search
+      in: query
+      schema:
+        type: [string, "null"]
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [USER, ADMIN] }
+      required: [id, username, email, role]
+    PlantSpecies:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        careRecommendations: { type: string }
+        optimalTempMin: { type: number }
+        optimalTempMax: { type: number }
+        optimalHumidity: { type: number }
+        wateringFrequencyDays: { type: integer }
+        lightRequirements: { type: string }
+        soilRecommendations: { type: string }
+        wateringRecommendations: { type: string }
+        fertilizingRecommendations: { type: string }
+        pruningRecommendations: { type: string }
+        transplantingRecommendations: { type: string }
+        imageUrl: { type: string }
+      required: [id, name, description, careRecommendations, optimalTempMin, optimalTempMax, optimalHumidity, wateringFrequencyDays, lightRequirements, soilRecommendations, wateringRecommendations, fertilizingRecommendations, pruningRecommendations, transplantingRecommendations, imageUrl]
+    SpeciesInput:
+      allOf:
+        - $ref: "#/components/schemas/PlantSpecies"
+      properties:
+        id: { type: integer, readOnly: true }
+    Plant:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        speciesId: { type: integer }
+        name: { type: string }
+        photoUrl: { type: string }
+        location: { type: string }
+        addedAt: { type: string }
+        speciesName: { type: string }
+        nextTask: { type: [string, "null"] }
+        careStatus: { type: string }
+        nextTaskType: { type: [string, "null"] }
+      required: [id, userId, speciesId, name, photoUrl, location, addedAt, speciesName, nextTask, careStatus, nextTaskType]
+    PlantInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        speciesId: { type: integer }
+        location: { type: string, minLength: 1 }
+        photoUrl: { type: string }
+      required: [name, speciesId, location, photoUrl]
+    PlantUpdate:
+      allOf:
+        - $ref: "#/components/schemas/PlantInput"
+    PlantDetail:
+      allOf:
+        - $ref: "#/components/schemas/Plant"
+      properties:
+        species:
+          $ref: "#/components/schemas/PlantSpecies"
+        upcomingTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CareTask"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/CareHistory"
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        stats:
+          $ref: "#/components/schemas/PlantStats"
+    CareTask:
+      type: object
+      properties:
+        id: { type: integer }
+        plantId: { type: integer }
+        plantName: { type: string }
+        type: { type: string }
+        scheduledDate: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        notes: { type: string }
+        createdAt: { type: string }
+        postponementCount: { type: integer }
+        isOverdue: { type: boolean }
+      required: [id, plantId, plantName, type, scheduledDate, status, priority, notes, createdAt, postponementCount, isOverdue]
+    TaskInput:
+      type: object
+      properties:
+        plantId: { type: integer }
+        type: { type: string }
+        scheduledDate: { type: string }
+        priority: { type: string }
+        notes: { type: string }
+      required: [plantId, type, scheduledDate, priority, notes]
+    TaskUpdate:
+      allOf:
+        - $ref: "#/components/schemas/TaskInput"
+      properties:
+        status: { type: string }
+    CompletionInput:
+      type: object
+      properties:
+        comment: { type: string }
+    CareHistory:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        plantId: { type: integer }
+        plantName: { type: string }
+        type: { type: string }
+        plannedDate: { type: string }
+        completedAt: { type: string }
+        comment: { type: string }
+      required: [id, taskId, plantId, plantName, type, plannedDate, completedAt, comment]
+    Reminder:
+      type: object
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        plantName: { type: string }
+        taskType: { type: string }
+        reminderDate: { type: string }
+        status: { type: string }
+        message: { type: string }
+      required: [id, taskId, plantName, taskType, reminderDate, status, message]
+    ReminderUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [PENDING, READ, DISMISSED] }
+      required: [status]
+    WeatherForecast:
+      type: object
+      properties:
+        date: { type: string }
+        temperature: { type: number }
+        precipitation: { type: number }
+        humidity: { type: number }
+        windSpeed: { type: number }
+        condition: { type: string }
+      required: [date, temperature, precipitation, humidity, windSpeed, condition]
+    WeatherResponse:
+      type: object
+      properties:
+        location: { type: string }
+        isMock: { type: boolean }
+        forecast:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeatherForecast"
+      required: [location, isMock, forecast]
+    Recommendation:
+      type: object
+      properties:
+        id: { type: integer }
+        plantId: { type: integer }
+        plantName: { type: string }
+        generatedAt: { type: string }
+        type: { type: string }
+        text: { type: string }
+        priority: { type: string }
+        relatedTaskId: { type: [integer, "null"] }
+        explanation: { type: string }
+        originalDate: { type: [string, "null"] }
+        suggestedDate: { type: [string, "null"] }
+        applied: { type: boolean }
+        weather:
+          $ref: "#/components/schemas/WeatherForecast"
+      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, weather]
+    RecommendationInput:
+      type: object
+      properties:
+        plantId: { type: integer }
+      required: [plantId]
+    RecommendationResult:
+      type: object
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        weather:
+          $ref: "#/components/schemas/WeatherResponse"
+        warning: { type: [string, "null"] }
+      required: [recommendations, weather, warning]
+    PlantStats:
+      type: object
+      properties:
+        totalTasks: { type: integer }
+        completedTasks: { type: integer }
+        completionRate: { type: number }
+        lastWatered: { type: [string, "null"] }
+      required: [totalTasks, completedTasks, completionRate, lastWatered]
+    Dashboard:
+      type: object
+      properties:
+        plantsCount: { type: integer }
+        todayTasks: { type: integer }
+        overdueTasks: { type: integer }
+        completedTasks: { type: integer }
+        highPriorityTasks: { type: integer }
+        weather:
+          $ref: "#/components/schemas/WeatherResponse"
+        upcomingTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CareTask"
+        latestRecommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        reminders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reminder"
+      required: [plantsCount, todayTasks, overdueTasks, completedTasks, highPriorityTasks, weather, upcomingTasks, latestRecommendations, reminders]
+    Statistics:
+      type: object
+      properties:
+        totalPlanned: { type: integer }
+        completed: { type: integer }
+        overdue: { type: integer }
+        postponed: { type: integer }
+        cancelled: { type: integer }
+        completionRate: { type: number }
+        byType:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountItem"
+        byPlant:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountItem"
+        overTime:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountItem"
+      required: [totalPlanned, completed, overdue, postponed, cancelled, completionRate, byType, byPlant, overTime]
+    CountItem:
+      type: object
+      properties:
+        label: { type: string }
+        value: { type: integer }
+      required: [label, value]
+    Report:
+      type: object
+      properties:
+        id: { type: integer }
+        periodStart: { type: string }
+        periodEnd: { type: string }
+        taskCount: { type: integer }
+        completed: { type: integer }
+        overdue: { type: integer }
+        postponed: { type: integer }
+        completionRate: { type: number }
+        frequentCategory: { type: string }
+        mostActivePlant: { type: string }
+        recommendationSummary: { type: string }
+        createdAt: { type: string }
+      required: [id, periodStart, periodEnd, taskCount, completed, overdue, postponed, completionRate, frequentCategory, mostActivePlant, recommendationSummary, createdAt]
+    ReportInput:
+      type: object
+      properties:
+        periodStart: { type: string }
+        periodEnd: { type: string }
+      required: [periodStart, periodEnd]

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "FloraWise"
+description = "Повноцінний український веб-застосунок для обліку рослин, планування догляду, погодних rule-based рекомендацій, нагадувань, статистики та звітів."
+version = "1.0.0"
+id = "artifacts/flora-wise"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19981
+
+[services.development]
+run = "pnpm --filter @workspace/flora-wise run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/flora-wise", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/flora-wise/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19981"
+BASE_PATH = "/"
