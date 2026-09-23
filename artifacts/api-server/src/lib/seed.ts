@@ -54,7 +54,7 @@ export async function seedData(): Promise<void> {
   const insertedSpecies = await db.insert(speciesTable).values(speciesSeed).returning();
   const [user] = await db.insert(usersTable).values({
     clerkUserId: "preview-demo-user",
-    username: "Марія",
+    username: "Демо-користувач",
     email: "demo@florawise.app",
     role: "USER",
   }).returning();

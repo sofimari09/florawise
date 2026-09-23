@@ -1,0 +1,56 @@
+Please fix the following authentication/profile issues in FloraWise.
+
+1. Dynamic user greeting
+
+The greeting on the dashboard is currently not updated according to the authenticated user.
+
+For example, the profile menu shows the logged-in user as "Sofiia-Mariia", but the dashboard still displays:
+
+"Доброго ранку, Олено"
+
+This suggests that the name in the greeting is hardcoded or is not being refreshed after authentication.
+
+Please fix this behavior so that:
+
+- the greeting always uses the currently authenticated user's name;
+- the user name must come from the authenticated user/session data, not from a hardcoded value;
+- after login with another account, the greeting must immediately change to that user's name;
+- after logout and login as another user, no data from the previous user should remain in the UI;
+- the profile dropdown and dashboard greeting must always represent the same authenticated user.
+
+The greeting should keep the current time-based format, for example:
+
+"Доброго ранку, Софіє"
+"Добрий день, Софіє"
+"Добрий вечір, Софіє"
+
+If Ukrainian vocative case conversion is already implemented, use it. Otherwise, use the stored first name consistently rather than displaying an incorrect hardcoded name.
+
+Please also check the rest of the interface for any other hardcoded user names.
+
+2. Change password requirements during registration
+
+The current password requirement appears to require approximately 12 characters. Change it to a minimum of 8 characters.
+
+A valid password must contain at least:
+
+- 8 characters;
+- one uppercase letter;
+- one lowercase letter;
+- one number;
+- one special character.
+
+Example of a valid password:
+Flora123!
+
+Apply the same validation rules consistently on both the frontend and backend.
+
+Display the requirement clearly in Ukrainian on the registration form, for example:
+
+"Пароль має містити щонайменше 8 символів, одну велику літеру, одну малу літеру, цифру та спеціальний символ."
+
+Validation errors must also be displayed in Ukrainian.
+
+Please verify both fixes by:
+- logging in with different user accounts and checking that the greeting changes correctly;
+- registering with passwords that do and do not satisfy the new validation rules.

@@ -58,9 +58,15 @@ async function currentUser(req: Request) {
   const clerkUserId = auth.userId ?? (process.env.NODE_ENV === "development" ? "preview-demo-user" : null);
   if (!clerkUserId) return null;
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, clerkUserId)).limit(1);
-  if (existing) return existing;
+  if (existing) {
+    if (clerkUserId === "preview-demo-user" && existing.username !== "Демо-користувач") {
+      const [updated] = await db.update(usersTable).set({ username: "Демо-користувач", email: "demo@florawise.app" }).where(eq(usersTable.id, existing.id)).returning();
+      return updated;
+    }
+    return existing;
+  }
   if (clerkUserId === "preview-demo-user") {
-    const [created] = await db.insert(usersTable).values({ clerkUserId, username: "Марія", email: "demo@florawise.app", role: "USER" }).returning();
+    const [created] = await db.insert(usersTable).values({ clerkUserId, username: "Демо-користувач", email: "demo@florawise.app", role: "USER" }).returning();
     return created;
   }
   const [created] = await db.insert(usersTable).values({ clerkUserId, username: "Користувач", email: `${clerkUserId}@florawise.app`, role: "USER" }).returning();

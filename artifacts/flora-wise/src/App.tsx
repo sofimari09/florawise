@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation, useParams } from "wouter";
-import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, useUser } from "@clerk/react";
+import { ClerkProvider, SignIn, useClerk, useAuth, useSignUp, useUser } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import {
@@ -87,6 +87,14 @@ const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0
 const taskLabel: Record<string, string> = { watering: "Полив", WATERING: "Полив", fertilizing: "Підживлення", FERTILIZING: "Підживлення", pruning: "Обрізка", PRUNING: "Обрізка", transplanting: "Пересадка", TRANSPLANTING: "Пересадка", treatment: "Обробка", TREATMENT: "Обробка", harvest: "Збір урожаю", HARVEST: "Збір урожаю", other: "Догляд", OTHER: "Догляд" };
 const statusLabel: Record<string, string> = { planned: "Заплановано", PENDING: "Очікує", COMPLETED: "Виконано", completed: "Виконано", POSTPONED: "Перенесено", CANCELLED: "Скасовано" };
 const priorityLabel: Record<string, string> = { high: "Високий", HIGH: "Високий", medium: "Середній", MEDIUM: "Середній", low: "Низький", LOW: "Низький" };
+const passwordPolicyMessage = "Пароль має містити щонайменше 8 символів, одну велику літеру, одну малу літеру, цифру та спеціальний символ.";
+const passwordPolicy = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+const greetingFor = (name: string) => {
+  const hour = new Date().getHours();
+  if (hour < 12) return `Доброго ранку, ${name}`;
+  if (hour < 18) return `Добрий день, ${name}`;
+  return `Добрий вечір, ${name}`;
+};
 
 function Button({ children, onClick, variant = "primary", className = "", disabled, type = "button", testId }: { children: ReactNode; onClick?: () => void; variant?: "primary" | "soft" | "ghost" | "danger"; className?: string; disabled?: boolean; type?: "button" | "submit"; testId?: string }) {
   const styles = { primary: "bg-primary text-primary-foreground hover:opacity-90", soft: "bg-secondary text-secondary-foreground hover:bg-accent", ghost: "text-muted-foreground hover:bg-muted hover:text-foreground", danger: "text-destructive hover:bg-destructive/10" };
@@ -123,15 +131,25 @@ const nav = [
 function Logo({ light = false }: { light?: boolean }) {
   return <Link href="/" data-testid="link-logo" className={`flex items-center gap-2.5 ${light ? "text-sidebar-foreground" : "text-foreground"}`}><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-foreground"><Leaf size={20} strokeWidth={2.5} /></span><span className="font-serif text-xl font-semibold tracking-tight">FloraWise</span></Link>;
 }
+function useFloraIdentity() {
+  const { user } = useUser();
+  const currentUser = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), retry: false } });
+  return useMemo(() => {
+    const displayName = user?.firstName || user?.username || currentUser.data?.username || "Користувач FloraWise";
+    return {
+      displayName,
+      displayEmail: user?.primaryEmailAddress?.emailAddress || currentUser.data?.email || "Електронну пошту не вказано",
+      userId: user?.id || currentUser.data?.id || null,
+    };
+  }, [user?.firstName, user?.username, user?.primaryEmailAddress?.emailAddress, user?.id, currentUser.data?.username, currentUser.data?.email, currentUser.data?.id]);
+}
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const { signOut } = useClerk();
-  const { user } = useUser();
+  const { displayName, displayEmail } = useFloraIdentity();
   const active = (href: string) => location === href || (href !== "/dashboard" && location.startsWith(href));
-  const displayName = user?.firstName || user?.username || "Марія";
-  const displayEmail = user?.primaryEmailAddress?.emailAddress || "Демо-профіль";
   const initials = displayName.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase();
   const handleSignOut = async () => {
     window.localStorage.setItem(previewSignedOutKey, "true");
@@ -176,7 +194,83 @@ function SignInPage() {
 }
 
 function SignUpPage() {
-  return <div className="fw-noise flex min-h-[100dvh] items-center justify-center bg-[#d9e0ce] px-4 py-8"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>;
+  const [, setLocation] = useLocation();
+  const { fetchStatus, signUp } = useSignUp();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  const finishSignUp = async () => {
+    const result = await signUp.finalize();
+    if (result.error) throw result.error;
+    setLocation("/dashboard");
+  };
+
+  const submit = async (event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    setError("");
+    if (!passwordPolicy.test(password)) {
+      setError(passwordPolicyMessage);
+      return;
+    }
+    if (password !== confirmation) {
+      setError("Паролі не збігаються.");
+      return;
+    }
+    setPending(true);
+    try {
+      const result = await signUp.password({ emailAddress: email.trim(), password });
+      if (result.error) throw result.error;
+      if (signUp.status === "complete") {
+        await finishSignUp();
+      } else {
+        const verification = await signUp.verifications.sendEmailCode();
+        if (verification.error) throw verification.error;
+        setNeedsVerification(true);
+      }
+    } catch (cause) {
+      const message = cause && typeof cause === "object" && "errors" in cause
+        ? (cause.errors as Array<{ longMessage?: string; message?: string }>)[0]?.longMessage || (cause.errors as Array<{ message?: string }>)[0]?.message
+        : undefined;
+      setError(message || "Не вдалося створити обліковий запис. Перевірте дані й спробуйте ще раз.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const verify = async (event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    if (!verificationCode.trim()) return;
+    setPending(true);
+    setError("");
+    try {
+      const verification = await signUp.verifications.verifyEmailCode({ code: verificationCode.trim() });
+      if (verification.error) throw verification.error;
+      await finishSignUp();
+    } catch (cause) {
+      const message = cause && typeof cause === "object" && "errors" in cause
+        ? (cause.errors as Array<{ longMessage?: string; message?: string }>)[0]?.longMessage || (cause.errors as Array<{ message?: string }>)[0]?.message
+        : undefined;
+      setError(message || "Код підтвердження неправильний або застарів.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const checks = [
+    { label: "Щонайменше 8 символів", valid: password.length >= 8 },
+    { label: "Одна велика літера", valid: /[A-Z]/.test(password) },
+    { label: "Одна мала літера", valid: /[a-z]/.test(password) },
+    { label: "Одна цифра", valid: /\d/.test(password) },
+    { label: "Один спеціальний символ", valid: /[^A-Za-z\d]/.test(password) },
+  ];
+
+  if (fetchStatus === "fetching") return <div className="fw-noise grid min-h-[100dvh] place-items-center bg-[#d9e0ce]"><Skeleton className="h-10 w-40" /></div>;
+  return <div className="fw-noise flex min-h-[100dvh] items-center justify-center bg-[#d9e0ce] px-4 py-8"><div className="w-[440px] max-w-full rounded-2xl bg-[#fffdf8] p-7 shadow-xl shadow-primary/10"><Logo /><h1 className="mt-8 font-serif text-3xl text-foreground">{needsVerification ? "Підтвердіть електронну пошту" : "Створіть свій простір"}</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{needsVerification ? `Ми надіслали код на ${email}.` : "Почніть із першої рослини та налаштуйте свій ритм догляду."}</p>{error && <p role="alert" data-testid="text-signup-error" className="mt-5 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm leading-5 text-destructive">{error}</p>}{needsVerification ? <form onSubmit={verify} className="mt-6 grid gap-4"><label className="text-sm font-semibold">Код підтвердження<input data-testid="input-signup-verification-code" required inputMode="numeric" value={verificationCode} onChange={event => setVerificationCode(event.target.value)} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-normal outline-none focus:ring-4 focus:ring-primary/10" /></label><Button type="submit" disabled={pending}>{pending ? "Перевіряємо…" : "Підтвердити пошту"}</Button></form> : <form onSubmit={submit} className="mt-6 grid gap-4"><label className="text-sm font-semibold">Електронна пошта<input data-testid="input-signup-email" required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-normal outline-none focus:ring-4 focus:ring-primary/10" /></label><label className="text-sm font-semibold">Пароль<input data-testid="input-signup-password" required type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-normal outline-none focus:ring-4 focus:ring-primary/10" /></label><div data-testid="text-password-policy" data-password-pattern={passwordPolicy.source} className="rounded-xl border border-primary/15 bg-secondary/50 px-4 py-3 text-xs leading-5 text-muted-foreground"><p>{passwordPolicyMessage}</p><ul className="mt-2 grid gap-1">{checks.map(check => <li key={check.label} className={check.valid ? "text-primary" : "text-muted-foreground"}>{check.valid ? "✓" : "○"} {check.label}</li>)}</ul></div><label className="text-sm font-semibold">Підтвердьте пароль<input data-testid="input-signup-confirm-password" required type="password" autoComplete="new-password" value={confirmation} onChange={event => setConfirmation(event.target.value)} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-normal outline-none focus:ring-4 focus:ring-primary/10" /></label><Button type="submit" disabled={pending}>{pending ? "Створюємо…" : "Створити обліковий запис"}</Button></form>}<p className="mt-6 text-center text-sm text-muted-foreground">Вже маєте обліковий запис? <Link href="/sign-in" className="font-semibold text-primary hover:underline">Увійти</Link></p></div></div>;
 }
 
 function PreviewProfile({ profile }: { profile: User }) {
@@ -228,9 +322,10 @@ function ProfilePage() {
 
 function DashboardPage() {
   const q = useQueryClient(); const dash = useGetDashboard({ query: { queryKey: getGetDashboardQueryKey() } }); const plants = useListPlants(); const weather = useGetWeather({ location: "Київ" }); const complete = useCompleteTask(); const reminders = useListReminders(); const updateReminder = useUpdateReminder();
+  const { displayName } = useFloraIdentity();
   const d = dash.data; const plantCount = d?.plantsCount ?? plants.data?.length ?? 0;
   const completeTask = (id: number) => complete.mutate({ id, data: { comment: "Виконано з FloraWise" } }, { onSuccess: () => { q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }); q.invalidateQueries({ queryKey: getListTasksQueryKey() }); } });
-  return <Shell><PageHead eyebrow={todayLabel} title="Доброго ранку, Олено" description="Подивімося, що сьогодні потребує вашої уваги." action={<Link href="/plants" data-testid="link-dashboard-add" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><Plus size={17} /> Додати рослину</Link>} /><QueryState loading={dash.isLoading} error={!!dash.error} onRetry={() => dash.refetch()}><div className="grid gap-5 lg:grid-cols-[1.35fr_.65fr]"><Panel className="overflow-hidden bg-primary text-primary-foreground"><div className="flex flex-col justify-between gap-8 p-6 md:flex-row md:p-8"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] opacity-70">Сьогодні у вас</p><p className="mt-3 font-serif text-5xl">{d?.todayTasks ?? 0} <span className="text-2xl opacity-70">завдань</span></p><p className="mt-2 max-w-xs text-sm leading-6 opacity-75">{d?.overdueTasks ? `Є ${d.overdueTasks} прострочених — краще почати з них.` : "Ритм стабільний. Можна приділити час деталям."}</p></div><div className="grid h-24 w-24 place-items-center rounded-full border border-primary-foreground/30 bg-primary-foreground/10"><Droplets size={27} /><span className="sr-only">Догляд</span></div></div><div className="grid grid-cols-3 border-t border-primary-foreground/15 px-6 py-4 text-sm md:px-8"><div><span className="block font-mono text-xl">{plantCount}</span><span className="opacity-65">рослин</span></div><div><span className="block font-mono text-xl">{d?.completedTasks ?? 0}</span><span className="opacity-65">виконано</span></div><div><span className="block font-mono text-xl">{d?.highPriorityTasks ?? 0}</span><span className="opacity-65">важливих</span></div></div></Panel><Panel className="p-6"><div className="flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Погода</p><p className="mt-2 font-serif text-3xl">{weather.data?.forecast?.[0]?.temperature ?? "—"}°</p><p className="mt-1 text-sm text-muted-foreground">{weather.data?.location || "Київ"} · {weather.data?.forecast?.[0]?.condition || "Оновлюємо дані"}</p></div><Sun className="text-accent" size={28} /></div><div className="mt-6 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl bg-muted p-3"><Droplets size={15} className="mb-2 text-primary" />Вологість <strong className="float-right">{weather.data?.forecast?.[0]?.humidity ?? "—"}%</strong></div><div className="rounded-xl bg-muted p-3"><Wind size={15} className="mb-2 text-primary" />Вітер <strong className="float-right">{weather.data?.forecast?.[0]?.windSpeed ?? "—"}</strong></div></div></Panel></div><div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><Panel className="p-6"><div className="mb-2 flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Найближче</p><h2 className="mt-2 font-serif text-2xl">План догляду</h2></div><Link href="/calendar" data-testid="link-dashboard-calendar" className="text-sm font-semibold text-primary hover:underline">Весь календар</Link></div>{d?.upcomingTasks?.length ? d.upcomingTasks.slice(0, 5).map(t => <TaskRow key={t.id} task={t} onComplete={() => completeTask(t.id)} />) : <Empty title="День вільний" description="Нових завдань немає. Саме час просто подивитися на рослини." />}</Panel><Panel className="p-6"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Спостереження</p><h2 className="mt-2 font-serif text-2xl">Поради для вас</h2></div><Link href="/recommendations" data-testid="link-dashboard-recommendations" className="text-sm font-semibold text-primary"><ArrowRight size={18} /></Link></div>{d?.latestRecommendations?.length ? d.latestRecommendations.slice(0, 3).map(r => <RecommendationCard key={r.id} recommendation={r} compact />) : <div className="mt-6 rounded-xl bg-secondary/60 p-5"><Lightbulb className="text-primary" size={20} /><p className="mt-3 text-sm leading-6">Коли зберемо більше спостережень, тут з’являться персональні підказки.</p></div>}</Panel></div><Panel className="mt-5 p-6"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Не пропустити</p><h2 className="mt-2 font-serif text-2xl">Нагадування</h2></div><Bell size={19} className="text-accent" /></div>{reminders.data?.length ? <div className="mt-3 grid gap-2 md:grid-cols-2">{reminders.data.slice(0, 4).map(r => <div key={r.id} className="flex items-center gap-3 rounded-xl bg-muted p-3"><span className="grid h-8 w-8 place-items-center rounded-lg bg-card text-primary"><Bell size={15} /></span><p className="min-w-0 flex-1 text-sm"><strong>{r.plantName}</strong><span className="block truncate text-xs text-muted-foreground">{r.message}</span></p><Button variant="ghost" onClick={() => updateReminder.mutate({ id: r.id, data: { status: "READ" } }, { onSuccess: () => q.invalidateQueries({ queryKey: getListRemindersQueryKey() }) })}>Прочитано</Button></div>)}</div> : <p className="mt-4 text-sm text-muted-foreground">Нових нагадувань немає.</p>}</Panel></QueryState></Shell>;
+  return <Shell><PageHead eyebrow={todayLabel} title={greetingFor(displayName)} description="Подивімося, що сьогодні потребує вашої уваги." action={<Link href="/plants" data-testid="link-dashboard-add" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><Plus size={17} /> Додати рослину</Link>} /><QueryState loading={dash.isLoading} error={!!dash.error} onRetry={() => dash.refetch()}><div className="grid gap-5 lg:grid-cols-[1.35fr_.65fr]"><Panel className="overflow-hidden bg-primary text-primary-foreground"><div className="flex flex-col justify-between gap-8 p-6 md:flex-row md:p-8"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] opacity-70">Сьогодні у вас</p><p className="mt-3 font-serif text-5xl">{d?.todayTasks ?? 0} <span className="text-2xl opacity-70">завдань</span></p><p className="mt-2 max-w-xs text-sm leading-6 opacity-75">{d?.overdueTasks ? `Є ${d.overdueTasks} прострочених — краще почати з них.` : "Ритм стабільний. Можна приділити час деталям."}</p></div><div className="grid h-24 w-24 place-items-center rounded-full border border-primary-foreground/30 bg-primary-foreground/10"><Droplets size={27} /><span className="sr-only">Догляд</span></div></div><div className="grid grid-cols-3 border-t border-primary-foreground/15 px-6 py-4 text-sm md:px-8"><div><span className="block font-mono text-xl">{plantCount}</span><span className="opacity-65">рослин</span></div><div><span className="block font-mono text-xl">{d?.completedTasks ?? 0}</span><span className="opacity-65">виконано</span></div><div><span className="block font-mono text-xl">{d?.highPriorityTasks ?? 0}</span><span className="opacity-65">важливих</span></div></div></Panel><Panel className="p-6"><div className="flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Погода</p><p className="mt-2 font-serif text-3xl">{weather.data?.forecast?.[0]?.temperature ?? "—"}°</p><p className="mt-1 text-sm text-muted-foreground">{weather.data?.location || "Київ"} · {weather.data?.forecast?.[0]?.condition || "Оновлюємо дані"}</p></div><Sun className="text-accent" size={28} /></div><div className="mt-6 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl bg-muted p-3"><Droplets size={15} className="mb-2 text-primary" />Вологість <strong className="float-right">{weather.data?.forecast?.[0]?.humidity ?? "—"}%</strong></div><div className="rounded-xl bg-muted p-3"><Wind size={15} className="mb-2 text-primary" />Вітер <strong className="float-right">{weather.data?.forecast?.[0]?.windSpeed ?? "—"}</strong></div></div></Panel></div><div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><Panel className="p-6"><div className="mb-2 flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Найближче</p><h2 className="mt-2 font-serif text-2xl">План догляду</h2></div><Link href="/calendar" data-testid="link-dashboard-calendar" className="text-sm font-semibold text-primary hover:underline">Весь календар</Link></div>{d?.upcomingTasks?.length ? d.upcomingTasks.slice(0, 5).map(t => <TaskRow key={t.id} task={t} onComplete={() => completeTask(t.id)} />) : <Empty title="День вільний" description="Нових завдань немає. Саме час просто подивитися на рослини." />}</Panel><Panel className="p-6"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Спостереження</p><h2 className="mt-2 font-serif text-2xl">Поради для вас</h2></div><Link href="/recommendations" data-testid="link-dashboard-recommendations" className="text-sm font-semibold text-primary"><ArrowRight size={18} /></Link></div>{d?.latestRecommendations?.length ? d.latestRecommendations.slice(0, 3).map(r => <RecommendationCard key={r.id} recommendation={r} compact />) : <div className="mt-6 rounded-xl bg-secondary/60 p-5"><Lightbulb className="text-primary" size={20} /><p className="mt-3 text-sm leading-6">Коли зберемо більше спостережень, тут з’являться персональні підказки.</p></div>}</Panel></div><Panel className="mt-5 p-6"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Не пропустити</p><h2 className="mt-2 font-serif text-2xl">Нагадування</h2></div><Bell size={19} className="text-accent" /></div>{reminders.data?.length ? <div className="mt-3 grid gap-2 md:grid-cols-2">{reminders.data.slice(0, 4).map(r => <div key={r.id} className="flex items-center gap-3 rounded-xl bg-muted p-3"><span className="grid h-8 w-8 place-items-center rounded-lg bg-card text-primary"><Bell size={15} /></span><p className="min-w-0 flex-1 text-sm"><strong>{r.plantName}</strong><span className="block truncate text-xs text-muted-foreground">{r.message}</span></p><Button variant="ghost" onClick={() => updateReminder.mutate({ id: r.id, data: { status: "READ" } }, { onSuccess: () => q.invalidateQueries({ queryKey: getListRemindersQueryKey() }) })}>Прочитано</Button></div>)}</div> : <p className="mt-4 text-sm text-muted-foreground">Нових нагадувань немає.</p>}</Panel></QueryState></Shell>;
 }
 function RecommendationCard({ recommendation: r, compact = false, onApply }: { recommendation: Recommendation; compact?: boolean; onApply?: () => void }) {
   return <div className={`border-b border-border/70 py-4 last:border-0 ${compact ? "" : "rounded-2xl border bg-card p-5"}`}><div className="flex items-start gap-3"><span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent/30 text-primary"><Lightbulb size={16} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{r.plantName}</p><Badge tone={r.priority?.toLowerCase() === "high" ? "warn" : "neutral"}>{priorityLabel[r.priority] || r.priority}</Badge></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{r.text}</p>{!compact && <><p className="mt-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Чому:</strong> {r.explanation}</p>{r.suggestedDate && <p className="mt-2 font-mono text-xs text-primary">Нова дата: {fmt(r.suggestedDate)}</p>}{onApply && !r.applied && <Button variant="soft" onClick={onApply} className="mt-4">Застосувати зміни <ArrowRight size={15} /></Button>}</>}</div></div></div>;
@@ -312,15 +407,20 @@ function Router() {
 }
 
 function ClerkQueryCacheInvalidator() {
-  const { user } = useUser();
-  const previousUserId = useMemo(() => user?.id ?? null, [user?.id]);
+  const { addListener } = useClerk();
   const q = useQueryClient();
+  const previousUserId = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (previousUserId) {
-      window.localStorage.removeItem(previewSignedOutKey);
-      q.invalidateQueries();
-    }
-  }, [previousUserId, q]);
+    const unsubscribe = addListener(({ user }) => {
+      const userId = user?.id ?? null;
+      if (previousUserId.current !== undefined && previousUserId.current !== userId) {
+        q.clear();
+      }
+      if (userId) window.localStorage.removeItem(previewSignedOutKey);
+      previousUserId.current = userId;
+    });
+    return unsubscribe;
+  }, [addListener, q]);
   return null;
 }
 
@@ -333,8 +433,14 @@ function ClerkProviderWithRoutes() {
     signInUrl={`${basePath}/sign-in`}
     signUpUrl={`${basePath}/sign-up`}
     localization={{
+      formFieldLabel__password: "Пароль",
+      formFieldInputPlaceholder__signUpPassword: "Введіть пароль",
+      formFieldError__notMatchingPasswords: "Паролі не збігаються.",
       signIn: { start: { title: "З поверненням", subtitle: "Увійдіть, щоб продовжити турботу про рослини" } },
       signUp: { start: { title: "Створіть свій простір", subtitle: "Почніть із першої рослини" } },
+      unstable__errors: {
+        form_password_length_too_short: passwordPolicyMessage,
+      },
     }}
     routerPush={(to) => setLocation(stripBase(to))}
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
