@@ -1,0 +1,1 @@
+- [Preview auth fallback](preview-auth-fallback.md) — development demo users need an explicit local signed-out state so logout does not redirect back to the dashboard.
