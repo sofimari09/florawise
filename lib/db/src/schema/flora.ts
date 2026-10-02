@@ -8,6 +8,9 @@ export const usersTable = pgTable("flora_users", {
   username: text("username").notNull(),
   email: text("email").notNull(),
   role: text("role").notNull().default("USER"),
+  weatherLocationName: text("weather_location_name").notNull().default("Ваш регіон"),
+  weatherLatitude: numeric("weather_latitude", { precision: 10, scale: 7 }),
+  weatherLongitude: numeric("weather_longitude", { precision: 11, scale: 7 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -36,6 +39,10 @@ export const plantsTable = pgTable("flora_plants", {
   name: text("name").notNull(),
   photoUrl: text("photo_url").notNull(),
   location: text("location").notNull(),
+  environmentType: text("environment_type").notNull().default("INDOOR"),
+  weatherLocationName: text("weather_location_name"),
+  weatherLatitude: numeric("weather_latitude", { precision: 10, scale: 7 }),
+  weatherLongitude: numeric("weather_longitude", { precision: 11, scale: 7 }),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

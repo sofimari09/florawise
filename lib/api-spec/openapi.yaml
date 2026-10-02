@@ -43,6 +43,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+    patch:
+      operationId: updateCurrentUser
+      tags: [auth]
+      summary: Update current user's weather location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileWeatherLocationInput"
+      responses:
+        "200":
+          description: Updated current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
   /dashboard:
     get:
       operationId: getDashboard
@@ -344,12 +361,6 @@ paths:
       operationId: getWeather
       tags: [weather]
       summary: Get seven day forecast
-      parameters:
-        - name: location
-          in: query
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Forecast
@@ -521,7 +532,17 @@ components:
         username: { type: string }
         email: { type: string }
         role: { type: string, enum: [USER, ADMIN] }
-      required: [id, username, email, role]
+        weatherLocationName: { type: string }
+        weatherLatitude: { type: [number, "null"] }
+        weatherLongitude: { type: [number, "null"] }
+      required: [id, username, email, role, weatherLocationName, weatherLatitude, weatherLongitude]
+    ProfileWeatherLocationInput:
+      type: object
+      properties:
+        weatherLocationName: { type: string, minLength: 1 }
+        weatherLatitude: { type: [number, "null"], minimum: -90, maximum: 90 }
+        weatherLongitude: { type: [number, "null"], minimum: -180, maximum: 180 }
+      required: [weatherLocationName, weatherLatitude, weatherLongitude]
     PlantSpecies:
       type: object
       properties:
@@ -555,12 +576,16 @@ components:
         name: { type: string }
         photoUrl: { type: string }
         location: { type: string }
+        environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
+        weatherLocationName: { type: [string, "null"] }
+        weatherLatitude: { type: [number, "null"] }
+        weatherLongitude: { type: [number, "null"] }
         addedAt: { type: string }
         speciesName: { type: string }
         nextTask: { type: [string, "null"] }
         careStatus: { type: string }
         nextTaskType: { type: [string, "null"] }
-      required: [id, userId, speciesId, name, photoUrl, location, addedAt, speciesName, nextTask, careStatus, nextTaskType]
+      required: [id, userId, speciesId, name, photoUrl, location, environmentType, weatherLocationName, weatherLatitude, weatherLongitude, addedAt, speciesName, nextTask, careStatus, nextTaskType]
     PlantInput:
       type: object
       properties:
@@ -568,6 +593,10 @@ components:
         speciesId: { type: integer }
         location: { type: string, minLength: 1 }
         photoUrl: { type: string }
+        environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
+        weatherLocationName: { type: [string, "null"] }
+        weatherLatitude: { type: [number, "null"], minimum: -90, maximum: 90 }
+        weatherLongitude: { type: [number, "null"], minimum: -180, maximum: 180 }
       required: [name, speciesId, location, photoUrl]
     PlantUpdate:
       allOf:
@@ -668,11 +697,13 @@ components:
       properties:
         location: { type: string }
         isMock: { type: boolean }
+        latitude: { type: [number, "null"] }
+        longitude: { type: [number, "null"] }
         forecast:
           type: array
           items:
             $ref: "#/components/schemas/WeatherForecast"
-      required: [location, isMock, forecast]
+      required: [location, isMock, latitude, longitude, forecast]
     Recommendation:
       type: object
       properties:

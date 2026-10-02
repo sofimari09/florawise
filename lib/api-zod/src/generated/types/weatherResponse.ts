@@ -10,5 +10,9 @@ import type { WeatherForecast } from './weatherForecast';
 export interface WeatherResponse {
   location: string;
   isMock: boolean;
+  /** @nullable */
+  latitude: number | null;
+  /** @nullable */
+  longitude: number | null;
   forecast: WeatherForecast[];
 }

@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { weatherService } from "../lib/weather";
 import { generateRules } from "../lib/recommendation-engine";
+import { resolveWeatherLocation } from "../lib/weather-location";
 
 const router: IRouter = Router();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -30,12 +31,39 @@ const taskInput = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
   notes: z.string(),
 });
+const environmentTypes = ["INDOOR", "BALCONY", "OUTDOOR", "GREENHOUSE"] as const;
+const profileWeatherLocationInput = z.object({
+  weatherLocationName: z.string().trim().min(1),
+  weatherLatitude: z.number().min(-90).max(90).nullable(),
+  weatherLongitude: z.number().min(-180).max(180).nullable(),
+}).refine((value) => (value.weatherLatitude === null) === (value.weatherLongitude === null), {
+  message: "Широта й довгота мають бути заповнені разом",
+});
 const plantInput = z.object({
   name: z.string().trim().min(1, "Назва рослини обов'язкова"),
   speciesId: z.coerce.number().int().positive(),
   location: z.string().trim().min(1, "Локація обов'язкова"),
   photoUrl: z.string().url().or(z.literal("")),
+  environmentType: z.enum(environmentTypes).optional(),
+  weatherLocationName: z.string().trim().min(1).nullable().optional(),
+  weatherLatitude: z.number().min(-90).max(90).nullable().optional(),
+  weatherLongitude: z.number().min(-180).max(180).nullable().optional(),
 });
+const hasValidWeatherOverride = (value: {
+  weatherLocationName?: string | null;
+  weatherLatitude?: number | null;
+  weatherLongitude?: number | null;
+}) => {
+  const fields = [value.weatherLocationName, value.weatherLatitude, value.weatherLongitude];
+  if (fields.every((field) => field === undefined)) return true;
+  if (fields.every((field) => field === null)) return true;
+  return typeof value.weatherLocationName === "string" &&
+    value.weatherLocationName.length > 0 &&
+    typeof value.weatherLatitude === "number" &&
+    typeof value.weatherLongitude === "number";
+};
+const dbCoordinate = (value: number | null | undefined) =>
+  value === undefined ? undefined : value === null ? null : String(value);
 const speciesInput = z.object({
   name: z.string().trim().min(1),
   description: z.string(),
@@ -94,10 +122,24 @@ async function mapPlant(plant: typeof plantsTable.$inferSelect) {
   const next = tasks[0];
   return {
     ...plant,
+    weatherLatitude: plant.weatherLatitude === null ? null : Number(plant.weatherLatitude),
+    weatherLongitude: plant.weatherLongitude === null ? null : Number(plant.weatherLongitude),
     speciesName: species?.name ?? "Невідомий вид",
     nextTask: next?.scheduledDate ?? null,
     nextTaskType: next?.type ?? null,
     careStatus: next?.scheduledDate && next.scheduledDate < today() ? "Прострочено" : next ? "Заплановано" : "Немає плану",
+  };
+}
+
+function mapUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    weatherLocationName: user.weatherLocationName,
+    weatherLatitude: user.weatherLatitude === null ? null : Number(user.weatherLatitude),
+    weatherLongitude: user.weatherLongitude === null ? null : Number(user.weatherLongitude),
   };
 }
 
@@ -126,7 +168,20 @@ router.get("/me", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Необхідно увійти" });
     return;
   }
-  res.json({ id: user.id, username: user.username, email: user.email, role: user.role });
+  res.json(mapUser(user));
+});
+
+router.patch("/me", async (req, res): Promise<void> => {
+  const user = await currentUser(req);
+  const parsed = profileWeatherLocationInput.safeParse(req.body);
+  if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
+  if (!parsed.success) { res.status(400).json({ error: "Перевірте назву та координати погодної локації" }); return; }
+  const [updated] = await db.update(usersTable).set({
+    weatherLocationName: parsed.data.weatherLocationName,
+    weatherLatitude: dbCoordinate(parsed.data.weatherLatitude),
+    weatherLongitude: dbCoordinate(parsed.data.weatherLongitude),
+  }).where(eq(usersTable.id, user.id)).returning();
+  res.json(mapUser(updated));
 });
 
 router.get("/species", async (req, res): Promise<void> => {
@@ -187,8 +242,15 @@ router.post("/plants", async (req, res): Promise<void> => {
   const user = await currentUser(req);
   const parsed = plantInput.safeParse(req.body);
   if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
-  if (!parsed.success) { res.status(400).json({ error: "Назва, вид і локація рослини обов'язкові" }); return; }
-  const [created] = await db.insert(plantsTable).values({ ...parsed.data, userId: user.id }).returning();
+  if (!parsed.success || !hasValidWeatherOverride(parsed.data)) { res.status(400).json({ error: "Перевірте назву, вид, фізичне місце та погодну локацію рослини" }); return; }
+  const [created] = await db.insert(plantsTable).values({
+    ...parsed.data,
+    environmentType: parsed.data.environmentType ?? "INDOOR",
+    weatherLocationName: parsed.data.weatherLocationName ?? null,
+    weatherLatitude: dbCoordinate(parsed.data.weatherLatitude) ?? null,
+    weatherLongitude: dbCoordinate(parsed.data.weatherLongitude) ?? null,
+    userId: user.id,
+  }).returning();
   res.status(201).json(await mapPlant(created));
 });
 
@@ -214,8 +276,13 @@ router.patch("/plants/:id", async (req, res): Promise<void> => {
   const { plant } = await getPlantForUser(req, idFrom(req));
   const parsed = plantInput.partial().safeParse(req.body);
   if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
-  if (!parsed.success) { res.status(400).json({ error: "Некоректні дані рослини" }); return; }
-  const [updated] = await db.update(plantsTable).set(parsed.data).where(eq(plantsTable.id, plant.id)).returning();
+  if (!parsed.success || !hasValidWeatherOverride(parsed.data)) { res.status(400).json({ error: "Некоректні дані рослини або погодної локації" }); return; }
+  const { weatherLatitude, weatherLongitude, ...plantValues } = parsed.data;
+  const [updated] = await db.update(plantsTable).set({
+    ...plantValues,
+    ...(weatherLatitude === undefined ? {} : { weatherLatitude: dbCoordinate(weatherLatitude) }),
+    ...(weatherLongitude === undefined ? {} : { weatherLongitude: dbCoordinate(weatherLongitude) }),
+  }).where(eq(plantsTable.id, plant.id)).returning();
   res.json(await mapPlant(updated));
 });
 
@@ -304,7 +371,9 @@ router.patch("/reminders/:id", async (req, res): Promise<void> => {
 });
 
 router.get("/weather", async (req, res): Promise<void> => {
-  res.json(await weatherService.getForecast(stringParam(req.query.location) ?? "Київ"));
+  const user = await currentUser(req);
+  if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
+  res.json(await weatherService.getForecast(resolveWeatherLocation(user)));
 });
 
 router.get("/recommendations", async (req, res): Promise<void> => {
@@ -318,15 +387,16 @@ router.get("/recommendations", async (req, res): Promise<void> => {
 });
 
 router.post("/recommendations", async (req, res): Promise<void> => {
-  const { plant } = await getPlantForUser(req, Number(req.body?.plantId));
-  if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
+  const { user, plant } = await getPlantForUser(req, Number(req.body?.plantId));
+  if (!user || !plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
   const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId));
   if (!species) { res.status(400).json({ error: "Для рослини не знайдено характеристики виду" }); return; }
-  const forecast = await weatherService.getForecast(plant.location);
+  const resolvedLocation = resolveWeatherLocation(user, plant);
+  const forecast = await weatherService.getForecast(resolvedLocation);
   const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.status, "PLANNED")));
   const watering = tasks.filter((task) => task.type === "WATERING").map((task) => task.id);
   const logs = watering.length ? await db.select().from(careLogsTable).where(eq(careLogsTable.taskId, watering[0])) : [];
-  const drafts = generateRules(species, tasks, forecast.forecast, plant.location, logs[0]?.completedAt.toISOString().slice(0, 10) ?? null);
+  const drafts = generateRules(species, tasks, forecast.forecast, resolvedLocation.name, plant.environmentType, logs[0]?.completedAt.toISOString().slice(0, 10) ?? null);
   const saved = await Promise.all(drafts.map(async (draft) => {
     const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: draft.explanation, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0 }).returning();
     return mapRecommendation(created);
@@ -403,7 +473,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const mappedTasks = await Promise.all(tasks.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)).slice(0, 8).map(mapTask));
   const recommendations = (await db.select().from(recommendationsTable).orderBy(desc(recommendationsTable.generatedAt))).filter((item) => plantIds.has(item.plantId)).slice(0, 3);
   const reminders = await db.select().from(remindersTable).where(eq(remindersTable.status, "PENDING"));
-  const weather = await weatherService.getForecast(plants[0]?.location ?? "Київ");
+  const weather = await weatherService.getForecast(resolveWeatherLocation(user));
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
   res.json({ plantsCount: plants.length, todayTasks: tasks.filter((task) => task.scheduledDate === today() && task.status === "PLANNED").length, overdueTasks: tasks.filter((task) => ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: tasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority) && task.status === "PLANNED").length, weather, upcomingTasks: mappedTasks, latestRecommendations: await Promise.all(recommendations.map(mapRecommendation)), reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1)).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "ДОГЛЯД", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
 });

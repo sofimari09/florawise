@@ -12,4 +12,9 @@ export interface User {
   username: string;
   email: string;
   role: UserRole;
+  weatherLocationName: string;
+  /** @nullable */
+  weatherLatitude: number | null;
+  /** @nullable */
+  weatherLongitude: number | null;
 }

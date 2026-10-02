@@ -25,7 +25,6 @@ import type {
   CompletionInput,
   Dashboard,
   GetStatisticsParams,
-  GetWeatherParams,
   HealthStatus,
   ListCareHistoryParams,
   ListPlantsParams,
@@ -37,6 +36,7 @@ import type {
   PlantInput,
   PlantSpecies,
   PlantUpdate,
+  ProfileWeatherLocationInput,
   Recommendation,
   RecommendationInput,
   RecommendationResult,
@@ -259,6 +259,94 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getUpdateCurrentUserUrl = () => {
+
+
+
+
+  return `/api/me`
+}
+
+/**
+ * @summary Update current user's weather location
+ */
+export const updateCurrentUser = async (profileWeatherLocationInput: ProfileWeatherLocationInput, options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<User>(getUpdateCurrentUserUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(profileWeatherLocationInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCurrentUserMutationKey = () => ['updateCurrentUser'] as const;
+
+export const getUpdateCurrentUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUser>>, TError,UpdateCurrentUserMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUser>>, TError,UpdateCurrentUserMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCurrentUserMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCurrentUser>>, UpdateCurrentUserMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateCurrentUser(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCurrentUserMutationResult = NonNullable<Awaited<ReturnType<typeof updateCurrentUser>>>
+    export type UpdateCurrentUserMutationBody = BodyType<ProfileWeatherLocationInput>
+    export type UpdateCurrentUserMutationError = ErrorType<unknown>
+    export type UpdateCurrentUserMutationVariables = {data: BodyType<ProfileWeatherLocationInput>}
+
+    /**
+ * @summary Update current user's weather location
+ */
+export const useUpdateCurrentUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUser>>, TError,UpdateCurrentUserMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCurrentUser>>,
+        TError,
+        UpdateCurrentUserMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCurrentUserMutationOptions(options));
+    }
 
 export const getGetDashboardUrl = () => {
 
@@ -1674,27 +1762,20 @@ export const useUpdateReminder = <TError = ErrorType<unknown>,
       return useMutation(getUpdateReminderMutationOptions(options));
     }
 
-export const getGetWeatherUrl = (params: GetWeatherParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetWeatherUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/weather?${stringifiedParams}` : `/api/weather`
+  return `/api/weather`
 }
 
 /**
  * @summary Get seven day forecast
  */
-export const getWeather = async (params: GetWeatherParams, options?: Parameters<typeof customFetch>[1]): Promise<WeatherResponse> => {
+export const getWeather = async ( options?: Parameters<typeof customFetch>[1]): Promise<WeatherResponse> => {
 
-  return customFetch<WeatherResponse>(getGetWeatherUrl(params),
+  return customFetch<WeatherResponse>(getGetWeatherUrl(),
   {
     ...options,
     method: 'GET'
@@ -1707,23 +1788,23 @@ export const getWeather = async (params: GetWeatherParams, options?: Parameters<
 
 
 
-export const getGetWeatherQueryKey = (params?: GetWeatherParams,) => {
+export const getGetWeatherQueryKey = () => {
     return [
-    `/api/weather`, ...(params ? [params] : [])
+    `/api/weather`
     ] as const;
     }
 
 
-export const getGetWeatherQueryOptions = <TData = Awaited<ReturnType<typeof getWeather>>, TError = ErrorType<unknown>>(params: GetWeatherParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetWeatherQueryOptions = <TData = Awaited<ReturnType<typeof getWeather>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetWeatherQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getGetWeatherQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeather>>> = ({ signal }) => getWeather(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeather>>> = ({ signal }) => getWeather({ signal, ...requestOptions });
 
 
 
@@ -1741,11 +1822,11 @@ export type GetWeatherQueryError = ErrorType<unknown>
  */
 
 export function useGetWeather<TData = Awaited<ReturnType<typeof getWeather>>, TError = ErrorType<unknown>>(
- params: GetWeatherParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetWeatherQueryOptions(params,options)
+  const queryOptions = getGetWeatherQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

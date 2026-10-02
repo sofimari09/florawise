@@ -22,6 +22,28 @@ export interface User {
   username: string;
   email: string;
   role: UserRole;
+  weatherLocationName: string;
+  /** @nullable */
+  weatherLatitude: number | null;
+  /** @nullable */
+  weatherLongitude: number | null;
+}
+
+export interface ProfileWeatherLocationInput {
+  /** @minLength 1 */
+  weatherLocationName: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  weatherLatitude: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  weatherLongitude: number | null;
 }
 
 export interface PlantSpecies {
@@ -46,6 +68,16 @@ export type SpeciesInput = PlantSpecies & {
   readonly id?: number;
 };
 
+export type PlantEnvironmentType = typeof PlantEnvironmentType[keyof typeof PlantEnvironmentType];
+
+
+export const PlantEnvironmentType = {
+  INDOOR: 'INDOOR',
+  BALCONY: 'BALCONY',
+  OUTDOOR: 'OUTDOOR',
+  GREENHOUSE: 'GREENHOUSE',
+} as const;
+
 export interface Plant {
   id: number;
   userId: number;
@@ -53,6 +85,13 @@ export interface Plant {
   name: string;
   photoUrl: string;
   location: string;
+  environmentType: PlantEnvironmentType;
+  /** @nullable */
+  weatherLocationName: string | null;
+  /** @nullable */
+  weatherLatitude: number | null;
+  /** @nullable */
+  weatherLongitude: number | null;
   addedAt: string;
   speciesName: string;
   /** @nullable */
@@ -62,6 +101,16 @@ export interface Plant {
   nextTaskType: string | null;
 }
 
+export type PlantInputEnvironmentType = typeof PlantInputEnvironmentType[keyof typeof PlantInputEnvironmentType];
+
+
+export const PlantInputEnvironmentType = {
+  INDOOR: 'INDOOR',
+  BALCONY: 'BALCONY',
+  OUTDOOR: 'OUTDOOR',
+  GREENHOUSE: 'GREENHOUSE',
+} as const;
+
 export interface PlantInput {
   /** @minLength 1 */
   name: string;
@@ -69,6 +118,21 @@ export interface PlantInput {
   /** @minLength 1 */
   location: string;
   photoUrl: string;
+  environmentType?: PlantInputEnvironmentType;
+  /** @nullable */
+  weatherLocationName?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  weatherLatitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  weatherLongitude?: number | null;
 }
 
 export type PlantUpdate = PlantInput;
@@ -184,6 +248,10 @@ export interface ReminderUpdate {
 export interface WeatherResponse {
   location: string;
   isMock: boolean;
+  /** @nullable */
+  latitude: number | null;
+  /** @nullable */
+  longitude: number | null;
   forecast: WeatherForecast[];
 }
 
@@ -290,10 +358,6 @@ status?: string | null;
  * @nullable
  */
 plantId?: number | null;
-};
-
-export type GetWeatherParams = {
-location: string;
 };
 
 export type ListRecommendationsParams = {

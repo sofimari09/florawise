@@ -9,12 +9,20 @@ export type WeatherDay = {
 
 export type WeatherResponse = {
   location: string;
+  latitude: number | null;
+  longitude: number | null;
   isMock: boolean;
   forecast: WeatherDay[];
 };
 
+export type WeatherLocation = {
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 export interface WeatherServiceClient {
-  getForecast(location: string): Promise<WeatherResponse>;
+  getForecast(location: WeatherLocation): Promise<WeatherResponse>;
 }
 
 const addDays = (date: Date, days: number) => {
@@ -24,7 +32,7 @@ const addDays = (date: Date, days: number) => {
 };
 
 export class MockWeatherService implements WeatherServiceClient {
-  async getForecast(location: string): Promise<WeatherResponse> {
+  async getForecast(location: WeatherLocation): Promise<WeatherResponse> {
     const templates = [
       { temperature: 20, precipitation: 0.4, humidity: 57, windSpeed: 3, condition: "Ясно" },
       { temperature: 18, precipitation: 13, humidity: 86, windSpeed: 4, condition: "Значні опади" },
@@ -35,7 +43,9 @@ export class MockWeatherService implements WeatherServiceClient {
       { temperature: 23, precipitation: 2, humidity: 60, windSpeed: 5, condition: "Мінлива хмарність" },
     ];
     return {
-      location,
+      location: location.name,
+      latitude: location.latitude,
+      longitude: location.longitude,
       isMock: true,
       forecast: templates.map((day, index) => ({ ...day, date: addDays(new Date(), index) })),
     };

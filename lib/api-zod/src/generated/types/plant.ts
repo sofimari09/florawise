@@ -5,6 +5,7 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlantEnvironmentType } from './plantEnvironmentType';
 
 export interface Plant {
   id: number;
@@ -13,6 +14,13 @@ export interface Plant {
   name: string;
   photoUrl: string;
   location: string;
+  environmentType: PlantEnvironmentType;
+  /** @nullable */
+  weatherLocationName: string | null;
+  /** @nullable */
+  weatherLatitude: number | null;
+  /** @nullable */
+  weatherLongitude: number | null;
   addedAt: string;
   speciesName: string;
   /** @nullable */

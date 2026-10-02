@@ -23,7 +23,39 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.number().int(),
   "username": zod.string(),
   "email": zod.string(),
-  "role": zod.enum(['USER', 'ADMIN'])
+  "role": zod.enum(['USER', 'ADMIN']),
+  "weatherLocationName": zod.string(),
+  "weatherLatitude": zod.number().nullable(),
+  "weatherLongitude": zod.number().nullable()
+})
+
+
+/**
+ * @summary Update current user's weather location
+ */
+
+export const updateCurrentUserBodyWeatherLatitudeMin = -90;
+export const updateCurrentUserBodyWeatherLatitudeMax = 90;
+
+export const updateCurrentUserBodyWeatherLongitudeMin = -180;
+export const updateCurrentUserBodyWeatherLongitudeMax = 180;
+
+
+
+export const UpdateCurrentUserBody = zod.object({
+  "weatherLocationName": zod.string().min(1),
+  "weatherLatitude": zod.number().min(updateCurrentUserBodyWeatherLatitudeMin).max(updateCurrentUserBodyWeatherLatitudeMax).nullable(),
+  "weatherLongitude": zod.number().min(updateCurrentUserBodyWeatherLongitudeMin).max(updateCurrentUserBodyWeatherLongitudeMax).nullable()
+})
+
+export const UpdateCurrentUserResponse = zod.object({
+  "id": zod.number().int(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['USER', 'ADMIN']),
+  "weatherLocationName": zod.string(),
+  "weatherLatitude": zod.number().nullable(),
+  "weatherLongitude": zod.number().nullable()
 })
 
 
@@ -39,6 +71,8 @@ export const GetDashboardResponse = zod.object({
   "weather": zod.object({
   "location": zod.string(),
   "isMock": zod.boolean(),
+  "latitude": zod.number().nullable(),
+  "longitude": zod.number().nullable(),
   "forecast": zod.array(zod.object({
   "date": zod.string(),
   "temperature": zod.number(),
@@ -234,6 +268,10 @@ export const ListPlantsResponseItem = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
+  "weatherLocationName": zod.string().nullable(),
+  "weatherLatitude": zod.number().nullable(),
+  "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
@@ -248,13 +286,23 @@ export const ListPlantsResponse = zod.array(ListPlantsResponseItem)
  */
 
 
+export const createPlantBodyWeatherLatitudeMin = -90;
+export const createPlantBodyWeatherLatitudeMax = 90;
+
+export const createPlantBodyWeatherLongitudeMin = -180;
+export const createPlantBodyWeatherLongitudeMax = 180;
+
 
 
 export const CreatePlantBody = zod.object({
   "name": zod.string().min(1),
   "speciesId": zod.number().int(),
   "location": zod.string().min(1),
-  "photoUrl": zod.string()
+  "photoUrl": zod.string(),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
+  "weatherLocationName": zod.string().nullish(),
+  "weatherLatitude": zod.number().min(createPlantBodyWeatherLatitudeMin).max(createPlantBodyWeatherLatitudeMax).nullish(),
+  "weatherLongitude": zod.number().min(createPlantBodyWeatherLongitudeMin).max(createPlantBodyWeatherLongitudeMax).nullish()
 })
 
 export const CreatePlantResponse = zod.object({
@@ -264,6 +312,10 @@ export const CreatePlantResponse = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
+  "weatherLocationName": zod.string().nullable(),
+  "weatherLatitude": zod.number().nullable(),
+  "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
@@ -286,6 +338,10 @@ export const GetPlantResponse = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
+  "weatherLocationName": zod.string().nullable(),
+  "weatherLatitude": zod.number().nullable(),
+  "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
@@ -372,13 +428,23 @@ export const UpdatePlantParams = zod.object({
 
 
 
+export const updatePlantBodyOneWeatherLatitudeMin = -90;
+export const updatePlantBodyOneWeatherLatitudeMax = 90;
+
+export const updatePlantBodyOneWeatherLongitudeMin = -180;
+export const updatePlantBodyOneWeatherLongitudeMax = 180;
+
 
 
 export const UpdatePlantBody = zod.object({
   "name": zod.string().min(1),
   "speciesId": zod.number().int(),
   "location": zod.string().min(1),
-  "photoUrl": zod.string()
+  "photoUrl": zod.string(),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
+  "weatherLocationName": zod.string().nullish(),
+  "weatherLatitude": zod.number().min(updatePlantBodyOneWeatherLatitudeMin).max(updatePlantBodyOneWeatherLatitudeMax).nullish(),
+  "weatherLongitude": zod.number().min(updatePlantBodyOneWeatherLongitudeMin).max(updatePlantBodyOneWeatherLongitudeMax).nullish()
 })
 
 export const UpdatePlantResponse = zod.object({
@@ -388,6 +454,10 @@ export const UpdatePlantResponse = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
+  "weatherLocationName": zod.string().nullable(),
+  "weatherLatitude": zod.number().nullable(),
+  "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
@@ -566,13 +636,11 @@ export const UpdateReminderResponse = zod.object({
 /**
  * @summary Get seven day forecast
  */
-export const GetWeatherQueryParams = zod.object({
-  "location": zod.coerce.string()
-})
-
 export const GetWeatherResponse = zod.object({
   "location": zod.string(),
   "isMock": zod.boolean(),
+  "latitude": zod.number().nullable(),
+  "longitude": zod.number().nullable(),
   "forecast": zod.array(zod.object({
   "date": zod.string(),
   "temperature": zod.number(),
@@ -650,6 +718,8 @@ export const GenerateRecommendationResponse = zod.object({
   "weather": zod.object({
   "location": zod.string(),
   "isMock": zod.boolean(),
+  "latitude": zod.number().nullable(),
+  "longitude": zod.number().nullable(),
   "forecast": zod.array(zod.object({
   "date": zod.string(),
   "temperature": zod.number(),

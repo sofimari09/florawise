@@ -23,17 +23,19 @@ export function isWeatherSuitable(
   taskType: string,
   species: PlantSpecies,
   forecast: WeatherDay,
+  environmentType: string,
 ): boolean {
-  if (taskType === "TREATMENT" && (forecast.precipitation >= 1 || forecast.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) return false;
-  if (taskType === "PRUNING" && (forecast.precipitation >= RULE_PARAMETERS.significantRainMm || forecast.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) return false;
-  if (["WATERING", "FERTILIZING", "HARVEST"].includes(taskType) && forecast.precipitation >= RULE_PARAMETERS.significantRainMm) return false;
-  if (taskType === "TRANSPLANTING" && (forecast.temperature < Number(species.optimalTempMin) - 3 || forecast.temperature > Number(species.optimalTempMax) + 3)) return false;
+  const weatherExposed = ["BALCONY", "OUTDOOR"].includes(environmentType);
+  if (weatherExposed && taskType === "TREATMENT" && (forecast.precipitation >= 1 || forecast.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) return false;
+  if (weatherExposed && taskType === "PRUNING" && (forecast.precipitation >= RULE_PARAMETERS.significantRainMm || forecast.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) return false;
+  if (weatherExposed && ["WATERING", "FERTILIZING", "HARVEST"].includes(taskType) && forecast.precipitation >= RULE_PARAMETERS.significantRainMm) return false;
+  if (weatherExposed && taskType === "TRANSPLANTING" && (forecast.temperature < Number(species.optimalTempMin) - 3 || forecast.temperature > Number(species.optimalTempMax) + 3)) return false;
   return true;
 }
 
-function nextSuitable(task: CareTask, species: PlantSpecies, forecast: WeatherDay[]): WeatherDay | null {
+function nextSuitable(task: CareTask, species: PlantSpecies, forecast: WeatherDay[], environmentType: string): WeatherDay | null {
   const index = forecast.findIndex((day) => day.date === task.scheduledDate);
-  return forecast.slice(Math.max(index + 1, 1)).find((day) => isWeatherSuitable(task.type, species, day)) ?? null;
+  return forecast.slice(Math.max(index + 1, 1)).find((day) => isWeatherSuitable(task.type, species, day, environmentType)) ?? null;
 }
 
 export function generateRules(
@@ -41,6 +43,7 @@ export function generateRules(
   tasks: CareTask[],
   forecast: WeatherDay[],
   location: string,
+  environmentType: string,
   lastWatered: string | null,
 ): RecommendationDraft[] {
   const results: RecommendationDraft[] = [];
@@ -49,16 +52,16 @@ export function generateRules(
   for (const task of tasks) {
     const weather = forecast.find((day) => day.date === task.scheduledDate) ?? forecast[0];
     if (!weather) continue;
-    const outdoor = /балкон|сад|двір|терас|город|теплиц/i.test(location);
-    const alternative = nextSuitable(task, species, forecast);
+    const weatherExposed = ["BALCONY", "OUTDOOR"].includes(environmentType);
+    const alternative = nextSuitable(task, species, forecast, environmentType);
     const overdueDays = dateDistance(task.scheduledDate);
     let priority = task.priority;
-    if (task.type === "WATERING" && outdoor && weather.precipitation >= RULE_PARAMETERS.significantRainMm) {
+    if (task.type === "WATERING" && weatherExposed && weather.precipitation >= RULE_PARAMETERS.significantRainMm) {
       results.push({
         type: "WEATHER_RESCHEDULE",
         text: `Полив рекомендовано перенести з ${task.scheduledDate} через значні опади.`,
         priority: "HIGH",
-        explanation: `На ${task.scheduledDate} для локації «${location}» прогнозується ${weather.precipitation} мм опадів. Для вуличної рослини додатковий полив не потрібен.`,
+        explanation: `На ${task.scheduledDate} для локації «${location}» прогнозується ${weather.precipitation} мм опадів. Для рослини просто неба додатковий полив може бути не потрібен.`,
         relatedTaskId: task.id,
         originalDate: task.scheduledDate,
         suggestedDate: alternative?.date ?? null,
@@ -66,7 +69,7 @@ export function generateRules(
       });
       continue;
     }
-    if (task.type === "TREATMENT" && (weather.precipitation >= 1 || weather.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) {
+    if (weatherExposed && task.type === "TREATMENT" && (weather.precipitation >= 1 || weather.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) {
       const reason = weather.windSpeed > RULE_PARAMETERS.safeSprayingWindMps
         ? `швидкість вітру ${weather.windSpeed} м/с перевищує безпечний поріг`
         : `на цю дату прогнозується дощ`;
@@ -82,7 +85,7 @@ export function generateRules(
       });
       continue;
     }
-    if (task.type === "PRUNING" && (weather.precipitation >= RULE_PARAMETERS.significantRainMm || weather.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) {
+    if (weatherExposed && task.type === "PRUNING" && (weather.precipitation >= RULE_PARAMETERS.significantRainMm || weather.windSpeed > RULE_PARAMETERS.safeSprayingWindMps)) {
       results.push({
         type: "WEATHER_RESCHEDULE",
         text: `Обрізку рекомендовано перенести${alternative ? ` на ${alternative.date}` : ""}.`,
@@ -95,7 +98,7 @@ export function generateRules(
       });
       continue;
     }
-    if (task.type === "TRANSPLANTING" && !isWeatherSuitable(task.type, species, weather)) {
+    if (weatherExposed && task.type === "TRANSPLANTING" && !isWeatherSuitable(task.type, species, weather, environmentType)) {
       results.push({
         type: "WEATHER_RESCHEDULE",
         text: `Пересадку рекомендовано перенести${alternative ? ` на ${alternative.date}` : ""}.`,
@@ -108,7 +111,7 @@ export function generateRules(
       });
       continue;
     }
-    if (task.type === "FERTILIZING" && outdoor && weather.precipitation >= RULE_PARAMETERS.significantRainMm) {
+    if (task.type === "FERTILIZING" && weatherExposed && weather.precipitation >= RULE_PARAMETERS.significantRainMm) {
       results.push({
         type: "WEATHER_RESCHEDULE",
         text: `Підживлення краще перенести${alternative ? ` на ${alternative.date}` : ""}.`,
@@ -121,12 +124,12 @@ export function generateRules(
       });
       continue;
     }
-    if (task.type === "WATERING" && weather.temperature >= Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta && weather.precipitation < 2) priority = "HIGH";
+    if (task.type === "WATERING" && weatherExposed && weather.temperature >= Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta && weather.precipitation < 2) priority = "HIGH";
     if (task.type === "WATERING" && lastWatered) {
       const daysSinceWatering = dateDistance(lastWatered);
       if (daysSinceWatering > species.wateringFrequencyDays) priority = daysSinceWatering > species.wateringFrequencyDays + RULE_PARAMETERS.overdueUrgentDays ? "URGENT" : "HIGH";
     }
-    if (overdueDays > 0 && task.type === "PRUNING" && isWeatherSuitable(task.type, species, weather)) priority = "HIGH";
+    if (overdueDays > 0 && task.type === "PRUNING" && isWeatherSuitable(task.type, species, weather, environmentType)) priority = "HIGH";
     if (priority !== task.priority || task.status === "PLANNED" && task.scheduledDate < today) {
       results.push({
         type: "PRIORITY",
