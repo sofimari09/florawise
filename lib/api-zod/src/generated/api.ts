@@ -8,6 +8,46 @@
 import * as zod from 'zod';
 
 
+export const requestPhotoUploadBodyNameMax = 255;
+
+export const requestPhotoUploadBodySizeMax = 5242880;
+
+
+
+export const RequestPhotoUploadBody = zod.object({
+  "name": zod.string().min(1).max(requestPhotoUploadBodyNameMax),
+  "size": zod.number().int().min(1).max(requestPhotoUploadBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const RequestPhotoUploadResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string()
+})
+
+
+export const completePhotoUploadBodyObjectPathRegExp = new RegExp('^/objects/photos/[0-9a-f-]{36}$');
+
+
+export const CompletePhotoUploadBody = zod.object({
+  "objectPath": zod.string().regex(completePhotoUploadBodyObjectPathRegExp)
+})
+
+export const completePhotoUploadResponseObjectPathRegExp = new RegExp('^/objects/photos/[0-9a-f-]{36}$');
+
+
+export const CompletePhotoUploadResponse = zod.object({
+  "objectPath": zod.string().regex(completePhotoUploadResponseObjectPathRegExp)
+})
+
+
+export const GetPrivatePhotoParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const GetPrivatePhotoResponse = zod.unknown()
+
+
 
 
 
@@ -624,6 +664,7 @@ export const ListPlantsResponseItem = zod.object({
   "speciesId": zod.number().int(),
   "name": zod.string(),
   "photoUrl": zod.string(),
+  "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
   "placeId": zod.number().int().nullish(),
   "weatherLocationId": zod.number().int().nullish(),
@@ -661,6 +702,7 @@ export const CreatePlantBody = zod.object({
   "placeId": zod.number().int().optional(),
   "weatherLocationId": zod.number().int().nullish(),
   "photoUrl": zod.string(),
+  "photoObjectPath": zod.string().nullish(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
   "weatherLocationName": zod.string().nullish(),
   "weatherLatitude": zod.number().min(createPlantBodyWeatherLatitudeMin).max(createPlantBodyWeatherLatitudeMax).nullish(),
@@ -673,6 +715,7 @@ export const CreatePlantResponse = zod.object({
   "speciesId": zod.number().int(),
   "name": zod.string(),
   "photoUrl": zod.string(),
+  "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
   "placeId": zod.number().int().nullish(),
   "weatherLocationId": zod.number().int().nullish(),
@@ -702,6 +745,7 @@ export const GetPlantResponse = zod.object({
   "speciesId": zod.number().int(),
   "name": zod.string(),
   "photoUrl": zod.string(),
+  "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
   "placeId": zod.number().int().nullish(),
   "weatherLocationId": zod.number().int().nullish(),
@@ -821,6 +865,7 @@ export const UpdatePlantBody = zod.object({
   "placeId": zod.number().int().optional(),
   "weatherLocationId": zod.number().int().nullish(),
   "photoUrl": zod.string(),
+  "photoObjectPath": zod.string().nullish(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
   "weatherLocationName": zod.string().nullish(),
   "weatherLatitude": zod.number().min(updatePlantBodyOneWeatherLatitudeMin).max(updatePlantBodyOneWeatherLatitudeMax).nullish(),
@@ -833,6 +878,7 @@ export const UpdatePlantResponse = zod.object({
   "speciesId": zod.number().int(),
   "name": zod.string(),
   "photoUrl": zod.string(),
+  "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
   "placeId": zod.number().int().nullish(),
   "weatherLocationId": zod.number().int().nullish(),

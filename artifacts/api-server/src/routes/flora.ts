@@ -22,6 +22,7 @@ import {
 import { weatherService } from "../lib/weather";
 import { generateRules } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
+import { canAttachPhoto } from "../lib/plant-photos";
 
 const router: IRouter = Router();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -48,7 +49,8 @@ const plantInput = z.object({
   name: z.string().trim().min(1, "Назва рослини обов'язкова"),
   speciesId: z.coerce.number().int().positive(),
   location: z.string().trim().min(1, "Локація обов'язкова"),
-  photoUrl: z.string().url().or(z.literal("")),
+  photoUrl: z.string().url().refine(value => /^https?:\/\//.test(value), "Фото має бути HTTP(S) URL").or(z.literal("")),
+  photoObjectPath: z.string().regex(/^\/objects\/photos\/[0-9a-f-]{36}$/).nullable().optional(),
   placeId: z.number().int().positive().optional(),
   weatherLocationId: z.number().int().positive().nullable().optional(),
   environmentType: z.enum(environmentTypes).optional(),
@@ -145,6 +147,7 @@ async function mapPlant(plant: typeof plantsTable.$inferSelect) {
   const next = tasks[0];
   return {
     ...plant,
+    photoUrl: plant.photoObjectPath ? `/api/storage${plant.photoObjectPath}` : plant.photoUrl,
     location: place?.name ?? plant.location,
     environmentType: place?.environmentType ?? plant.environmentType,
     weatherLocationName: location?.displayName ?? plant.weatherLocationName,
@@ -359,6 +362,7 @@ router.post("/plants", async (req, res): Promise<void> => {
   const parsed = plantInput.safeParse(req.body);
   if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
   if (!parsed.success || !hasValidWeatherOverride(parsed.data)) { res.status(400).json({ error: "Перевірте назву, вид, фізичне місце та погодну локацію рослини" }); return; }
+  if (!await canAttachPhoto(parsed.data.photoObjectPath, getAuth(req).userId)) { res.status(400).json({ error: "Фото не завантажене або належить іншому користувачу." }); return; }
   let locations: Partial<typeof plantsTable.$inferInsert>;
   try { locations = await validatedPlantLocation(user.id, parsed.data); }
   catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Некоректна локація" }); return; }
@@ -394,6 +398,7 @@ router.patch("/plants/:id", async (req, res): Promise<void> => {
   const parsed = plantInput.partial().safeParse(req.body);
   if (!plant || !user) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
   if (!parsed.success || !hasValidWeatherOverride(parsed.data)) { res.status(400).json({ error: "Некоректні дані рослини або погодної локації" }); return; }
+  if (!await canAttachPhoto(parsed.data.photoObjectPath, getAuth(req).userId)) { res.status(400).json({ error: "Фото не завантажене або належить іншому користувачу." }); return; }
   const { weatherLatitude, weatherLongitude, ...plantValues } = parsed.data;
   let locations: Partial<typeof plantsTable.$inferInsert>;
   try { locations = await validatedPlantLocation(user.id, parsed.data, plant); }

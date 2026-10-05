@@ -14,6 +14,8 @@ export interface Plant {
   speciesId: number;
   name: string;
   photoUrl: string;
+  /** @nullable */
+  photoObjectPath?: string | null;
   location: string;
   /** @nullable */
   placeId?: number | null;

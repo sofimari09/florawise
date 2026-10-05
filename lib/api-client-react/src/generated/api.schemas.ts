@@ -226,6 +226,8 @@ export interface Plant {
   speciesId: number;
   name: string;
   photoUrl: string;
+  /** @nullable */
+  photoObjectPath?: string | null;
   location: string;
   /** @nullable */
   placeId?: number | null;
@@ -268,6 +270,8 @@ export interface PlantInput {
   /** @nullable */
   weatherLocationId?: number | null;
   photoUrl: string;
+  /** @nullable */
+  photoObjectPath?: string | null;
   environmentType?: PlantInputEnvironmentType;
   /** @nullable */
   weatherLocationName?: string | null;
@@ -286,6 +290,39 @@ export interface PlantInput {
 }
 
 export type PlantUpdate = PlantInput;
+
+export type PhotoUploadInputContentType = typeof PhotoUploadInputContentType[keyof typeof PhotoUploadInputContentType];
+
+
+export const PhotoUploadInputContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface PhotoUploadInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 5242880
+     */
+  size: number;
+  contentType: PhotoUploadInputContentType;
+}
+
+export interface PhotoObjectInput {
+  /** @pattern ^/objects/photos/[0-9a-f-]{36}$ */
+  objectPath: string;
+}
+
+export interface PhotoUpload {
+  uploadURL: string;
+  objectPath: string;
+}
 
 export interface CareTask {
   id: number;

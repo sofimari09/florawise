@@ -19,6 +19,58 @@ tags:
   - name: analytics
   - name: reports
 paths:
+  /storage/uploads/request-url:
+    post:
+      operationId: requestPhotoUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PhotoUploadInput" }
+      responses:
+        "200":
+          description: Приватне пряме завантаження, URL чинний 15 хвилин
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhotoUpload" }
+        "400": { description: Некоректний тип або розмір фото }
+        "401": { description: Потрібен вхід через Clerk }
+        "503": { description: Сховище тимчасово недоступне }
+  /storage/uploads/complete:
+    post:
+      operationId: completePhotoUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PhotoObjectInput" }
+      responses:
+        "200":
+          description: Фото перевірено та збережено приватно
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhotoObjectInput" }
+        "400": { description: Некоректний файл }
+        "401": { description: Потрібен вхід }
+        "404": { description: Фото не знайдено або належить іншому користувачу }
+        "503": { description: Сховище тимчасово недоступне }
+  /storage/objects/photos/{id}:
+    get:
+      operationId: getPrivatePhoto
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Приватне фото власника, без кешування
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { description: Потрібен вхід }
+        "404": { description: Фото не знайдено або належить іншому користувачу }
+        "503": { description: Сховище тимчасово недоступне }
   /places:
     get:
       operationId: listPlantPlaces
@@ -803,6 +855,7 @@ components:
         speciesId: { type: integer }
         name: { type: string }
         photoUrl: { type: string }
+        photoObjectPath: { type: [string, "null"] }
         location: { type: string }
         placeId: { type: [integer, "null"] }
         weatherLocationId: { type: [integer, "null"] }
@@ -826,6 +879,7 @@ components:
         placeId: { type: integer }
         weatherLocationId: { type: [integer, "null"] }
         photoUrl: { type: string }
+        photoObjectPath: { type: [string, "null"] }
         environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
         weatherLocationName: { type: [string, "null"] }
         weatherLatitude: { type: [number, "null"], minimum: -90, maximum: 90 }
@@ -834,6 +888,24 @@ components:
     PlantUpdate:
       allOf:
         - $ref: "#/components/schemas/PlantInput"
+    PhotoUploadInput:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 5242880 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    PhotoObjectInput:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath: { type: string, pattern: "^/objects/photos/[0-9a-f-]{36}$" }
+    PhotoUpload:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
     PlantDetail:
       allOf:
         - $ref: "#/components/schemas/Plant"

@@ -93,6 +93,7 @@ export const plantsTable = pgTable("flora_plants", {
   speciesId: integer("species_id").notNull().references(() => speciesTable.id),
   name: text("name").notNull(),
   photoUrl: text("photo_url").notNull(),
+  photoObjectPath: text("photo_object_path"),
   placeId: integer("place_id").references(() => plantPlacesTable.id, { onDelete: "set null" }),
   weatherLocationId: integer("weather_location_id").references(() => savedLocationsTable.id, { onDelete: "set null" }),
   // Legacy columns remain during the additive migration and are kept in sync for existing clients.
@@ -102,6 +103,17 @@ export const plantsTable = pgTable("flora_plants", {
   weatherLatitude: numeric("weather_latitude", { precision: 10, scale: 7 }),
   weatherLongitude: numeric("weather_longitude", { precision: 11, scale: 7 }),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const plantPhotosTable = pgTable("flora_plant_photos", {
+  objectPath: text("object_path").primaryKey(),
+  uploadPath: text("upload_path").notNull(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  name: text("name").notNull(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  ready: boolean("ready").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const tasksTable = pgTable("flora_tasks", {
