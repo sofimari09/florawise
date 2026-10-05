@@ -1,0 +1,1150 @@
+Please review the existing FloraWise repository carefully before making changes.
+
+Do NOT rebuild the application from scratch and do NOT replace the existing architecture unnecessarily.
+
+Update the current implementation while preserving existing working functionality, existing user data, authentication, calendar, recommendations, statistics, reports and administration.
+
+The main goals of this update are:
+
+1. simplify the process of adding a plant;
+2. separate physical plant placement from geographic weather location;
+3. support reusable user-defined places and saved geographic locations;
+4. replace plant photo URLs with real image upload;
+5. formalize the existing PlantSpecies directory as the FloraWise plant-care knowledge base;
+6. make RecommendationEngine use structured species knowledge, care history, plant placement and weather consistently;
+7. keep all functionality understandable and convenient for regular users.
+
+All user-facing interface text, validation messages and recommendation explanations must remain in Ukrainian.
+
+==================================================
+1. SIMPLIFY PLANT CREATION
+==================================================
+
+The plant creation form should remain simple.
+
+The regular user should provide only information specific to their particular plant.
+
+The main form should contain:
+
+- Назва рослини
+- Вид рослини
+- Фото рослини
+- Місце розташування
+- Погодна локація
+
+Do NOT ask a regular user to manually enter:
+
+- optimal temperature;
+- humidity;
+- watering frequency;
+- light requirements;
+- soil requirements;
+- fertilizing frequency;
+- pruning rules;
+- transplanting recommendations;
+- harvesting information;
+- weather thresholds.
+
+These values belong to PlantSpecies / the FloraWise knowledge base.
+
+The user selects the species, and FloraWise automatically uses the stored knowledge for that species.
+
+==================================================
+2. USER-DEFINED PHYSICAL PLANT PLACES
+==================================================
+
+Replace the current free-text plant location approach with reusable user-defined places.
+
+Create a PlantPlace entity:
+
+PlantPlace
+- id
+- userId
+- name
+- environmentType
+
+environmentType values:
+
+- INDOOR
+- BALCONY
+- OUTDOOR
+- GREENHOUSE
+
+Examples:
+
+- "Вітальня"
+- "Підвіконня у спальні"
+- "Балкон"
+- "Сад біля будинку"
+- "Теплиця"
+
+Each Plant should reference a PlantPlace.
+
+When adding or editing a plant, the user must be able to:
+
+- select an existing PlantPlace;
+- create a new PlantPlace directly from the plant form without leaving the page.
+
+Suggested UI:
+
+"Місце розташування"
+
+[ Вітальня ▼ ]
+
+"+ Додати нове місце"
+
+When creating a new place, ask only for:
+
+- Назва місця
+- Умови розміщення
+
+Suggested Ukrainian environment labels:
+
+INDOOR -> "У приміщенні"
+BALCONY -> "На балконі"
+OUTDOOR -> "На відкритому ґрунті"
+GREENHOUSE -> "У теплиці"
+
+Do NOT ask the user to manually specify temperature, humidity, light level or environmental measurements for PlantPlace.
+
+PlantPlace represents where the plant physically exists.
+
+==================================================
+3. REPLACE PHOTO URL WITH IMAGE UPLOAD
+==================================================
+
+Remove the normal user-facing field:
+
+"Посилання на фото"
+
+Replace it with:
+
+"Фото рослини"
+"Завантажити фото"
+
+Requirements:
+
+- allow the user to select an image from their device;
+- show a preview before saving;
+- persist the uploaded image;
+- display it correctly in plant cards and plant details;
+- allow changing the image;
+- allow removing the image;
+- validate supported image types;
+- validate reasonable file size;
+- show validation errors in Ukrainian.
+
+Support common image formats such as:
+
+- JPEG
+- PNG
+- WebP
+
+Use a reasonable maximum size, for example 5 MB.
+
+Do not require users to provide external image URLs.
+
+Existing plants that already have valid images must not break after this change.
+
+==================================================
+4. SAVED GEOGRAPHIC LOCATIONS FOR WEATHER
+==================================================
+
+Physical PlantPlace and geographic weather location are different concepts.
+
+Create a reusable SavedLocation entity:
+
+SavedLocation
+- id
+- userId
+- displayName
+- latitude
+- longitude
+- isDefault
+- lastUsedAt
+
+Examples:
+
+- "Львів"
+- "Забужжя"
+
+A user may have multiple saved geographic locations.
+
+Coordinates may be stored internally because WeatherServiceClient needs them, but regular users must NOT manually enter latitude and longitude.
+
+==================================================
+5. LOCATION SEARCH INSTEAD OF LATITUDE/LONGITUDE INPUT
+==================================================
+
+Replace manual coordinate input with a simple location search.
+
+When creating a SavedLocation, show:
+
+"Населений пункт"
+
+[ Введіть місто або населений пункт ]
+
+Use geocoding/location search to return matching places.
+
+The user selects the correct search result.
+
+After selection:
+
+- store the readable location name;
+- store latitude internally;
+- store longitude internally.
+
+Do not expose raw latitude and longitude as normal form fields.
+
+The location search should be suitable for smaller settlements as well as large cities.
+
+The geocoding logic should be kept separate from UI code so the provider can be changed later if necessary.
+
+==================================================
+6. DEFAULT, SAVED AND RECENT LOCATIONS
+==================================================
+
+A user should be able to reuse locations instead of entering the same place repeatedly.
+
+When selecting a weather location:
+
+- show the default SavedLocation first;
+- show other saved locations;
+- prioritize recently used locations when appropriate using lastUsedAt;
+- avoid unnecessary duplicate SavedLocation records.
+
+Allow the user to choose one SavedLocation as their default.
+
+The user's saved locations must persist after logout/login.
+
+Users must only see and manage their own SavedLocations.
+
+==================================================
+7. WEATHER LOCATION IN THE PLANT FORM
+==================================================
+
+When adding/editing a plant, provide a simple weather location section.
+
+Example:
+
+"Погодна локація"
+
+○ Використовувати основну локацію
+
+[ Львів ]
+
+○ Обрати іншу збережену локацію
+
+[ Забужжя ▼ ]
+
+"+ Додати нову локацію"
+
+The user should not have to manually enter the same settlement for every plant.
+
+A plant may:
+
+- explicitly reference a SavedLocation;
+or
+- use the user's default SavedLocation.
+
+==================================================
+8. CENTRALIZED WEATHER LOCATION RESOLUTION
+==================================================
+
+Keep weather location resolution centralized.
+
+Create reusable logic similar to:
+
+resolveWeatherLocation(user, plant)
+
+For plant-specific weather and RecommendationEngine use:
+
+plant explicitly selected SavedLocation
+→ user's default SavedLocation
+→ system fallback location
+
+For dashboard weather use:
+
+user's default SavedLocation
+→ system fallback location
+
+Do not hardcode Kyiv directly inside dashboard components or RecommendationEngine.
+
+After the user changes the default location, dashboard weather should refresh for the selected location.
+
+==================================================
+9. USE PLANTPLACE ENVIRONMENT TYPE IN WEATHER RULES
+==================================================
+
+Weather-aware recommendations must also consider PlantPlace.environmentType.
+
+For example:
+
+Rain should be relevant to watering for an OUTDOOR plant.
+
+Rain should NOT automatically postpone watering for an INDOOR plant.
+
+Example:
+
+IF:
+- task.type == WATERING
+- plant.place.environmentType == OUTDOOR
+- precipitation exceeds the applicable threshold
+
+THEN:
+recommend postponing watering.
+
+Use the same principle for other weather-sensitive tasks where relevant.
+
+==================================================
+10. FORMALIZE PLANTSPECIES AS THE FLORAWISE KNOWLEDGE BASE
+==================================================
+
+FloraWise already has PlantSpecies / flora species data.
+
+Do NOT create a completely separate duplicate knowledge system.
+
+Extend the existing PlantSpecies model so it becomes the structured source of truth for plant-care knowledge used by:
+
+- plant directory;
+- plant details;
+- recommended care planning;
+- RecommendationEngine;
+- administrator functionality.
+
+Do NOT use an LLM or generative AI as the factual source of plant-care parameters at runtime.
+
+RecommendationEngine must use structured knowledge stored in the FloraWise database.
+
+AI-generated random care information must not replace stored plant knowledge.
+
+==================================================
+11. EXTEND PLANTSPECIES KNOWLEDGE
+==================================================
+
+Preserve useful current PlantSpecies fields and extend the model.
+
+PlantSpecies should support approximately:
+
+- id
+- name
+- scientificName
+- description
+- category
+
+- suitableEnvironmentTypes
+
+- optimalTempMin
+- optimalTempMax
+
+- humidityMin
+- humidityMax
+
+- lightRequirements
+- soilRecommendations
+
+- wateringFrequencyDays
+- wateringRecommendations
+
+- fertilizingFrequencyDays (nullable)
+- fertilizingRecommendations
+
+- pruningRecommendations
+- pruningSeason (nullable)
+
+- transplantingFrequencyMonths (nullable)
+- transplantingRecommendations
+
+- harvestingRecommendations (nullable)
+
+- generalCareRecommendations
+
+Not every field must be mandatory.
+
+For example:
+
+Harvesting information may exist for:
+- томат;
+- полуниця;
+- базилік;
+
+but may be irrelevant for:
+- монстера;
+- фікус.
+
+If an existing field is replaced by a more structured representation, migrate existing data safely.
+
+Do not destroy existing species information.
+
+==================================================
+12. STRUCTURED SPECIES CARE RULES
+==================================================
+
+RecommendationEngine currently has global rule parameters.
+
+Keep them as fallback values, but support species-specific care rules.
+
+Create a model similar to:
+
+SpeciesCareRule
+- id
+- speciesId
+- careType
+- rainThresholdMm nullable
+- maxWindSpeedMps nullable
+- minTemperature nullable
+- maxTemperature nullable
+- notes nullable
+
+careType should match existing FloraWise care task types:
+
+- WATERING
+- FERTILIZING
+- PRUNING
+- TRANSPLANTING
+- TREATMENT
+- HARVEST
+- OTHER
+
+Rule priority:
+
+species-specific SpeciesCareRule
+→ global RULE_PARAMETERS fallback
+
+This ensures that incomplete species data does not break recommendation generation.
+
+Examples:
+
+For outdoor tomato:
+
+WATERING:
+- reacts to significant precipitation.
+
+TREATMENT:
+- may have rain restriction;
+- may have wind restriction.
+
+HARVEST:
+- may prefer a dry day.
+
+For indoor Monstera:
+
+Outdoor precipitation should not directly postpone watering.
+
+PlantPlace.environmentType must still determine whether outdoor weather actually affects the plant.
+
+==================================================
+13. KNOWLEDGE SOURCE METADATA
+==================================================
+
+Plant-care knowledge should be traceable.
+
+Create a model similar to:
+
+KnowledgeSource
+- id
+- speciesId
+- sourceName
+- sourceUrl nullable
+- retrievedAt nullable
+- notes nullable
+
+This metadata is for the FloraWise knowledge base.
+
+Do NOT invent fake sources or fake source URLs.
+
+If verified source information is not yet available for an existing seed record, it is acceptable for its KnowledgeSource to remain empty.
+
+The architecture should allow ADMIN to add verified sources later.
+
+==================================================
+14. ADMINISTRATOR KNOWLEDGE-BASE EDITOR
+==================================================
+
+The administrator already manages the plant directory.
+
+Extend this functionality into a structured plant knowledge editor.
+
+Only ADMIN should be able to modify PlantSpecies knowledge.
+
+Organize the species edit form into clear sections:
+
+"Основна інформація"
+
+"Умови вирощування"
+
+"Полив"
+
+"Підживлення"
+
+"Обрізка"
+
+"Пересадка"
+
+"Збір врожаю"
+
+"Правила для рекомендацій"
+
+"Джерела"
+
+Use:
+
+- numeric inputs for ranges and frequencies;
+- selects for predefined enum values;
+- textareas for recommendations;
+- Ukrainian labels and validation messages.
+
+All structured fields that affect RecommendationEngine must actually be editable in the admin interface.
+
+Do not place these fields in the regular user's "Додати рослину" form.
+
+==================================================
+15. IMPROVE THE PLANT DIRECTORY
+==================================================
+
+The "Довідник рослин" should display knowledge-base data in a useful but not overloaded way.
+
+Initial species cards may show:
+
+- common name;
+- scientific name;
+- category;
+- light requirements;
+- watering frequency.
+
+When a species is opened, show more detailed information:
+
+- description;
+- optimal temperature;
+- recommended humidity;
+- light requirements;
+- soil;
+- watering;
+- fertilizing;
+- pruning;
+- transplanting;
+- harvesting where applicable;
+- general care recommendations.
+
+Do not overload the initial list/card view.
+
+==================================================
+16. PLANT DETAILS PAGE
+==================================================
+
+When the user opens a specific plant, combine:
+
+personal Plant data
++
+PlantPlace
++
+SavedLocation
++
+PlantSpecies knowledge
++
+care tasks
++
+care history
++
+recommendations
+
+Clearly distinguish between:
+
+"Про мою рослину"
+
+and
+
+"Рекомендації для виду"
+
+For example:
+
+"Про мою рослину"
+- Назва
+- Фото
+- Вид
+- Місце розташування
+- Погодна локація
+
+"Рекомендації для виду"
+- Освітлення
+- Оптимальна температура
+- Вологість
+- Полив
+- Підживлення
+- Обрізка
+- Пересадка
+
+The user must not have to re-enter characteristics already known from PlantSpecies.
+
+==================================================
+17. REFACTOR RECOMMENDATIONENGINE
+==================================================
+
+RecommendationEngine should generate recommendations using:
+
+- Plant;
+- PlantPlace;
+- PlantPlace.environmentType;
+- PlantSpecies knowledge;
+- SpeciesCareRule;
+- CareTask;
+- CareLog history;
+- selected SavedLocation;
+- weather forecast;
+- existing priorities;
+- postponement information.
+
+RecommendationEngine must remain deterministic and explainable.
+
+Do not generate random recommendations.
+
+Do not invent missing plant characteristics.
+
+Species-specific structured rules should have priority over global fallback thresholds.
+
+==================================================
+18. EXPLAINABLE RECOMMENDATIONS
+==================================================
+
+Every recommendation must clearly explain which data triggered the rule.
+
+Do not return only:
+
+"Перенести полив."
+
+Return something like:
+
+"Полив рекомендовано перенести, оскільки рослина знаходиться на відкритому ґрунті, а на заплановану дату для Львова прогнозується 11 мм опадів."
+
+If a species-specific threshold exists, the explanation may include it:
+
+"Для цього виду поріг значних опадів становить 8 мм."
+
+Other examples:
+
+"Полив має високий пріоритет, оскільки останній полив було виконано 8 днів тому, тоді як рекомендований інтервал для цього виду становить 5 днів."
+
+"Обробку рекомендовано перенести через швидкість вітру 11 м/с, що перевищує допустиме значення для цієї операції."
+
+==================================================
+19. FIX LAST CARE HISTORY LOOKUP
+==================================================
+
+Correct the current logic for retrieving the latest completed care operation.
+
+For watering recommendations:
+
+Do NOT inspect care history only through the first currently planned watering task.
+
+Instead:
+
+1. find all WATERING tasks belonging to the selected plant;
+2. use their completed CareLog records;
+3. find the latest completedAt date;
+4. provide this date to RecommendationEngine.
+
+Create a reusable helper/service similar to:
+
+getLatestCompletedCareAction(plantId, taskType)
+
+The same mechanism should later support:
+
+- last watering;
+- last fertilizing;
+- last pruning;
+- last transplanting;
+- other care types.
+
+RecommendationEngine should use actual completed care history rather than planned task dates when determining how long it has been since the last care action.
+
+==================================================
+20. RECOMMENDED CARE PLAN AFTER ADDING A PLANT
+==================================================
+
+After a plant is created successfully, optionally offer:
+
+"Створити рекомендований план догляду?"
+
+Do not silently create many tasks.
+
+First show a preview based on PlantSpecies knowledge.
+
+Example:
+
+"Рекомендований план"
+
+☑ Полив — орієнтовно кожні 7 днів
+
+☑ Підживлення — орієнтовно кожні 30 днів
+
+☐ Обрізка — сезонно
+
+Allow the user to:
+
+- choose which care types to add;
+- adjust the first planned date;
+- skip individual items;
+- choose "Не зараз".
+
+Only after confirmation should FloraWise create CareTasks.
+
+If PlantSpecies does not contain a structured frequency for a care type, do not invent one.
+
+For seasonal/non-periodic activities, provide information without automatically creating a recurring schedule unless there is enough structured knowledge.
+
+==================================================
+21. CARE CALENDAR INTEGRATION
+==================================================
+
+Newly created recommended tasks must behave exactly like manually created CareTasks.
+
+They should:
+
+- appear in the calendar;
+- support completion;
+- support postponement;
+- generate reminders when appropriate;
+- appear in care history after completion;
+- participate in statistics;
+- participate in RecommendationEngine logic.
+
+Do not create a separate incompatible task system for automatically suggested care.
+
+==================================================
+22. LOCATION-AWARE MOCK WEATHER
+==================================================
+
+Keep MockWeatherService as a fallback so FloraWise still works without an external weather service.
+
+However, make mock forecasts location-aware.
+
+Different saved geographic locations should not always return exactly the same weather.
+
+For example:
+
+- Львів;
+- Забужжя;
+
+should be able to demonstrate different 7-day forecasts.
+
+The mock result must be deterministic.
+
+The same location on the same date should return the same mock forecast.
+
+Do NOT generate completely random weather every request.
+
+This is important because saved locations and plant-specific weather selection need to be visibly demonstrable even when a live weather API is unavailable.
+
+When mock weather is used, keep a visible label such as:
+
+"Демонстраційні погодні дані"
+
+==================================================
+23. MIGRATE EXISTING DATA SAFELY
+==================================================
+
+Preserve existing users, plants, species, care tasks, recommendations, reports and history wherever possible.
+
+Do not reset the database merely because the model changes.
+
+For existing plants that currently contain a free-text physical location:
+
+migrate the value safely into an appropriate PlantPlace where possible.
+
+Avoid creating unnecessary duplicate PlantPlace records.
+
+For existing location/weather data:
+
+migrate it into SavedLocation where appropriate.
+
+If an automatic migration cannot determine something safely, use a reasonable nullable/default state rather than deleting data.
+
+==================================================
+24. PRESERVE AND ENRICH EXISTING SPECIES
+==================================================
+
+Keep the existing seeded species functional.
+
+Existing FloraWise data already includes common species such as:
+
+- Монстера
+- Фікус
+- Спатифілум
+- Орхідея
+- Томат
+- Троянда
+- Лаванда
+- Полуниця
+- Базилік
+- Гортензія
+
+Do not replace them.
+
+Enrich their records with the new structured knowledge fields where data is already available.
+
+It is acceptable to add more species later, but first make the existing species structure complete and consistent.
+
+Do not fabricate external source references just to populate KnowledgeSource.
+
+==================================================
+25. FIX CARE STATUS CONSISTENCY
+==================================================
+
+Review the current careStatus representation.
+
+Internal API/domain values and Ukrainian UI labels must be separated.
+
+Do not return a display label such as:
+
+"Прострочено"
+
+and then compare it elsewhere against an internal value such as:
+
+"overdue".
+
+Use stable internal values, for example:
+
+- OK
+- PLANNED
+- OVERDUE
+
+or another consistent enum.
+
+Translate the value into Ukrainian only in the UI.
+
+Example:
+
+OVERDUE -> "Прострочено"
+
+Ensure the same status interpretation is used consistently in:
+
+- plant cards;
+- dashboard;
+- calendar;
+- filters;
+- statistics.
+
+==================================================
+26. FIX HIGH-PRIORITY PLANT FILTER
+==================================================
+
+Review the existing highPriority plant filter.
+
+When highPriority=true, it must return plants that actually have active:
+
+- HIGH;
+or
+- URGENT
+
+CareTasks.
+
+It should not simply hide all plants or behave as a static condition.
+
+Only relevant active tasks should be considered.
+
+Completed and cancelled tasks should not make a plant appear as currently high-priority.
+
+==================================================
+27. USER DATA ISOLATION
+==================================================
+
+Keep all newly introduced user-specific entities isolated between accounts.
+
+A regular user must only access:
+
+- their own PlantPlaces;
+- their own SavedLocations;
+- their own Plants;
+- care data associated with their Plants;
+- their own recommendations;
+- their own reports.
+
+Do not rely only on frontend visibility.
+
+Validate ownership on the server/application logic level.
+
+==================================================
+28. EXISTING ARCHITECTURE MUST REMAIN CONSISTENT
+==================================================
+
+This is an existing FloraWise codebase.
+
+Preserve the established architecture and existing contracts.
+
+When changing the data/API model, update all corresponding parts of the current project consistently.
+
+In particular, where applicable:
+
+- update the existing database/Drizzle schema;
+- create safe migrations;
+- update the OpenAPI contract;
+- regenerate generated API client/types/schemas if the project currently uses generated code;
+- update API routes/services;
+- update seed data;
+- update frontend forms and queries;
+- update existing types;
+- run type checking;
+- run the build.
+
+Do not create duplicate manually maintained frontend request/response types if the existing project generates them from the API specification.
+
+Do not bypass the existing API architecture merely to implement the new screens faster.
+
+==================================================
+29. USER INTERFACE REQUIREMENTS
+==================================================
+
+Keep the existing FloraWise visual style.
+
+Do not redesign unrelated pages.
+
+The plant creation flow should feel lighter than before.
+
+Avoid long forms.
+
+Use:
+
+- compact sections;
+- dropdowns;
+- searchable selectors;
+- inline creation dialogs/modals where useful;
+- image preview;
+- sensible defaults.
+
+For example:
+
+НОВА РОСЛИНА
+
+Основна інформація
+
+Назва рослини *
+[ Моя монстера ]
+
+Вид рослини *
+[ Монстера deliciosa ▼ ]
+
+Фото рослини
+[ Завантажити фото ]
+
+Розташування
+
+Місце розташування *
+[ Вітальня ▼ ]
+
+[ + Додати нове місце ]
+
+Погодні умови
+
+[✓] Використовувати основну локацію — Львів
+
+or
+
+[ Обрати іншу локацію ▼ ]
+
+[ + Додати нову локацію ]
+
+[ Скасувати ] [ Додати рослину ]
+
+Do not expose unnecessary technical details to the user.
+
+==================================================
+30. DO NOT OVERLOAD THE USER
+==================================================
+
+The design principle should be:
+
+The user describes their specific plant and where it is located.
+
+FloraWise already knows the general characteristics of the species through the knowledge base.
+
+Therefore:
+
+USER ENTERS:
+- personal plant name;
+- species;
+- photo;
+- physical place;
+- geographic weather location.
+
+FLORAWISE KNOWLEDGE BASE PROVIDES:
+- optimal temperature;
+- humidity;
+- watering recommendations;
+- light requirements;
+- soil requirements;
+- fertilizing information;
+- pruning information;
+- transplanting information;
+- harvesting information;
+- species-specific recommendation rules.
+
+CARE HISTORY PROVIDES:
+- last completed watering;
+- last fertilizing;
+- last pruning;
+- etc.
+
+WEATHER SERVICE PROVIDES:
+- temperature;
+- precipitation;
+- humidity;
+- wind.
+
+RECOMMENDATIONENGINE COMBINES ALL OF THE ABOVE.
+
+==================================================
+31. FINAL VERIFICATION
+==================================================
+
+After implementation, verify the following complete flow:
+
+1. Log in as a regular user.
+
+2. Open "Мої рослини".
+
+3. Click "Додати рослину".
+
+4. Enter a plant name.
+
+5. Select an existing species from the knowledge base.
+
+6. Upload a photo from the device.
+
+7. Create a new PlantPlace:
+   "Сад біля будинку"
+   environment = OUTDOOR.
+
+8. Save the place and select it.
+
+9. Select a saved weather location such as "Львів".
+
+10. Save the plant.
+
+11. Confirm that:
+- photo displays correctly;
+- physical place displays correctly;
+- species knowledge is visible automatically;
+- the user was not asked to enter botanical care parameters.
+
+12. Create another plant and reuse the existing PlantPlace.
+
+13. Create/use another SavedLocation such as "Забужжя".
+
+14. Confirm that both locations remain saved and reusable.
+
+15. Confirm that latitude/longitude are not manually requested from the user.
+
+16. Generate a recommendation for an OUTDOOR plant.
+
+17. Confirm that RecommendationEngine uses:
+- correct SavedLocation;
+- correct weather;
+- PlantPlace.environmentType;
+- PlantSpecies;
+- SpeciesCareRule when available;
+- latest relevant CareLog.
+
+18. Generate a recommendation for an INDOOR plant.
+
+19. Confirm that outdoor rain does not incorrectly postpone indoor watering.
+
+20. Complete a watering CareTask.
+
+21. Confirm that the new CareLog becomes the latest completed watering date used by RecommendationEngine.
+
+22. Add another plant and select:
+"Створити рекомендований план догляду".
+
+23. Confirm that a preview appears before any tasks are created.
+
+24. Select only some suggested tasks and adjust the first date.
+
+25. Confirm that only selected CareTasks are created.
+
+26. Confirm that these tasks appear in:
+- calendar;
+- reminders;
+- statistics;
+- care history after completion.
+
+27. Log in as ADMIN.
+
+28. Open plant species administration.
+
+29. Edit structured knowledge for a species.
+
+30. Add or update a SpeciesCareRule.
+
+31. Confirm that normal users cannot access those editing functions.
+
+32. Confirm that RecommendationEngine reacts to the changed species rule.
+
+33. Check "Довідник рослин".
+
+34. Confirm that knowledge is displayed clearly without overloading species cards.
+
+35. Test high-priority plant filtering.
+
+36. Test overdue plant status.
+
+37. Confirm status values are consistent between API and UI.
+
+38. Log out and log back in.
+
+39. Confirm that:
+- uploaded images;
+- PlantPlaces;
+- SavedLocations;
+- default location;
+- plant selections
+
+remain persisted.
+
+40. Confirm that another account cannot access the first user's:
+- PlantPlaces;
+- SavedLocations;
+- Plants;
+- related private data.
+
+==================================================
+32. FINAL IMPLEMENTATION PRINCIPLES
+==================================================
+
+Do not:
+
+- rebuild unrelated parts of FloraWise;
+- add unnecessary complexity;
+- require latitude/longitude from users;
+- require photo URLs;
+- ask users to manually enter species knowledge;
+- use random recommendations;
+- use an LLM as the factual source for care parameters;
+- silently create large care schedules;
+- silently change care dates without confirmation;
+- fabricate knowledge source URLs;
+- break existing stored data.
+
+Do:
+
+- reuse existing application architecture;
+- keep the plant form simple;
+- keep physical and geographic locations separate;
+- make locations reusable;
+- keep species knowledge structured;
+- make RecommendationEngine deterministic and explainable;
+- use species-specific rules when available;
+- fall back safely when detailed knowledge is missing;
+- preserve existing FloraWise functionality;
+- keep all user-facing content in Ukrainian.
+
+Before considering the update complete:
+
+- run database migrations;
+- run seed/update logic safely;
+- run type checking;
+- run the application;
+- run the production build;
+- fix runtime errors;
+- test the complete flows described above.
+
+First review the current implementation and existing schemas/routes/components before changing anything, then implement these requirements incrementally without rewriting unrelated working functionality.
