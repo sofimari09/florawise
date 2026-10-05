@@ -8,6 +8,313 @@
 import * as zod from 'zod';
 
 
+
+
+
+export const ListPlantPlacesResponseItem = zod.object({
+  "name": zod.string().min(1),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE'])
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+export const ListPlantPlacesResponse = zod.array(ListPlantPlacesResponseItem)
+
+
+
+
+
+export const CreatePlantPlaceBody = zod.object({
+  "name": zod.string().min(1),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE'])
+})
+
+
+
+
+export const CreatePlantPlaceResponse = zod.object({
+  "name": zod.string().min(1),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE'])
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+
+
+export const UpdatePlantPlaceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const UpdatePlantPlaceBody = zod.object({
+  "name": zod.string().min(1),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE'])
+})
+
+
+
+
+export const UpdatePlantPlaceResponse = zod.object({
+  "name": zod.string().min(1),
+  "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE'])
+}).and(zod.object({
+  "id": zod.number().int()
+}))
+
+
+export const DeletePlantPlaceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeletePlantPlaceResponse = zod.void()
+
+
+export const listSavedLocationsResponseOneOneLatitudeMin = -90;
+export const listSavedLocationsResponseOneOneLatitudeMax = 90;
+
+export const listSavedLocationsResponseOneOneLongitudeMin = -180;
+export const listSavedLocationsResponseOneOneLongitudeMax = 180;
+
+
+
+export const ListSavedLocationsResponseItem = zod.object({
+  "displayName": zod.string(),
+  "latitude": zod.number().min(listSavedLocationsResponseOneOneLatitudeMin).max(listSavedLocationsResponseOneOneLatitudeMax),
+  "longitude": zod.number().min(listSavedLocationsResponseOneOneLongitudeMin).max(listSavedLocationsResponseOneOneLongitudeMax)
+}).and(zod.object({
+  "isDefault": zod.boolean().optional()
+})).and(zod.object({
+  "id": zod.number().int(),
+  "lastUsedAt": zod.string()
+}))
+export const ListSavedLocationsResponse = zod.array(ListSavedLocationsResponseItem)
+
+
+export const createSavedLocationBodyOneLatitudeMin = -90;
+export const createSavedLocationBodyOneLatitudeMax = 90;
+
+export const createSavedLocationBodyOneLongitudeMin = -180;
+export const createSavedLocationBodyOneLongitudeMax = 180;
+
+
+
+export const CreateSavedLocationBody = zod.object({
+  "displayName": zod.string(),
+  "latitude": zod.number().min(createSavedLocationBodyOneLatitudeMin).max(createSavedLocationBodyOneLatitudeMax),
+  "longitude": zod.number().min(createSavedLocationBodyOneLongitudeMin).max(createSavedLocationBodyOneLongitudeMax)
+}).and(zod.object({
+  "isDefault": zod.boolean().optional()
+}))
+
+export const createSavedLocationResponseOneOneLatitudeMin = -90;
+export const createSavedLocationResponseOneOneLatitudeMax = 90;
+
+export const createSavedLocationResponseOneOneLongitudeMin = -180;
+export const createSavedLocationResponseOneOneLongitudeMax = 180;
+
+
+
+export const CreateSavedLocationResponse = zod.object({
+  "displayName": zod.string(),
+  "latitude": zod.number().min(createSavedLocationResponseOneOneLatitudeMin).max(createSavedLocationResponseOneOneLatitudeMax),
+  "longitude": zod.number().min(createSavedLocationResponseOneOneLongitudeMin).max(createSavedLocationResponseOneOneLongitudeMax)
+}).and(zod.object({
+  "isDefault": zod.boolean().optional()
+})).and(zod.object({
+  "id": zod.number().int(),
+  "lastUsedAt": zod.string()
+}))
+
+
+export const searchLocationsQueryQMin = 3;
+
+
+
+export const SearchLocationsQueryParams = zod.object({
+  "q": zod.coerce.string().min(searchLocationsQueryQMin)
+})
+
+export const searchLocationsResponseLatitudeMin = -90;
+export const searchLocationsResponseLatitudeMax = 90;
+
+export const searchLocationsResponseLongitudeMin = -180;
+export const searchLocationsResponseLongitudeMax = 180;
+
+
+
+export const SearchLocationsResponseItem = zod.object({
+  "displayName": zod.string(),
+  "latitude": zod.number().min(searchLocationsResponseLatitudeMin).max(searchLocationsResponseLatitudeMax),
+  "longitude": zod.number().min(searchLocationsResponseLongitudeMin).max(searchLocationsResponseLongitudeMax)
+})
+export const SearchLocationsResponse = zod.array(SearchLocationsResponseItem)
+
+
+export const UpdateSavedLocationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const UpdateSavedLocationBody = zod.object({
+  "displayName": zod.string().min(1).optional(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const updateSavedLocationResponseOneOneLatitudeMin = -90;
+export const updateSavedLocationResponseOneOneLatitudeMax = 90;
+
+export const updateSavedLocationResponseOneOneLongitudeMin = -180;
+export const updateSavedLocationResponseOneOneLongitudeMax = 180;
+
+
+
+export const UpdateSavedLocationResponse = zod.object({
+  "displayName": zod.string(),
+  "latitude": zod.number().min(updateSavedLocationResponseOneOneLatitudeMin).max(updateSavedLocationResponseOneOneLatitudeMax),
+  "longitude": zod.number().min(updateSavedLocationResponseOneOneLongitudeMin).max(updateSavedLocationResponseOneOneLongitudeMax)
+}).and(zod.object({
+  "isDefault": zod.boolean().optional()
+})).and(zod.object({
+  "id": zod.number().int(),
+  "lastUsedAt": zod.string()
+}))
+
+
+export const DeleteSavedLocationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteSavedLocationResponse = zod.void()
+
+
+export const GetSpeciesKnowledgeParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const getSpeciesKnowledgeResponseOneCareRulesItemRainThresholdMmMin = 0;
+
+export const getSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin = 0;
+
+
+
+
+export const GetSpeciesKnowledgeResponse = zod.object({
+  "careRules": zod.array(zod.object({
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST']),
+  "rainThresholdMm": zod.number().min(getSpeciesKnowledgeResponseOneCareRulesItemRainThresholdMmMin).nullable(),
+  "maxWindSpeedMps": zod.number().min(getSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin).nullable(),
+  "minTemperature": zod.number().nullable(),
+  "maxTemperature": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})),
+  "sources": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "sourceUrl": zod.string().nullable(),
+  "retrievedAt": zod.string().nullable(),
+  "notes": zod.string().nullable()
+}))
+})
+
+
+export const UpdateSpeciesKnowledgeParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateSpeciesKnowledgeBodyCareRulesItemRainThresholdMmMin = 0;
+
+export const updateSpeciesKnowledgeBodyCareRulesItemMaxWindSpeedMpsMin = 0;
+
+
+
+
+export const UpdateSpeciesKnowledgeBody = zod.object({
+  "careRules": zod.array(zod.object({
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST']),
+  "rainThresholdMm": zod.number().min(updateSpeciesKnowledgeBodyCareRulesItemRainThresholdMmMin).nullable(),
+  "maxWindSpeedMps": zod.number().min(updateSpeciesKnowledgeBodyCareRulesItemMaxWindSpeedMpsMin).nullable(),
+  "minTemperature": zod.number().nullable(),
+  "maxTemperature": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})),
+  "sources": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "sourceUrl": zod.string().nullable(),
+  "retrievedAt": zod.string().nullable(),
+  "notes": zod.string().nullable()
+}))
+})
+
+export const updateSpeciesKnowledgeResponseOneCareRulesItemRainThresholdMmMin = 0;
+
+export const updateSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin = 0;
+
+
+
+
+export const UpdateSpeciesKnowledgeResponse = zod.object({
+  "careRules": zod.array(zod.object({
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST']),
+  "rainThresholdMm": zod.number().min(updateSpeciesKnowledgeResponseOneCareRulesItemRainThresholdMmMin).nullable(),
+  "maxWindSpeedMps": zod.number().min(updateSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin).nullable(),
+  "minTemperature": zod.number().nullable(),
+  "maxTemperature": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})),
+  "sources": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "sourceUrl": zod.string().nullable(),
+  "retrievedAt": zod.string().nullable(),
+  "notes": zod.string().nullable()
+}))
+})
+
+
+export const PreviewCarePlanParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const PreviewCarePlanResponseItem = zod.object({
+  "type": zod.string(),
+  "scheduledDate": zod.string(),
+  "reason": zod.string()
+})
+export const PreviewCarePlanResponse = zod.array(PreviewCarePlanResponseItem)
+
+
+export const ConfirmCarePlanParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const confirmCarePlanBodyItemsMax = 10;
+
+
+
+export const ConfirmCarePlanBody = zod.object({
+  "items": zod.array(zod.object({
+  "type": zod.string(),
+  "scheduledDate": zod.string(),
+  "reason": zod.string()
+})).max(confirmCarePlanBodyItemsMax)
+})
+
+export const ConfirmCarePlanResponseItem = zod.object({
+  "id": zod.number().int(),
+  "plantId": zod.number().int(),
+  "plantName": zod.string(),
+  "type": zod.string(),
+  "scheduledDate": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "notes": zod.string(),
+  "createdAt": zod.string(),
+  "postponementCount": zod.number().int(),
+  "isOverdue": zod.boolean()
+})
+export const ConfirmCarePlanResponse = zod.array(ConfirmCarePlanResponseItem)
+
+
 /**
  * @summary Health check
  */
@@ -139,6 +446,16 @@ export const ListSpeciesQueryParams = zod.object({
 export const ListSpeciesResponseItem = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "scientificName": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
+  "humidityMin": zod.number().int().nullish(),
+  "humidityMax": zod.number().int().nullish(),
+  "fertilizingFrequencyDays": zod.number().int().nullish(),
+  "pruningSeason": zod.string().nullish(),
+  "transplantingFrequencyMonths": zod.number().int().nullish(),
+  "harvestingRecommendations": zod.string().nullish(),
+  "generalCareRecommendations": zod.string().nullish(),
   "description": zod.string(),
   "careRecommendations": zod.string(),
   "optimalTempMin": zod.number(),
@@ -162,6 +479,16 @@ export const ListSpeciesResponse = zod.array(ListSpeciesResponseItem)
 export const CreateSpeciesBody = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "scientificName": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
+  "humidityMin": zod.number().int().nullish(),
+  "humidityMax": zod.number().int().nullish(),
+  "fertilizingFrequencyDays": zod.number().int().nullish(),
+  "pruningSeason": zod.string().nullish(),
+  "transplantingFrequencyMonths": zod.number().int().nullish(),
+  "harvestingRecommendations": zod.string().nullish(),
+  "generalCareRecommendations": zod.string().nullish(),
   "description": zod.string(),
   "careRecommendations": zod.string(),
   "optimalTempMin": zod.number(),
@@ -180,6 +507,16 @@ export const CreateSpeciesBody = zod.object({
 export const CreateSpeciesResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "scientificName": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
+  "humidityMin": zod.number().int().nullish(),
+  "humidityMax": zod.number().int().nullish(),
+  "fertilizingFrequencyDays": zod.number().int().nullish(),
+  "pruningSeason": zod.string().nullish(),
+  "transplantingFrequencyMonths": zod.number().int().nullish(),
+  "harvestingRecommendations": zod.string().nullish(),
+  "generalCareRecommendations": zod.string().nullish(),
   "description": zod.string(),
   "careRecommendations": zod.string(),
   "optimalTempMin": zod.number(),
@@ -206,6 +543,16 @@ export const UpdateSpeciesParams = zod.object({
 export const UpdateSpeciesBody = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "scientificName": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
+  "humidityMin": zod.number().int().nullish(),
+  "humidityMax": zod.number().int().nullish(),
+  "fertilizingFrequencyDays": zod.number().int().nullish(),
+  "pruningSeason": zod.string().nullish(),
+  "transplantingFrequencyMonths": zod.number().int().nullish(),
+  "harvestingRecommendations": zod.string().nullish(),
+  "generalCareRecommendations": zod.string().nullish(),
   "description": zod.string(),
   "careRecommendations": zod.string(),
   "optimalTempMin": zod.number(),
@@ -224,6 +571,16 @@ export const UpdateSpeciesBody = zod.object({
 export const UpdateSpeciesResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "scientificName": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
+  "humidityMin": zod.number().int().nullish(),
+  "humidityMax": zod.number().int().nullish(),
+  "fertilizingFrequencyDays": zod.number().int().nullish(),
+  "pruningSeason": zod.string().nullish(),
+  "transplantingFrequencyMonths": zod.number().int().nullish(),
+  "harvestingRecommendations": zod.string().nullish(),
+  "generalCareRecommendations": zod.string().nullish(),
   "description": zod.string(),
   "careRecommendations": zod.string(),
   "optimalTempMin": zod.number(),
@@ -268,6 +625,9 @@ export const ListPlantsResponseItem = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "placeId": zod.number().int().nullish(),
+  "weatherLocationId": zod.number().int().nullish(),
+  "hasHighPriorityTasks": zod.boolean().optional(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
   "weatherLocationName": zod.string().nullable(),
   "weatherLatitude": zod.number().nullable(),
@@ -275,7 +635,7 @@ export const ListPlantsResponseItem = zod.object({
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
-  "careStatus": zod.string(),
+  "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
 })
 export const ListPlantsResponse = zod.array(ListPlantsResponseItem)
@@ -298,6 +658,8 @@ export const CreatePlantBody = zod.object({
   "name": zod.string().min(1),
   "speciesId": zod.number().int(),
   "location": zod.string().min(1),
+  "placeId": zod.number().int().optional(),
+  "weatherLocationId": zod.number().int().nullish(),
   "photoUrl": zod.string(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
   "weatherLocationName": zod.string().nullish(),
@@ -312,6 +674,9 @@ export const CreatePlantResponse = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "placeId": zod.number().int().nullish(),
+  "weatherLocationId": zod.number().int().nullish(),
+  "hasHighPriorityTasks": zod.boolean().optional(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
   "weatherLocationName": zod.string().nullable(),
   "weatherLatitude": zod.number().nullable(),
@@ -319,7 +684,7 @@ export const CreatePlantResponse = zod.object({
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
-  "careStatus": zod.string(),
+  "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
 })
 
@@ -338,6 +703,9 @@ export const GetPlantResponse = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "placeId": zod.number().int().nullish(),
+  "weatherLocationId": zod.number().int().nullish(),
+  "hasHighPriorityTasks": zod.boolean().optional(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
   "weatherLocationName": zod.string().nullable(),
   "weatherLatitude": zod.number().nullable(),
@@ -345,12 +713,22 @@ export const GetPlantResponse = zod.object({
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
-  "careStatus": zod.string(),
+  "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
 }).and(zod.object({
   "species": zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "scientificName": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
+  "humidityMin": zod.number().int().nullish(),
+  "humidityMax": zod.number().int().nullish(),
+  "fertilizingFrequencyDays": zod.number().int().nullish(),
+  "pruningSeason": zod.string().nullish(),
+  "transplantingFrequencyMonths": zod.number().int().nullish(),
+  "harvestingRecommendations": zod.string().nullish(),
+  "generalCareRecommendations": zod.string().nullish(),
   "description": zod.string(),
   "careRecommendations": zod.string(),
   "optimalTempMin": zod.number(),
@@ -440,6 +818,8 @@ export const UpdatePlantBody = zod.object({
   "name": zod.string().min(1),
   "speciesId": zod.number().int(),
   "location": zod.string().min(1),
+  "placeId": zod.number().int().optional(),
+  "weatherLocationId": zod.number().int().nullish(),
   "photoUrl": zod.string(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
   "weatherLocationName": zod.string().nullish(),
@@ -454,6 +834,9 @@ export const UpdatePlantResponse = zod.object({
   "name": zod.string(),
   "photoUrl": zod.string(),
   "location": zod.string(),
+  "placeId": zod.number().int().nullish(),
+  "weatherLocationId": zod.number().int().nullish(),
+  "hasHighPriorityTasks": zod.boolean().optional(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']),
   "weatherLocationName": zod.string().nullable(),
   "weatherLatitude": zod.number().nullable(),
@@ -461,7 +844,7 @@ export const UpdatePlantResponse = zod.object({
   "addedAt": zod.string(),
   "speciesName": zod.string(),
   "nextTask": zod.string().nullable(),
-  "careStatus": zod.string(),
+  "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
 })
 

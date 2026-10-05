@@ -9,6 +9,26 @@
 export interface PlantSpecies {
   id: number;
   name: string;
+  /** @nullable */
+  scientificName?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  suitableEnvironmentTypes?: string[] | null;
+  /** @nullable */
+  humidityMin?: number | null;
+  /** @nullable */
+  humidityMax?: number | null;
+  /** @nullable */
+  fertilizingFrequencyDays?: number | null;
+  /** @nullable */
+  pruningSeason?: string | null;
+  /** @nullable */
+  transplantingFrequencyMonths?: number | null;
+  /** @nullable */
+  harvestingRecommendations?: string | null;
+  /** @nullable */
+  generalCareRecommendations?: string | null;
   description: string;
   careRecommendations: string;
   optimalTempMin: number;

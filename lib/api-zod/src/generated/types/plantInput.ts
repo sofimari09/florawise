@@ -13,6 +13,9 @@ export interface PlantInput {
   speciesId: number;
   /** @minLength 1 */
   location: string;
+  placeId?: number;
+  /** @nullable */
+  weatherLocationId?: number | null;
   photoUrl: string;
   environmentType?: PlantInputEnvironmentType;
   /** @nullable */

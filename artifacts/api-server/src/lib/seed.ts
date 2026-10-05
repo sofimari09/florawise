@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { plantsTable, speciesTable, tasksTable, usersTable, careLogsTable, remindersTable, recommendationsTable } from "@workspace/db";
 import { logger } from "./logger";
+import { migrateLegacyLocations } from "./legacy-location-migration";
 
 const speciesSeed = [
   ["Монстера", "Велика тропічна рослина з характерними прорізами на листі.", 18, 28, 65, 7, "Яскраве розсіяне світло", "Легкий поживний субстрат із дренажем", "Поливайте після підсихання верхніх 3 см ґрунту.", "Раз на місяць у період росту.", "Видаляйте сухе листя та слабкі пагони.", "Пересаджуйте раз на 2–3 роки."],
@@ -50,7 +51,10 @@ const date = (offset: number) => {
 
 export async function seedData(): Promise<void> {
   const existing = await db.select({ id: speciesTable.id }).from(speciesTable).limit(1);
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    await migrateLegacyLocations();
+    return;
+  }
   const insertedSpecies = await db.insert(speciesTable).values(speciesSeed).returning();
   const [user] = await db.insert(usersTable).values({
     clerkUserId: "preview-demo-user",
@@ -94,4 +98,5 @@ export async function seedData(): Promise<void> {
     weatherJson: JSON.stringify({ date: date(1), temperature: 18, precipitation: 13, humidity: 86, windSpeed: 4, condition: "Значні опади" }),
   });
   logger.info("FloraWise demo data seeded");
+  await migrateLegacyLocations();
 }

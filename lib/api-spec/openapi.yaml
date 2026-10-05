@@ -19,6 +19,149 @@ tags:
   - name: analytics
   - name: reports
 paths:
+  /places:
+    get:
+      operationId: listPlantPlaces
+      responses:
+        "200":
+          description: Місця користувача
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PlantPlace" } }
+    post:
+      operationId: createPlantPlace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlantPlaceInput" }
+      responses:
+        "201":
+          description: Місце збережено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlantPlace" }
+  /places/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updatePlantPlace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlantPlaceInput" }
+      responses:
+        "200":
+          description: Місце оновлено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlantPlace" }
+    delete:
+      operationId: deletePlantPlace
+      responses:
+        "204": { description: Місце видалено }
+  /locations:
+    get:
+      operationId: listSavedLocations
+      responses:
+        "200":
+          description: Збережені погодні локації
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SavedLocation" } }
+    post:
+      operationId: createSavedLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SavedLocationInput" }
+      responses:
+        "201":
+          description: Локацію збережено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedLocation" }
+  /locations/search:
+    get:
+      operationId: searchLocations
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 3 } }
+      responses:
+        "200":
+          description: Результати пошуку населених пунктів
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/LocationSuggestion" } }
+  /locations/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateSavedLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SavedLocationUpdate" }
+      responses:
+        "200":
+          description: Локацію оновлено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedLocation" }
+    delete:
+      operationId: deleteSavedLocation
+      responses:
+        "204": { description: Локацію видалено }
+  /species/{id}/knowledge:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: getSpeciesKnowledge
+      responses:
+        "200":
+          description: Правила та джерела знань
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpeciesKnowledge" }
+    put:
+      operationId: updateSpeciesKnowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpeciesKnowledgeInput" }
+      responses:
+        "200":
+          description: Знання збережено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpeciesKnowledge" }
+  /plants/{id}/care-plan:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: previewCarePlan
+      responses:
+        "200":
+          description: Пропозиції без створення завдань
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CarePlanItem" } }
+    post:
+      operationId: confirmCarePlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CarePlanInput" }
+      responses:
+        "201":
+          description: Створено лише підтверджені завдання
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CareTask" } }
   /healthz:
     get:
       operationId: healthCheck
@@ -519,6 +662,81 @@ components:
       schema:
         type: [string, "null"]
   schemas:
+    PlantPlace:
+      allOf:
+        - $ref: "#/components/schemas/PlantPlaceInput"
+      properties:
+        id: { type: integer }
+      required: [id]
+    PlantPlaceInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
+      required: [name, environmentType]
+    LocationSuggestion:
+      type: object
+      properties:
+        displayName: { type: string }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+      required: [displayName, latitude, longitude]
+    SavedLocationInput:
+      allOf:
+        - $ref: "#/components/schemas/LocationSuggestion"
+      properties:
+        isDefault: { type: boolean }
+    SavedLocation:
+      allOf:
+        - $ref: "#/components/schemas/SavedLocationInput"
+      properties:
+        id: { type: integer }
+        lastUsedAt: { type: string }
+      required: [id, isDefault, lastUsedAt]
+    SavedLocationUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1 }
+        isDefault: { type: boolean }
+    SpeciesCareRule:
+      type: object
+      properties:
+        careType: { type: string, enum: [WATERING, FERTILIZING, PRUNING, TRANSPLANTING, TREATMENT, HARVEST] }
+        rainThresholdMm: { type: [number, "null"], minimum: 0 }
+        maxWindSpeedMps: { type: [number, "null"], minimum: 0 }
+        minTemperature: { type: [number, "null"] }
+        maxTemperature: { type: [number, "null"] }
+        notes: { type: [string, "null"] }
+      required: [careType, rainThresholdMm, maxWindSpeedMps, minTemperature, maxTemperature, notes]
+    KnowledgeSource:
+      type: object
+      properties:
+        sourceName: { type: string, minLength: 1 }
+        sourceUrl: { type: [string, "null"] }
+        retrievedAt: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+      required: [sourceName, sourceUrl, retrievedAt, notes]
+    SpeciesKnowledgeInput:
+      type: object
+      properties:
+        careRules: { type: array, items: { $ref: "#/components/schemas/SpeciesCareRule" } }
+        sources: { type: array, items: { $ref: "#/components/schemas/KnowledgeSource" } }
+      required: [careRules, sources]
+    SpeciesKnowledge:
+      allOf:
+        - $ref: "#/components/schemas/SpeciesKnowledgeInput"
+    CarePlanItem:
+      type: object
+      properties:
+        type: { type: string }
+        scheduledDate: { type: string }
+        reason: { type: string }
+      required: [type, scheduledDate, reason]
+    CarePlanInput:
+      type: object
+      properties:
+        items: { type: array, maxItems: 10, items: { $ref: "#/components/schemas/CarePlanItem" } }
+      required: [items]
     HealthStatus:
       type: object
       properties:
@@ -548,6 +766,16 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
+        scientificName: { type: [string, "null"] }
+        category: { type: [string, "null"] }
+        suitableEnvironmentTypes: { type: [array, "null"], items: { type: string } }
+        humidityMin: { type: [integer, "null"] }
+        humidityMax: { type: [integer, "null"] }
+        fertilizingFrequencyDays: { type: [integer, "null"] }
+        pruningSeason: { type: [string, "null"] }
+        transplantingFrequencyMonths: { type: [integer, "null"] }
+        harvestingRecommendations: { type: [string, "null"] }
+        generalCareRecommendations: { type: [string, "null"] }
         description: { type: string }
         careRecommendations: { type: string }
         optimalTempMin: { type: number }
@@ -576,6 +804,9 @@ components:
         name: { type: string }
         photoUrl: { type: string }
         location: { type: string }
+        placeId: { type: [integer, "null"] }
+        weatherLocationId: { type: [integer, "null"] }
+        hasHighPriorityTasks: { type: boolean }
         environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
         weatherLocationName: { type: [string, "null"] }
         weatherLatitude: { type: [number, "null"] }
@@ -583,7 +814,7 @@ components:
         addedAt: { type: string }
         speciesName: { type: string }
         nextTask: { type: [string, "null"] }
-        careStatus: { type: string }
+        careStatus: { type: string, enum: [OVERDUE, PLANNED, NO_PLAN] }
         nextTaskType: { type: [string, "null"] }
       required: [id, userId, speciesId, name, photoUrl, location, environmentType, weatherLocationName, weatherLatitude, weatherLongitude, addedAt, speciesName, nextTask, careStatus, nextTaskType]
     PlantInput:
@@ -592,6 +823,8 @@ components:
         name: { type: string, minLength: 1 }
         speciesId: { type: integer }
         location: { type: string, minLength: 1 }
+        placeId: { type: integer }
+        weatherLocationId: { type: [integer, "null"] }
         photoUrl: { type: string }
         environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
         weatherLocationName: { type: [string, "null"] }

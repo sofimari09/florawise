@@ -42,12 +42,19 @@ export class MockWeatherService implements WeatherServiceClient {
       { temperature: 19, precipitation: 0, humidity: 54, windSpeed: 3, condition: "Комфортно" },
       { temperature: 23, precipitation: 2, humidity: 60, windSpeed: 5, condition: "Мінлива хмарність" },
     ];
+    const identity = `${location.name}|${location.latitude ?? ""}|${location.longitude ?? ""}`;
+    const hash = [...identity].reduce((value, char) => (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0, 0);
+    const rotation = hash % templates.length;
+    const temperatureOffset = (hash % 7) - 3;
     return {
       location: location.name,
       latitude: location.latitude,
       longitude: location.longitude,
       isMock: true,
-      forecast: templates.map((day, index) => ({ ...day, date: addDays(new Date(), index) })),
+      forecast: templates.map((_, index) => {
+        const day = templates[(index + rotation) % templates.length];
+        return { ...day, temperature: day.temperature + temperatureOffset, date: addDays(new Date(), index) };
+      }),
     };
   }
 }

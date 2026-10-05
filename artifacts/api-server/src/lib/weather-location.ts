@@ -1,4 +1,5 @@
-import type { Plant, User } from "@workspace/db";
+import { db, plantPlacesTable, savedLocationsTable, type Plant, type User } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 
 export type WeatherLocation = {
   name: string;
@@ -37,4 +38,22 @@ export function resolveWeatherLocation(user: User, plant?: Plant | null): Weathe
     longitude: coordinate(user.weatherLongitude),
     source: user.weatherLocationName === FALLBACK_WEATHER_LOCATION.name ? "fallback" : "profile",
   };
+}
+
+export async function resolveSavedWeatherLocation(user: User, plant?: Plant | null): Promise<WeatherLocation> {
+  if (plant?.weatherLocationId) {
+    const [location] = await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.id, plant.weatherLocationId), eq(savedLocationsTable.userId, user.id)));
+    if (location) return { name: location.displayName, latitude: Number(location.latitude), longitude: Number(location.longitude), source: "plant" };
+  }
+  const [location] = await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.userId, user.id), eq(savedLocationsTable.isDefault, true)));
+  if (location) return { name: location.displayName, latitude: Number(location.latitude), longitude: Number(location.longitude), source: "profile" };
+  return resolveWeatherLocation(user, plant);
+}
+
+export async function plantEnvironment(plant: Plant): Promise<string> {
+  if (plant.placeId) {
+    const [place] = await db.select().from(plantPlacesTable).where(and(eq(plantPlacesTable.id, plant.placeId), eq(plantPlacesTable.userId, plant.userId)));
+    if (place) return place.environmentType;
+  }
+  return plant.environmentType;
 }

@@ -5,6 +5,119 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+export type PlantPlaceInputEnvironmentType = typeof PlantPlaceInputEnvironmentType[keyof typeof PlantPlaceInputEnvironmentType];
+
+
+export const PlantPlaceInputEnvironmentType = {
+  INDOOR: 'INDOOR',
+  BALCONY: 'BALCONY',
+  OUTDOOR: 'OUTDOOR',
+  GREENHOUSE: 'GREENHOUSE',
+} as const;
+
+export interface PlantPlaceInput {
+  /** @minLength 1 */
+  name: string;
+  environmentType: PlantPlaceInputEnvironmentType;
+}
+
+export type PlantPlace = PlantPlaceInput & {
+  id: number;
+};
+
+export interface LocationSuggestion {
+  displayName: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+}
+
+export type SavedLocationInput = LocationSuggestion & {
+  isDefault?: boolean;
+};
+
+export type SavedLocation = SavedLocationInput & {
+  id: number;
+  lastUsedAt: string;
+} & Required<Pick<SavedLocationInput & {
+  id: number;
+  lastUsedAt: string;
+}, 'isDefault'>>;
+
+export interface SavedLocationUpdate {
+  /** @minLength 1 */
+  displayName?: string;
+  isDefault?: boolean;
+}
+
+export type SpeciesCareRuleCareType = typeof SpeciesCareRuleCareType[keyof typeof SpeciesCareRuleCareType];
+
+
+export const SpeciesCareRuleCareType = {
+  WATERING: 'WATERING',
+  FERTILIZING: 'FERTILIZING',
+  PRUNING: 'PRUNING',
+  TRANSPLANTING: 'TRANSPLANTING',
+  TREATMENT: 'TREATMENT',
+  HARVEST: 'HARVEST',
+} as const;
+
+export interface SpeciesCareRule {
+  careType: SpeciesCareRuleCareType;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  rainThresholdMm: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  maxWindSpeedMps: number | null;
+  /** @nullable */
+  minTemperature: number | null;
+  /** @nullable */
+  maxTemperature: number | null;
+  /** @nullable */
+  notes: string | null;
+}
+
+export interface KnowledgeSource {
+  /** @minLength 1 */
+  sourceName: string;
+  /** @nullable */
+  sourceUrl: string | null;
+  /** @nullable */
+  retrievedAt: string | null;
+  /** @nullable */
+  notes: string | null;
+}
+
+export interface SpeciesKnowledgeInput {
+  careRules: SpeciesCareRule[];
+  sources: KnowledgeSource[];
+}
+
+export type SpeciesKnowledge = SpeciesKnowledgeInput;
+
+export interface CarePlanItem {
+  type: string;
+  scheduledDate: string;
+  reason: string;
+}
+
+export interface CarePlanInput {
+  /** @maxItems 10 */
+  items: CarePlanItem[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -49,6 +162,26 @@ export interface ProfileWeatherLocationInput {
 export interface PlantSpecies {
   id: number;
   name: string;
+  /** @nullable */
+  scientificName?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  suitableEnvironmentTypes?: string[] | null;
+  /** @nullable */
+  humidityMin?: number | null;
+  /** @nullable */
+  humidityMax?: number | null;
+  /** @nullable */
+  fertilizingFrequencyDays?: number | null;
+  /** @nullable */
+  pruningSeason?: string | null;
+  /** @nullable */
+  transplantingFrequencyMonths?: number | null;
+  /** @nullable */
+  harvestingRecommendations?: string | null;
+  /** @nullable */
+  generalCareRecommendations?: string | null;
   description: string;
   careRecommendations: string;
   optimalTempMin: number;
@@ -78,6 +211,15 @@ export const PlantEnvironmentType = {
   GREENHOUSE: 'GREENHOUSE',
 } as const;
 
+export type PlantCareStatus = typeof PlantCareStatus[keyof typeof PlantCareStatus];
+
+
+export const PlantCareStatus = {
+  OVERDUE: 'OVERDUE',
+  PLANNED: 'PLANNED',
+  NO_PLAN: 'NO_PLAN',
+} as const;
+
 export interface Plant {
   id: number;
   userId: number;
@@ -85,6 +227,11 @@ export interface Plant {
   name: string;
   photoUrl: string;
   location: string;
+  /** @nullable */
+  placeId?: number | null;
+  /** @nullable */
+  weatherLocationId?: number | null;
+  hasHighPriorityTasks?: boolean;
   environmentType: PlantEnvironmentType;
   /** @nullable */
   weatherLocationName: string | null;
@@ -96,7 +243,7 @@ export interface Plant {
   speciesName: string;
   /** @nullable */
   nextTask: string | null;
-  careStatus: string;
+  careStatus: PlantCareStatus;
   /** @nullable */
   nextTaskType: string | null;
 }
@@ -117,6 +264,9 @@ export interface PlantInput {
   speciesId: number;
   /** @minLength 1 */
   location: string;
+  placeId?: number;
+  /** @nullable */
+  weatherLocationId?: number | null;
   photoUrl: string;
   environmentType?: PlantInputEnvironmentType;
   /** @nullable */
@@ -316,6 +466,13 @@ export interface ReportInput {
 }
 
 export type SearchParameter = string | null;
+
+export type SearchLocationsParams = {
+/**
+ * @minLength 3
+ */
+q: string;
+};
 
 export type ListSpeciesParams = {
 /**
