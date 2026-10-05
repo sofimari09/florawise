@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation, useParams } from "wouter";
 import { ClerkProvider, SignIn, useClerk, useAuth, useSignUp, useUser } from "@clerk/react";
+import { ukUA } from "@clerk/localizations";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import {
@@ -95,6 +96,85 @@ const taskLabel: Record<string, string> = { watering: "Полив", WATERING: "�
 const statusLabel: Record<string, string> = { planned: "Заплановано", PENDING: "Очікує", COMPLETED: "Виконано", completed: "Виконано", POSTPONED: "Перенесено", CANCELLED: "Скасовано" };
 const priorityLabel: Record<string, string> = { high: "Високий", HIGH: "Високий", medium: "Середній", MEDIUM: "Середній", low: "Низький", LOW: "Низький" };
 const passwordPolicyMessage = "Пароль має містити щонайменше 8 символів, одну велику літеру, одну малу літеру, цифру та спеціальний символ.";
+const authLocalization = {
+  ...ukUA,
+  developmentMode: "Режим розробки",
+  socialButtonsBlockButton: "Продовжити з {{provider|titleize}}",
+  lastAuthenticationStrategy: "Використовувалось востаннє",
+  dividerText: "або",
+  formButtonPrimary: "Продовжити",
+  formButtonPrimary__verify: "Підтвердити",
+  formFieldLabel__emailAddress: "Електронна пошта",
+  formFieldInputPlaceholder__emailAddress: "Введіть електронну пошту",
+  formFieldInputPlaceholder__emailAddress_username: "Введіть електронну пошту або ім’я користувача",
+  formFieldInputPlaceholder__password: "Введіть пароль",
+  formFieldInputPlaceholder__signUpPassword: "Введіть пароль",
+  formFieldLabel__password: "Пароль",
+  formFieldError__notMatchingPasswords: "Паролі не збігаються.",
+  formFieldError__verificationLinkExpired: "Термін дії посилання минув. Запросіть нове посилання.",
+  signIn: {
+    ...ukUA.signIn,
+    start: {
+      ...ukUA.signIn?.start,
+      title: "З поверненням",
+      subtitle: "Увійдіть, щоб продовжити турботу про рослини",
+      actionText: "Не маєте облікового запису?",
+      actionLink: "Зареєструватися",
+    },
+    accountSwitcher: {
+      ...ukUA.signIn?.accountSwitcher,
+      title: "Оберіть обліковий запис",
+      subtitle: "Оберіть обліковий запис, з яким бажаєте продовжити.",
+      action__addAccount: "Додати обліковий запис",
+      action__signOutAll: "Вийти з усіх облікових записів",
+    },
+    alternativeMethods: {
+      ...ukUA.signIn?.alternativeMethods,
+      actionText: "Немає доступу до цих способів?",
+      subtitle: "Якщо виникли труднощі, оберіть інший спосіб входу.",
+    },
+    forgotPassword: {
+      ...ukUA.signIn?.forgotPassword,
+      title: "Скинути пароль",
+      subtitle: "Щоб скинути пароль",
+      subtitle_email: "Введіть код, надісланий на вашу електронну пошту.",
+      subtitle_phone: "Введіть код, надісланий на ваш телефон.",
+    },
+    resetPassword: {
+      ...ukUA.signIn?.resetPassword,
+      requiredMessage: "Для безпеки необхідно змінити пароль.",
+    },
+  },
+  signUp: {
+    ...ukUA.signUp,
+    start: { ...ukUA.signUp?.start, title: "Створіть свій простір", subtitle: "Почніть із першої рослини" },
+  },
+  unstable__errors: {
+    ...ukUA.unstable__errors,
+    form_password_length_too_short: passwordPolicyMessage,
+    form_param_format_invalid__email_address: "Введіть коректну електронну пошту.",
+    form_code_incorrect: "Неправильний код підтвердження. Спробуйте ще раз.",
+    form_password_incorrect: "Неправильний пароль. Спробуйте ще раз.",
+    form_password_pwned__sign_in: "Цей пароль небезпечний. Змініть його, щоб продовжити.",
+    captcha_invalid: "Не вдалося пройти перевірку безпеки. Оновіть сторінку та спробуйте ще раз.",
+    captcha_unavailable: "Перевірка безпеки недоступна. Оновіть сторінку та спробуйте ще раз.",
+  },
+};
+function signUpErrorText(cause: unknown, fallback: string) {
+  const code = cause && typeof cause === "object" && "errors" in cause
+    ? (cause.errors as Array<{ code?: string }>)[0]?.code
+    : undefined;
+  const messages: Record<string, string> = {
+    form_identifier_exists: "Обліковий запис із такою електронною поштою вже існує.",
+    form_identifier_exists__email_address: "Обліковий запис із такою електронною поштою вже існує.",
+    form_param_format_invalid__email_address: "Введіть коректну електронну пошту.",
+    form_password_length_too_short: passwordPolicyMessage,
+    form_password_pwned: "Цей пароль небезпечний. Оберіть інший.",
+    form_code_incorrect: "Неправильний код підтвердження. Спробуйте ще раз.",
+    verification_expired: "Термін дії коду минув. Запросіть новий код.",
+  };
+  return code ? messages[code] ?? fallback : fallback;
+}
 const passwordPolicy = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 const environmentLabels: Record<string, string> = { INDOOR: "У приміщенні", BALCONY: "Балкон", OUTDOOR: "Надворі", GREENHOUSE: "Теплиця" };
 const readBrowserLocation = (onSuccess: (latitude: number, longitude: number) => void, onError: (message: string) => void) => {
@@ -252,10 +332,7 @@ function SignUpPage() {
         setNeedsVerification(true);
       }
     } catch (cause) {
-      const message = cause && typeof cause === "object" && "errors" in cause
-        ? (cause.errors as Array<{ longMessage?: string; message?: string }>)[0]?.longMessage || (cause.errors as Array<{ message?: string }>)[0]?.message
-        : undefined;
-      setError(message || "Не вдалося створити обліковий запис. Перевірте дані й спробуйте ще раз.");
+      setError(signUpErrorText(cause, "Не вдалося створити обліковий запис. Перевірте дані й спробуйте ще раз."));
     } finally {
       setPending(false);
     }
@@ -271,10 +348,7 @@ function SignUpPage() {
       if (verification.error) throw verification.error;
       await finishSignUp();
     } catch (cause) {
-      const message = cause && typeof cause === "object" && "errors" in cause
-        ? (cause.errors as Array<{ longMessage?: string; message?: string }>)[0]?.longMessage || (cause.errors as Array<{ message?: string }>)[0]?.message
-        : undefined;
-      setError(message || "Код підтвердження неправильний або застарів.");
+      setError(signUpErrorText(cause, "Код підтвердження неправильний або застарів."));
     } finally {
       setPending(false);
     }
@@ -490,16 +564,8 @@ function ClerkProviderWithRoutes() {
     appearance={clerkAppearance}
     signInUrl={`${basePath}/sign-in`}
     signUpUrl={`${basePath}/sign-up`}
-    localization={{
-      formFieldLabel__password: "Пароль",
-      formFieldInputPlaceholder__signUpPassword: "Введіть пароль",
-      formFieldError__notMatchingPasswords: "Паролі не збігаються.",
-      signIn: { start: { title: "З поверненням", subtitle: "Увійдіть, щоб продовжити турботу про рослини" } },
-      signUp: { start: { title: "Створіть свій простір", subtitle: "Почніть із першої рослини" } },
-      unstable__errors: {
-        form_password_length_too_short: passwordPolicyMessage,
-      },
-    }}
+    // Both packages use Clerk's localization schema, but pnpm resolves separate @clerk/shared type copies.
+    localization={authLocalization as unknown as ComponentProps<typeof ClerkProvider>["localization"]}
     routerPush={(to) => setLocation(stripBase(to))}
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
   >

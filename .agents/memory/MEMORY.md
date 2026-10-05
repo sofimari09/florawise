@@ -2,3 +2,4 @@
 - [Clerk password boundary](clerk-password-policy.md) — FloraWise never receives raw passwords; exact server-side password rules live in managed Clerk settings.
 - [Care knowledge policy](care-knowledge-policy.md) — factual species knowledge must not come from an LLM; care plans and date changes require user confirmation.
 - [Plant photo policy](plant-photo-policy.md) — photo bytes belong only in App Storage; preserve Clerk and legacy photo URLs when extending uploads.
+- [Clerk localization boundary](clerk-localization-boundary.md) — the development watermark remained English despite a Ukrainian localization override.
