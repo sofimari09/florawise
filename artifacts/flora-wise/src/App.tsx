@@ -76,7 +76,7 @@ const clerkAppearance = {
     logoBox: "rounded-xl overflow-hidden",
     logoImage: "rounded-xl",
     socialButtonsBlockButton: "border-[#ddd6c8] bg-[#fffdf8]",
-    formButtonPrimary: "bg-[#38644a] hover:bg-[#2f563f]",
+    formButtonPrimary: "bg-[#38644a] hover:bg-[#2f563f] text-card",
     formFieldInput: "border-[#ddd6c8] bg-[#fffdf8] text-[#2d3a31]",
     footerAction: "bg-transparent",
     dividerLine: "bg-[#ddd6c8]",
