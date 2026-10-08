@@ -730,10 +730,11 @@ export const ListPlantsQueryParams = zod.object({
 export const ListPlantsResponseItem = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
-  "speciesId": zod.number().int(),
-  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
-  "categoryLabel": zod.string().optional(),
-  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "speciesId": zod.number().int().nullable(),
+  "identityKind": zod.enum(['LINKED', 'CUSTOM']),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "categoryLabel": zod.string(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -747,7 +748,7 @@ export const ListPlantsResponseItem = zod.object({
   "weatherLatitude": zod.number().nullable(),
   "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
-  "speciesName": zod.string(),
+  "speciesName": zod.string().nullable(),
   "nextTask": zod.string().nullable(),
   "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
@@ -769,9 +770,10 @@ export const createPlantBodyWeatherLongitudeMax = 180;
 
 
 export const CreatePlantBody = zod.object({
-  "name": zod.string().optional().describe('Legacy alias input. personalName takes precedence when supplied.'),
+  "name": zod.string().optional().describe('Required nonblank custom name; legacy alias for linked plants.'),
   "personalName": zod.string().nullish().describe('Optional alias. Blank or null uses the selected species name.'),
-  "speciesId": zod.number().int().min(1),
+  "speciesId": zod.number().int().min(1).nullable(),
+  "category": zod.union([zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),zod.null()]).optional(),
   "location": zod.string().min(1),
   "placeId": zod.number().int().optional(),
   "weatherLocationId": zod.number().int().nullish(),
@@ -781,15 +783,16 @@ export const CreatePlantBody = zod.object({
   "weatherLocationName": zod.string().nullish(),
   "weatherLatitude": zod.number().min(createPlantBodyWeatherLatitudeMin).max(createPlantBodyWeatherLatitudeMax).nullish(),
   "weatherLongitude": zod.number().min(createPlantBodyWeatherLongitudeMin).max(createPlantBodyWeatherLongitudeMax).nullish()
-})
+}).describe('speciesId=null explicitly creates a custom plant, requiring a nonblank name and manually selected category. Linked plants reject category overrides.')
 
 export const CreatePlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
-  "speciesId": zod.number().int(),
-  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
-  "categoryLabel": zod.string().optional(),
-  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "speciesId": zod.number().int().nullable(),
+  "identityKind": zod.enum(['LINKED', 'CUSTOM']),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "categoryLabel": zod.string(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -803,7 +806,7 @@ export const CreatePlantResponse = zod.object({
   "weatherLatitude": zod.number().nullable(),
   "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
-  "speciesName": zod.string(),
+  "speciesName": zod.string().nullable(),
   "nextTask": zod.string().nullable(),
   "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
@@ -820,10 +823,11 @@ export const GetPlantParams = zod.object({
 export const GetPlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
-  "speciesId": zod.number().int(),
-  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
-  "categoryLabel": zod.string().optional(),
-  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "speciesId": zod.number().int().nullable(),
+  "identityKind": zod.enum(['LINKED', 'CUSTOM']),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "categoryLabel": zod.string(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -837,12 +841,12 @@ export const GetPlantResponse = zod.object({
   "weatherLatitude": zod.number().nullable(),
   "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
-  "speciesName": zod.string(),
+  "speciesName": zod.string().nullable(),
   "nextTask": zod.string().nullable(),
   "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()
 }).and(zod.object({
-  "species": zod.object({
+  "species": zod.union([zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
@@ -871,7 +875,7 @@ export const GetPlantResponse = zod.object({
   "pruningRecommendations": zod.string(),
   "transplantingRecommendations": zod.string(),
   "imageUrl": zod.string()
-}).optional(),
+}),zod.null()]).optional(),
   "upcomingTasks": zod.array(zod.object({
   "id": zod.number().int(),
   "plantId": zod.number().int(),
@@ -948,7 +952,8 @@ export const updatePlantBodyWeatherLongitudeMax = 180;
 export const UpdatePlantBody = zod.object({
   "name": zod.string().optional(),
   "personalName": zod.string().nullish(),
-  "speciesId": zod.number().int().min(1).optional(),
+  "speciesId": zod.number().int().min(1).nullish(),
+  "category": zod.union([zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),zod.null()]).optional(),
   "location": zod.string().min(1).optional(),
   "placeId": zod.number().int().optional(),
   "weatherLocationId": zod.number().int().nullish(),
@@ -958,15 +963,16 @@ export const UpdatePlantBody = zod.object({
   "weatherLocationName": zod.string().nullish(),
   "weatherLatitude": zod.number().min(updatePlantBodyWeatherLatitudeMin).max(updatePlantBodyWeatherLatitudeMax).nullish(),
   "weatherLongitude": zod.number().min(updatePlantBodyWeatherLongitudeMin).max(updatePlantBodyWeatherLongitudeMax).nullish()
-}).describe('Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias.')
+}).describe('Omitted identity fields preserve them. Explicit speciesId=null switches to custom and requires explicit name and category. Linked plants reject nonnull category overrides. Aliases never infer identity.')
 
 export const UpdatePlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
-  "speciesId": zod.number().int(),
-  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
-  "categoryLabel": zod.string().optional(),
-  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "speciesId": zod.number().int().nullable(),
+  "identityKind": zod.enum(['LINKED', 'CUSTOM']),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "categoryLabel": zod.string(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -980,7 +986,7 @@ export const UpdatePlantResponse = zod.object({
   "weatherLatitude": zod.number().nullable(),
   "weatherLongitude": zod.number().nullable(),
   "addedAt": zod.string(),
-  "speciesName": zod.string(),
+  "speciesName": zod.string().nullable(),
   "nextTask": zod.string().nullable(),
   "careStatus": zod.enum(['OVERDUE', 'PLANNED', 'NO_PLAN']),
   "nextTaskType": zod.string().nullable()

@@ -43,7 +43,8 @@ test("real API: identity, default/alias PATCH semantics, preserved integrations 
     assert.ok(preview[0].reason.includes(`${first.wateringFrequencyDays}`));
     assert.deepEqual((await request(`/plants/${plant.id}`)).upcomingTasks, []);
 
-    plant = await request(`/plants/${plant.id}`, "PATCH", { personalName: `Малина біля паркану ${marker}`, category: "Вигадана категорія" });
+    await request(`/plants/${plant.id}`, "PATCH", { category: "Вигадана категорія" }, 400);
+    plant = await request(`/plants/${plant.id}`, "PATCH", { personalName: `Малина біля паркану ${marker}` });
     assert.equal(plant.speciesId, first.id);
     preserved(plant);
     const detail = await request(`/plants/${plant.id}`);
@@ -93,7 +94,8 @@ test("real API: identity, default/alias PATCH semantics, preserved integrations 
     assert.deepEqual(after.upcomingTasks.map(t => [t.id, t.scheduledDate]), dates);
     assert.equal(after.upcomingTasks[0].plantName, plant.name);
     assert.ok((await request("/reminders")).some(r => r.plantName === plant.name));
-    assert.equal((await request(`/plants/${plant.id}/care-plan`, "POST", { items: currentPreview.slice(0, 1) }, 201)).length, 0);
+    await request(`/plants/${plant.id}/care-plan`, "POST", { items: currentPreview.slice(0, 1) }, 400);
+    assert.deepEqual((await request(`/plants/${plant.id}`)).upcomingTasks.map(t => [t.id, t.scheduledDate]), dates);
 
     const normalized = await request(`/species?search=${encodeURIComponent(`  ${first.name.toUpperCase()}  `)}`);
     assert.ok(normalized.some(s => s.id === first.id));

@@ -12,10 +12,10 @@ import type { PlantSpecies } from './plantSpecies';
 import type { PlantStats } from './plantStats';
 import type { Recommendation } from './recommendation';
 
-export type PlantDetail = Plant & {
-  species?: PlantSpecies;
+export type PlantDetail = Plant & ({
+  species?: PlantSpecies | null;
   upcomingTasks?: CareTask[];
   history?: CareHistory[];
   recommendations?: Recommendation[];
   stats?: PlantStats;
-};
+});

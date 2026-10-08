@@ -61,7 +61,7 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const taskInput = (plantId, type) => ({ plantId, type, scheduledDate: date, priority: "MEDIUM", notes: "тест" });
     for (const [category, allowed] of Object.entries(expected)) {
-      const species = await request("/species", "POST", { ...template, name: `Тест ${category}`, category, applicableCareTypes: null }, 201);
+      const species = await request("/species", "POST", { ...template, name: `Тест ${category}`, category, applicableCareTypes: null, fertilizingFrequencyDays: 30 }, 201);
       fixtureSpecies[category] = species;
       assert.deepEqual(species.allowedCareTypes, allowed);
       const plant = await request("/plants", "POST", { speciesId: species.id, personalName: "Яблуня — довільний псевдонім", location: `Тест ${category}`, environmentType: "OUTDOOR", photoUrl: "" }, 201);
@@ -113,10 +113,13 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     await request(`/plants/${indoor.id}`, "PATCH", { speciesId: fixtureSpecies.FRUIT_TREE.id });
     await request(`/plants/${indoor.id}`, "PATCH", { speciesId: indoorSpecies.id });
     await request(`/plants/${indoor.id}/care-plan`, "POST", { items: fresh }, 400);
+    // Planned work is excluded from previews; close one type to make a new proposal.
+    await request(`/tasks/${fixtureTasks["INDOOR_DECORATIVE:FERTILIZING"].id}`, "DELETE", undefined, 204);
     const currentPreview = await request(`/plants/${indoor.id}/care-plan`);
     const created = await request(`/plants/${indoor.id}/care-plan`, "POST", { items: currentPreview }, 201);
     assert.equal(created.length, 1);
-    assert.deepEqual(await request(`/plants/${indoor.id}/care-plan`, "POST", { items: currentPreview }, 201), []);
+    // Task context changed on confirmation: replaying the old preview is stale.
+    await request(`/plants/${indoor.id}/care-plan`, "POST", { items: currentPreview }, 400);
     await request(`/plants/${indoor.id}/care-plan`, "POST", { items: [{ ...currentPreview[0], type: "TREATMENT" }] }, 400);
     const legacy = (await client.query("INSERT INTO flora_tasks(plant_id,type,scheduled_date,notes) VALUES($1,'HARVEST',$2,'історичне завдання') RETURNING *", [indoor.id, date])).rows[0];
     await client.query("INSERT INTO flora_reminders(task_id,reminder_date) VALUES($1,$2)", [legacy.id, date]);
@@ -147,6 +150,8 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     assert.equal((await client.query("SELECT scheduled_date::text FROM flora_tasks WHERE id=$1", [watering.id])).rows[0].scheduled_date, date);
     // A fresh saved eligible recommendation is actionable, then becomes stale after a same-set refinement edit.
     const herb = fixturePlants.HERB;
+    await request(`/tasks/${fixtureTasks["HERB:FERTILIZING"].id}`, "DELETE", undefined, 204);
+    await request(`/plants/${herb.id}`, "PATCH", { environmentType: "INDOOR" });
     const herbPreview = await request(`/plants/${herb.id}/care-plan`);
     const herbWater = fixtureTasks["HERB:WATERING"];
     const [good] = (await client.query(`INSERT INTO flora_recommendations(plant_id,type,text,priority,related_task_id,explanation,original_date,suggested_date,eligibility_version,care_type)

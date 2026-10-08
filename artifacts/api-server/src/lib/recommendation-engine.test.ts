@@ -3,6 +3,8 @@ import test from "node:test";
 import type { CareTask, PlantSpecies, SpeciesCareRule } from "@workspace/db";
 import { generateRules, isWeatherSuitable } from "./recommendation-engine";
 import { MockWeatherService } from "./weather";
+import { customCareContext } from "./effective-care";
+import { carePlan } from "./care-eligibility";
 
 const date = (offset = 0) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
 const species = { id: 1, name: "Тестовий вид", category: "INDOOR_DECORATIVE", applicableCareTypes: null, careRevision: 0, optimalTempMin: "18", optimalTempMax: "28", wateringFrequencyDays: 7, careRecommendations: "Перевірте ґрунт.", generalCareRecommendations: null } as PlantSpecies;
@@ -64,4 +66,36 @@ test("mock weather is deterministic and location-aware", async () => {
   assert.deepEqual(first, await service.getForecast(lviv));
   assert.notDeepEqual(first.forecast, (await service.getForecast({ name: "Забужжя", latitude: 50.48, longitude: 24.17 })).forecast);
   assert.equal(first.isMock, true);
+});
+
+test("custom guidance has no invented cadence or temperature bounds, even with history", () => {
+  const custom = customCareContext({ name: "Невідома рослина", category: "HERB" });
+  assert.deepEqual(carePlan(custom), []);
+  assert.equal(custom.wateringFrequencyDays, null);
+  assert.equal(custom.optimalTempMax, null);
+  const result = generateRules(custom, [], forecast, "Львів", "INDOOR", date(-100))[0];
+  assert.equal(result.type, "GENERAL");
+  assert.match(result.explanation, /Видових даних немає/);
+  assert.match(result.explanation, /інтервал поливу невідомий/);
+  assert.doesNotMatch(result.explanation, /інтервал виду —/);
+  assert.doesNotMatch(result.text, /немає критичних/);
+  assert.equal(generateRules(custom, [task()], [{ ...forecast[0], temperature: 80 }], "Львів", "INDOOR", date(-100))[0].priority, "LOW");
+});
+
+test("custom advice retains general weather and overdue rules, never species refinements", () => {
+  const custom = customCareContext({ name: "Яблуня — лише назва", category: "HERB" });
+  const outside = generateRules(custom, [task()], forecast, "Львів", "OUTDOOR", null, [rule({ rainThresholdMm: "50" })])[0];
+  assert.equal(outside.type, "WEATHER_RESCHEDULE");
+  assert.match(outside.explanation, /загальні погодні правила/);
+  assert.match(outside.explanation, /не означає безпечність/);
+  for (const environment of ["INDOOR", "GREENHOUSE"]) {
+    assert.equal(generateRules(custom, [task()], forecast, "Львів", environment, null)[0].type, "GENERAL");
+  }
+  const overdue = generateRules(custom, [task({ scheduledDate: date(-8), postponementCount: 4 })], forecast, "Львів", "INDOOR", null)[0];
+  assert.equal(overdue.priority, "URGENT");
+  assert.match(overdue.explanation, /переносили 4/);
+  assert.equal(isWeatherSuitable("PRUNING", custom, forecast[1], "INDOOR"), false);
+  assert.equal(generateRules(custom, [task({ type: "PRUNING" })], forecast, "Львів", "OUTDOOR", null)[0].relatedTaskId, null);
+  const transplant = customCareContext({ name: "Без видових меж", category: "INDOOR_DECORATIVE" });
+  assert.equal(isWeatherSuitable("TRANSPLANTING", transplant, { ...forecast[1], temperature: -30 }, "OUTDOOR"), true);
 });

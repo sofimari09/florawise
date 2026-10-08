@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { requestPhotoUpload, completePhotoUpload, getGetPlantQueryKey, getListPlantsQueryKey, getListSpeciesQueryKey, useCreatePlant, useListPlantPlaces, useListSavedLocations, useListSpecies, useUpdatePlant } from "@workspace/api-client-react";
 import type { Plant, PlantInput, PlantSpecies } from "@workspace/api-client-react";
+import { CATEGORY_LABELS, PLANT_CATEGORIES, isCategory, type PlantCategory } from "@workspace/plant-care";
 import { Alert, Btn, Pnl, errMsg, inputCls } from "./fw-ui";
 import { PlacePicker } from "./place-picker";
 import { LocationSearch } from "./location-search";
@@ -11,16 +12,19 @@ import { SpeciesPicker } from "./species-picker";
 
 export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; onDone: (plant: Plant, created: boolean) => void; onCancel: () => void }) {
   const q = useQueryClient();
-  const species = useListSpecies(undefined, { query: { queryKey: getListSpeciesQueryKey(), enabled: !!plant, staleTime: 60_000, retry: false } });
+  const species = useListSpecies(undefined, { query: { queryKey: getListSpeciesQueryKey(), enabled: !!plant && plant.speciesId != null, staleTime: 60_000, retry: false } });
   const places = useListPlantPlaces();
   const locations = useListSavedLocations();
   const create = useCreatePlant();
   const update = useUpdatePlant();
   const [name, setName] = useState(plant?.personalName ?? "");
+  const [custom, setCustom] = useState(!!plant && plant.speciesId == null);
+  const [customName, setCustomName] = useState(plant && plant.speciesId == null ? plant.name ?? "" : "");
+  const [category, setCategory] = useState<PlantCategory | "">(plant && plant.speciesId == null && isCategory(plant.category) ? plant.category : "");
   const [selectedSpecies, setSelectedSpecies] = useState<PlantSpecies | null>(null);
   const initialized = useRef(false);
   useEffect(() => {
-    if (plant && species.data && !initialized.current) {
+    if (plant && plant.speciesId != null && species.data && !initialized.current) {
       setSelectedSpecies(species.data.find(s => s.id === plant.speciesId) ?? null);
       initialized.current = true;
     }
@@ -50,13 +54,16 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
     event.preventDefault();
     if (busy.current || pending) return;
     setError("");
-    if (!selectedSpecies) { setError("Оберіть рослину з довідника."); return; }
+    if (custom) {
+      if (!customName.trim()) { setError("Вкажіть назву рослини."); return; }
+      if (!category) { setError("Оберіть категорію рослини."); return; }
+    } else if (!selectedSpecies) { setError("Оберіть рослину з довідника."); return; }
     const place = (places.data ?? []).find(p => p.id === placeId);
     if (!plant && !place) { setError("Оберіть або створіть місце вирощування."); return; }
     const weather = (locations.data ?? []).find(l => l.id === weatherId);
     const data: PlantInput = {
-      personalName: name.trim() || null,
-      speciesId: selectedSpecies.id,
+      personalName: custom ? null : name.trim() || null,
+      speciesId: custom ? null : selectedSpecies!.id,
       location: place?.name ?? plant?.location ?? "",
       environmentType: place?.environmentType ?? plant?.environmentType,
       photoUrl,
@@ -66,6 +73,7 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
       weatherLatitude: weather?.latitude ?? null,
       weatherLongitude: weather?.longitude ?? null,
     };
+    if (custom) { data.name = customName.trim(); data.category = category as PlantCategory; } else { delete data.name; delete data.category; }
     // An untouched legacy coordinate override must not be cleared by this form.
     if (plant && !weatherChanged) {
       delete data.weatherLocationId;
@@ -105,13 +113,18 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
 
   return <Pnl className="mb-6 p-6">
     <h2 className="mb-5 font-serif text-2xl">{plant ? "Редагувати рослину" : "Нова рослина"}</h2>
-    <form onSubmit={submit} className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-      <SpeciesPicker value={selectedSpecies} initialName={plant?.speciesName} disabled={pending} onChange={s => { initialized.current = true; setSelectedSpecies(s); }} />
-      {plant && species.isError && !initialized.current && <p role="alert" className="text-sm md:col-span-2">Не вдалося завантажити збережений вид. <button type="button" className="font-semibold text-primary" onClick={() => species.refetch()}>Повторити</button></p>}
-      <div className="min-w-0 md:col-span-2">
+    <form noValidate onSubmit={submit} className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+      {custom ? <div className="min-w-0 md:col-span-2 grid gap-4 md:grid-cols-2" data-testid="custom-plant-fields">
+        <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">Рослина поза довідником</p><button type="button" data-testid="button-back-to-species" disabled={pending} className="text-sm font-semibold text-primary" onClick={() => { setCustom(false); setCustomName(""); setCategory(""); }}>Обрати з довідника</button></div>
+        <label className="text-sm font-semibold">Назва рослини<input data-testid="input-custom-plant-name" aria-required="true" value={customName} disabled={pending} onChange={e => setCustomName(e.target.value)} className={inputCls} /></label>
+        <label className="text-sm font-semibold">Категорія<select data-testid="select-custom-plant-category" aria-required="true" value={category} disabled={pending} onChange={e => setCategory(e.target.value as PlantCategory | "")} className={inputCls}><option value="">Оберіть категорію</option>{PLANT_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}</select></label>
+        <p className="text-xs text-muted-foreground md:col-span-2">Видових даних немає. Поради базуватимуться на категорії рослини та умовах вирощування.</p>
+      </div> : <SpeciesPicker onCustom={seed => { setSelectedSpecies(null); initialized.current = true; setName(""); setCustomName(seed); setCategory(""); setCustom(true); }} value={selectedSpecies} initialName={plant?.speciesName ?? undefined} disabled={pending} onChange={s => { initialized.current = true; setSelectedSpecies(s); }} />}
+      {plant && !custom && species.isError && !initialized.current && <p role="alert" className="text-sm md:col-span-2">Не вдалося завантажити збережений вид. <button type="button" className="font-semibold text-primary" onClick={() => species.refetch()}>Повторити</button></p>}
+      {!custom && <div className="min-w-0 md:col-span-2">
         <label className="text-sm font-semibold">Власна назва (необов’язково)<input data-testid="input-plant-name" value={name} disabled={pending} onChange={e => setName(e.target.value)} placeholder="Наприклад, Малина біля паркану" className={inputCls} /></label>
         <p className="mt-2 text-xs text-muted-foreground">Це лише ваша назва. Вид і догляд визначаються вибором із довідника. Без власної назви використовуємо назву виду.</p>
-      </div>
+      </div>}
       <PlacePicker value={placeId} required={!plant?.location} onChange={p => setPlaceId(p?.id ?? null)} />
       <div className="min-w-0 md:col-span-2">
         <label className="text-sm font-semibold">Погодна локація
@@ -137,7 +150,7 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
         </label>
         <p className="mt-2 text-xs text-muted-foreground">JPEG, PNG або WebP, до 5 МБ. Фото доступне лише вам.</p>
         {(preview || photoObjectPath || photoUrl) && <div className="mt-3 flex items-center gap-3">
-          <PlantPhoto src={preview || (photoObjectPath ? `/api/storage${photoObjectPath}` : photoUrl)} alt={name || selectedSpecies?.name || "Фото рослини"} className="h-24 w-24 rounded-lg object-cover" />
+          <PlantPhoto src={preview || (photoObjectPath ? `/api/storage${photoObjectPath}` : photoUrl)} alt={customName || name || selectedSpecies?.name || "Фото рослини"} className="h-24 w-24 rounded-lg object-cover" />
           <Btn variant="ghost" disabled={pending} testId="button-remove-plant-photo" onClick={() => { setFile(null); setPhotoObjectPath(null); setPhotoUrl(""); if (picker.current) picker.current.value = ""; }}>Прибрати фото</Btn>
         </div>}
         {uploading && <p role="status" className="mt-2 text-sm">Завантажуємо фото та зберігаємо рослину…</p>}

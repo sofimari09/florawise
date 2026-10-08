@@ -6,3 +6,4 @@
 - [Species identity policy](species-identity-policy.md) — arbitrary aliases are allowed; never infer or repair botanical identity from display names.
 - [Category classification](category-classification.md) — strawberry uses the user-reviewed berry-shrub care grouping, not a botanical assertion.
 - [Eligibility snapshots](eligibility-snapshots.md) — reversing an eligibility or linked-species change must not reactivate old previews or saved advice.
+- [Care regression fixtures](care-regression-fixtures.md) — plan tests need explicit supported cadences and deliberately unplanned activities, not assumptions about seed knowledge.

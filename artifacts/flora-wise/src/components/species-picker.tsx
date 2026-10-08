@@ -6,7 +6,8 @@ import { Leaf, X } from "lucide-react";
 import { inputCls } from "./fw-ui";
 import { speciesKeyAction, speciesSearchKey } from "./species-search-state";
 
-export function SpeciesPicker({ value, initialName = "", onChange, disabled }: {
+export function SpeciesPicker({ value, initialName = "", onChange, onCustom, disabled }: {
+  onCustom?: (seed: string) => void;
   value: PlantSpecies | null;
   initialName?: string;
   onChange: (species: PlantSpecies | null) => void;
@@ -75,6 +76,7 @@ export function SpeciesPicker({ value, initialName = "", onChange, disabled }: {
       </div>}
     </div>
     <p id={`${id}-help`} className="mt-2 text-xs text-muted-foreground">Оберіть рослину з довідника. Введений текст без вибору не визначає вид.</p>
+    {onCustom && <div className="mt-3 flex flex-wrap items-center gap-3"><span className="text-sm">Не знайшли рослину?</span><button type="button" disabled={disabled} data-testid="button-add-custom-plant" className="text-sm font-semibold text-primary focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={() => { setOpen(false); onCustom(text.trim()); }}>Додати іншу рослину</button></div>}
     {value && <div data-testid="preview-selected-species" className="mt-3 flex items-center gap-4 rounded-xl bg-muted p-4">
       {value.imageUrl && failedImage !== value.imageUrl
         ? <img src={value.imageUrl} alt={value.name} onError={() => setFailedImage(value.imageUrl)} className="h-20 w-20 rounded-lg object-cover" />

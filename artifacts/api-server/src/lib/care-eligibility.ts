@@ -1,12 +1,13 @@
 import { eligibilityError, eligibilityVersion, allowedCareTypes } from "@workspace/plant-care";
 import type { PlantSpecies, CareTask } from "@workspace/db";
+import type { CareContext } from "./effective-care";
 
 export class CareEligibilityError extends Error {}
-export function assertEligible(species: PlantSpecies, type: unknown) {
+export function assertEligible(species: CareContext, type: unknown) {
   const error = eligibilityError(species, type);
   if (error) throw new CareEligibilityError(error);
 }
-export function assertTaskUpdate(current: CareTask, merged: CareTask, species: PlantSpecies) {
+export function assertTaskUpdate(current: CareTask, merged: CareTask, species: CareContext) {
   const error = eligibilityError(species, merged.type);
   if (!error) return;
   // Full payloads retaining a legacy type are safe only when they do not schedule it again.
@@ -16,7 +17,9 @@ export function assertTaskUpdate(current: CareTask, merged: CareTask, species: P
   if (unchangedCare && (unchangedStatus || closing)) return;
   throw new CareEligibilityError(error);
 }
-export function carePlan(species: PlantSpecies, now = new Date(), plantRevision = 0) {
+export function carePlan(species: CareContext, now = new Date(), plantRevision = 0) {
+  // Category eligibility alone is not evidence for a biological cadence.
+  if (species.id === null) return [];
   const firstDate = (days: number) => new Date(now.getTime() + days * 86400000).toISOString().slice(0, 10);
   const candidates = [
     { type: "WATERING" as const, days: species.wateringFrequencyDays, reason: `Орієнтовний інтервал для виду — ${species.wateringFrequencyDays} днів. ${species.wateringRecommendations}` },

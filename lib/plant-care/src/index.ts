@@ -44,6 +44,6 @@ export function eligibilityBasis(species: SpeciesApplicability): string {
   return `Категорія: «${isCategory(species.category) ? CATEGORY_LABELS[species.category] : "Не класифіковано"}». Застосовність: ${species.applicableCareTypes == null ? "типові дії категорії" : "явне уточнення виду"}.`;
 }
 /** Stable snapshot, including changes that preserve the same effective allowed set. */
-export function eligibilityVersion(species: SpeciesApplicability & { id: number; careRevision?: number }, plantRevision = 0): string {
+export function eligibilityVersion(species: SpeciesApplicability & { id: number | null; careRevision?: number }, plantRevision = 0): string {
   return JSON.stringify([species.id, species.category, species.applicableCareTypes == null ? null : [...species.applicableCareTypes].sort(), species.careRevision ?? 0, plantRevision]);
 }

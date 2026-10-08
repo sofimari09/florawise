@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { and, desc, eq, gte, lte, inArray, or, isNull } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
+import { createHash } from "node:crypto";
 import {
   db,
   careLogsTable,
@@ -20,10 +21,11 @@ import {
   type CareTask,
 } from "@workspace/db";
 import { weatherService } from "../lib/weather";
-import { generateRules } from "../lib/recommendation-engine";
+import { generateRules, isWeatherSuitable } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
 import { canAttachPhoto } from "../lib/plant-photos";
-import { identityInput, normalizeSearch, resolvePlantName } from "../lib/plant-identity";
+import { identityInput, normalizeSearch, resolvePlantName, resolveIdentityFields } from "../lib/plant-identity";
+import { customCareContext, type CareContext } from "../lib/effective-care";
 import { CARE_TYPES, CARE_LABELS, PLANT_CATEGORIES, CATEGORY_LABELS, allowedCareTypes, applicabilityError, eligibilityError, eligibilityVersion, isCategory, isCareType } from "@workspace/plant-care";
 import { CareEligibilityError, assertEligible, assertTaskUpdate, carePlan } from "../lib/care-eligibility";
 
@@ -145,24 +147,26 @@ async function mapSpecies(species: PlantSpecies) {
 }
 
 async function mapPlant(plant: typeof plantsTable.$inferSelect) {
-  const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId));
+  const species = await linkedSpecies(plant);
+  const context = species ?? customCareContext(plant);
   const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"]))).orderBy(tasksTable.scheduledDate);
   const [place] = plant.placeId ? await db.select().from(plantPlacesTable).where(and(eq(plantPlacesTable.id, plant.placeId), eq(plantPlacesTable.userId, plant.userId))) : [];
   const [location] = plant.weatherLocationId ? await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.id, plant.weatherLocationId), eq(savedLocationsTable.userId, plant.userId))) : [];
   const next = tasks[0];
   return {
     ...plant,
-    name: resolvePlantName({}, species?.name ?? plant.name, plant).name,
+    name: species ? resolvePlantName({}, species.name, plant).name : plant.name,
+    identityKind: plant.speciesId === null ? "CUSTOM" : "LINKED",
     photoUrl: plant.photoObjectPath ? `/api/storage${plant.photoObjectPath}` : plant.photoUrl,
     location: place?.name ?? plant.location,
     environmentType: place?.environmentType ?? plant.environmentType,
     weatherLocationName: location?.displayName ?? plant.weatherLocationName,
     weatherLatitude: location ? Number(location.latitude) : plant.weatherLatitude === null ? null : Number(plant.weatherLatitude),
     weatherLongitude: location ? Number(location.longitude) : plant.weatherLongitude === null ? null : Number(plant.weatherLongitude),
-    speciesName: species?.name ?? "Невідомий вид",
-    category: species?.category,
-    categoryLabel: species && isCategory(species.category) ? CATEGORY_LABELS[species.category] : "Потрібна класифікація",
-    allowedCareTypes: species ? allowedCareTypes(species) : [],
+    speciesName: species?.name ?? null,
+    category: context.category,
+    categoryLabel: isCategory(context.category) ? CATEGORY_LABELS[context.category] : "Потрібна класифікація",
+    allowedCareTypes: allowedCareTypes(context),
     nextTask: next?.scheduledDate ?? null,
     nextTaskType: next?.type ?? null,
     careStatus: next?.scheduledDate && next.scheduledDate < today() ? "OVERDUE" : next ? "PLANNED" : "NO_PLAN",
@@ -193,9 +197,9 @@ async function mapTask(task: CareTask) {
 
 async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) {
   const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, rec.plantId));
-  const [species] = plant ? await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId)) : [];
+  const species = plant ? await effectiveCare(plant) : null;
   const [task] = rec.relatedTaskId ? await db.select().from(tasksTable).where(eq(tasksTable.id, rec.relatedTaskId)) : [];
-  const stale = !species || rec.eligibilityVersion !== eligibilityVersion(species, plant?.eligibilityRevision) || (task && (task.plantId !== rec.plantId || task.type !== rec.careType || eligibilityError(species, task.type) !== null));
+  const stale = !species || !plant || rec.eligibilityVersion !== await careSnapshot(plant, species) || (task && (task.plantId !== rec.plantId || task.type !== rec.careType || eligibilityError(species, task.type) !== null));
   const actionable = !stale && !rec.applied && !!task && ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today();
   return {
     ...rec,
@@ -336,11 +340,36 @@ async function validatedPlantLocation(userId: number, data: Partial<z.infer<type
 }
 
 async function validatedPlantIdentity(data: Partial<z.infer<typeof plantInput>>, existing?: typeof plantsTable.$inferSelect) {
-  const speciesId = data.speciesId ?? existing?.speciesId;
-  if (!speciesId) throw new Error("Оберіть рослину з довідника");
+  const identity = resolveIdentityFields(data, existing);
+  if (identity.speciesId === null) return identity;
+  const speciesId = identity.speciesId;
   const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, speciesId));
   if (!species) throw new Error("Оберіть рослину з довідника");
-  return { speciesId: species.id, ...resolvePlantName(data, species.name, existing) };
+  return { speciesId: species.id, category: null, ...resolvePlantName(data, species.name, existing?.speciesId === null ? undefined : existing) };
+}
+
+async function linkedSpecies(plant: typeof plantsTable.$inferSelect, source: typeof db | FloraTransaction = db) {
+  if (plant.speciesId === null) return null;
+  const [species] = await source.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId)).for("share");
+  if (!species) throw new CareEligibilityError("Вид рослини більше не існує. Оновіть дані");
+  return species;
+}
+async function effectiveCare(plant: typeof plantsTable.$inferSelect, source: typeof db | FloraTransaction = db): Promise<CareContext> {
+  return await linkedSpecies(plant, source) ?? customCareContext(plant);
+}
+
+/** Snapshot actual context as well as monotonic identity revisions. No alias or photo inputs. */
+async function careSnapshot(plant: typeof plantsTable.$inferSelect, context: CareContext, source: typeof db | FloraTransaction = db) {
+  const [user] = await source.select().from(usersTable).where(eq(usersTable.id, plant.userId));
+  const weather = await resolveSavedWeatherLocation(user, plant);
+  const environment = await plantEnvironment(plant);
+  const tasks = await source.select().from(tasksTable).where(eq(tasksTable.plantId, plant.id)).orderBy(tasksTable.id);
+  const logs = tasks.length ? await source.select().from(careLogsTable).where(inArray(careLogsTable.taskId, tasks.map(task => task.id))).orderBy(careLogsTable.id) : [];
+  return createHash("sha256").update(JSON.stringify([
+    eligibilityVersion(context, plant.eligibilityRevision), environment, weather,
+    tasks.map(task => [task.id, task.type, task.scheduledDate, task.status, task.priority, task.postponementCount]),
+    logs.map(log => [log.taskId, log.completedAt]),
+  ])).digest("hex");
 }
 
 const knowledgeInput = z.object({
@@ -404,7 +433,7 @@ router.get("/plants", async (req, res): Promise<void> => {
   const rows = await db.select().from(plantsTable).where(eq(plantsTable.userId, user.id));
   const mapped = await Promise.all(rows.map(mapPlant));
   res.json(mapped.filter((plant) => {
-    const matchesSearch = !search || plant.name.toLowerCase().includes(search) || plant.speciesName.toLowerCase().includes(search) || plant.location.toLowerCase().includes(search);
+    const matchesSearch = !search || plant.name.toLowerCase().includes(search) || plant.speciesName?.toLowerCase().includes(search) || plant.location.toLowerCase().includes(search);
     const matchesLocation = !location || plant.location.toLowerCase().includes(location);
     const matchesSpecies = !Number.isFinite(speciesId) || plant.speciesId === speciesId;
     const matchesOverdue = req.query.overdue !== "true" || plant.careStatus === "OVERDUE";
@@ -442,7 +471,7 @@ router.post("/plants", async (req, res): Promise<void> => {
 router.get("/plants/:id", async (req, res): Promise<void> => {
   const { plant } = await getPlantForUser(req, idFrom(req));
   if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
-  const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId));
+  const species = await linkedSpecies(plant);
   const tasks = await db.select().from(tasksTable).where(eq(tasksTable.plantId, plant.id)).orderBy(desc(tasksTable.scheduledDate));
   const recommendations = await db.select().from(recommendationsTable).where(eq(recommendationsTable.plantId, plant.id)).orderBy(desc(recommendationsTable.generatedAt)).limit(5);
   const plantLogs = tasks.length ? await db.select().from(careLogsTable).where(inArray(careLogsTable.taskId, tasks.map(task => task.id))).orderBy(desc(careLogsTable.completedAt)) : [];
@@ -470,10 +499,13 @@ router.patch("/plants/:id", async (req, res): Promise<void> => {
   catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Некоректна локація" }); return; }
   const updated = await db.transaction(async tx => {
     const [current] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
+    const identity = await validatedPlantIdentity(parsed.data, current);
     const [updated] = await tx.update(plantsTable).set({
     ...plantValues,
     ...identity,
-    eligibilityRevision: current.eligibilityRevision + (identity.speciesId !== current.speciesId ? 1 : 0),
+    eligibilityRevision: current.eligibilityRevision + (identity.speciesId !== current.speciesId || identity.category !== current.category ||
+      Object.entries(locations).some(([key, value]) => current[key as keyof typeof current] !== value) ||
+      parsed.data.weatherLocationName !== undefined && parsed.data.weatherLocationName !== current.weatherLocationName ? 1 : 0),
     ...(weatherLatitude === undefined ? {} : { weatherLatitude: dbCoordinate(weatherLatitude) }),
     ...(weatherLongitude === undefined ? {} : { weatherLongitude: dbCoordinate(weatherLongitude) }),
     ...locations,
@@ -486,8 +518,10 @@ router.patch("/plants/:id", async (req, res): Promise<void> => {
 router.get("/plants/:id/care-plan", async (req, res) => {
   const { plant } = await getPlantForUser(req, idFrom(req));
   if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
-  const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId));
-  res.json(carePlan(species, new Date(), plant.eligibilityRevision));
+  const species = await effectiveCare(plant);
+  const active = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
+  const snapshot = await careSnapshot(plant, species);
+  res.json(carePlan(species, new Date(), plant.eligibilityRevision).filter(item => !active.some(task => task.type === item.type)).map(item => ({ ...item, eligibilityVersion: snapshot })));
 });
 router.post("/plants/:id/care-plan", async (req, res) => {
   const { plant } = await getPlantForUser(req, idFrom(req));
@@ -496,16 +530,17 @@ router.post("/plants/:id/care-plan", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Оберіть завдання та перевірте дати плану" }); return; }
   const created = await db.transaction(async tx => {
     const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
-    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, currentPlant.speciesId)).for("share");
+    const species = await effectiveCare(currentPlant, tx);
     const candidates = carePlan(species, new Date(), currentPlant.eligibilityRevision);
     for (const item of parsed.data.items) {
       assertEligible(species, item.type);
-      if (item.eligibilityVersion !== eligibilityVersion(species, currentPlant.eligibilityRevision)) throw new CareEligibilityError("Знання про вид або застосовність змінилися. Оновіть попередній перегляд плану");
+      if (item.eligibilityVersion !== await careSnapshot(currentPlant, species, tx)) throw new CareEligibilityError("Умови, план або застосовність змінилися. Оновіть попередній перегляд плану");
       if (!candidates.some(candidate => candidate.type === item.type)) throw new CareEligibilityError("Для цього виду догляду немає підтвердженого інтервалу планування");
     }
     const existing = await tx.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
     const keys = new Set(existing.map(task => `${task.type}:${task.scheduledDate}`));
-    const items = parsed.data.items.filter(item => { const key = `${item.type}:${item.scheduledDate}`; if (keys.has(key)) return false; keys.add(key); return true; });
+    const types = new Set(existing.map(task => task.type));
+    const items = parsed.data.items.filter(item => { const key = `${item.type}:${item.scheduledDate}`; if (keys.has(key) || types.has(item.type)) return false; keys.add(key); types.add(item.type); return true; });
     if (!items.length) return [];
     const tasks = await tx.insert(tasksTable).values(items.map(item => ({ plantId: plant.id, type: item.type, scheduledDate: item.scheduledDate, priority: "MEDIUM", notes: candidates.find(candidate => candidate.type === item.type)!.reason }))).returning();
     await tx.insert(remindersTable).values(tasks.map(task => ({ taskId: task.id, reminderDate: task.scheduledDate, status: "PENDING" })));
@@ -542,7 +577,7 @@ router.post("/tasks", async (req, res): Promise<void> => {
   if (!parsed.success || !plant) { res.status(400).json({ error: "Перевірте дату, тип і рослину" }); return; }
   const created = await db.transaction(async tx => {
     const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("share");
-    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, currentPlant.speciesId)).for("share");
+    const species = await effectiveCare(currentPlant, tx);
     assertEligible(species, parsed.data.type);
     const [created] = await tx.insert(tasksTable).values(parsed.data).returning();
     await tx.insert(remindersTable).values({ taskId: created.id, reminderDate: created.scheduledDate, status: "PENDING" });
@@ -563,7 +598,7 @@ router.patch("/tasks/:id", async (req, res): Promise<void> => {
     const merged = { ...current, ...parsed.data };
     const [target] = await tx.select().from(plantsTable).where(eq(plantsTable.id, merged.plantId)).for("share");
     if (!target || target.userId !== plant.userId) throw new CareEligibilityError("Оберіть власну рослину");
-    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, target.speciesId)).for("share");
+    const species = await effectiveCare(target, tx);
     assertTaskUpdate(current, merged, species);
     const [updated] = await tx.update(tasksTable).set(parsed.data).where(eq(tasksTable.id, task.id)).returning();
     if (merged.status === "COMPLETED" && current.status !== "COMPLETED") await tx.insert(careLogsTable).values({ taskId: task.id, comment: "" });
@@ -642,16 +677,20 @@ router.get("/recommendations", async (req, res): Promise<void> => {
 router.post("/recommendations", async (req, res): Promise<void> => {
   const { user, plant } = await getPlantForUser(req, Number(req.body?.plantId));
   if (!user || !plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
-  const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId));
-  if (!species) { res.status(400).json({ error: "Для рослини не знайдено характеристики виду" }); return; }
+  const species = await effectiveCare(plant);
+  const snapshot = await careSnapshot(plant, species);
   const resolvedLocation = await resolveSavedWeatherLocation(user, plant);
   const forecast = await weatherService.getForecast(resolvedLocation);
   const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
   const [lastWatering] = await db.select({ completedAt: careLogsTable.completedAt }).from(careLogsTable).innerJoin(tasksTable, eq(careLogsTable.taskId, tasksTable.id)).where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.type, "WATERING"), eq(tasksTable.status, "COMPLETED"))).orderBy(desc(careLogsTable.completedAt)).limit(1);
-  const rules = await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
+  const rules = species.id === null ? [] : await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
   const drafts = generateRules(species, tasks, forecast.forecast, resolvedLocation.name, await plantEnvironment(plant), lastWatering?.completedAt.toISOString().slice(0, 10) ?? null, rules);
+  const [latestPlant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plant.id));
+  if (!latestPlant || snapshot !== await careSnapshot(latestPlant, await effectiveCare(latestPlant))) {
+    res.status(409).json({ error: "Умови або план змінилися під час підготовки. Створіть нову пораду" }); return;
+  }
   const saved = await Promise.all(drafts.map(async (draft) => {
-    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: draft.explanation, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0, eligibilityVersion: eligibilityVersion(species, plant.eligibilityRevision), careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
+    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: `${draft.explanation}${forecast.isMock ? " Використано демонстраційний прогноз, а не поточні метеодані." : ""}`, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0, eligibilityVersion: snapshot, careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
     return mapRecommendation(created);
   }));
   res.status(201).json({ recommendations: await Promise.all(saved), weather: forecast, warning: forecast.isMock ? "Використано демонстраційний прогноз, а не поточні метеодані" : null });
@@ -665,11 +704,18 @@ router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
   const suggestedDate = rec.suggestedDate;
   const task = await db.transaction(async tx => {
     const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("share");
-    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, currentPlant.speciesId)).for("share");
+    const species = await effectiveCare(currentPlant, tx);
     const [currentRec] = await tx.select().from(recommendationsTable).where(eq(recommendationsTable.id, rec.id)).for("update");
     const [current] = await tx.select().from(tasksTable).where(and(eq(tasksTable.id, taskId), eq(tasksTable.plantId, plant.id))).for("update");
-    if (currentRec.eligibilityVersion !== eligibilityVersion(species, currentPlant.eligibilityRevision) || !current || current.type !== currentRec.careType || eligibilityError(species, current.type)) throw new CareEligibilityError("Застосовність догляду змінилася. Створіть нову пораду");
+    if (currentRec.eligibilityVersion !== await careSnapshot(currentPlant, species, tx) || !current || current.type !== currentRec.careType || eligibilityError(species, current.type)) throw new CareEligibilityError("Умови, план або застосовність змінилися. Створіть нову пораду");
     if (currentRec.applied || !["PLANNED", "POSTPONED"].includes(current.status) || current.scheduledDate !== rec.originalDate || suggestedDate < today()) return null;
+    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, currentPlant.userId));
+    const forecast = await weatherService.getForecast(await resolveSavedWeatherLocation(user, currentPlant));
+    const weather = forecast.forecast.find(day => day.date === suggestedDate);
+    const rules = species.id === null ? [] : await tx.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
+    if (!weather || !isWeatherSuitable(current.type, species, weather, await plantEnvironment(currentPlant), rules)) {
+      throw new CareEligibilityError("Запропонована дата більше не відповідає доступним погодним правилам. Створіть нову пораду");
+    }
     const [updated] = await tx.update(tasksTable).set({ scheduledDate: suggestedDate, status: "POSTPONED", postponementCount: current.postponementCount + 1 }).where(eq(tasksTable.id, taskId)).returning();
     await tx.update(remindersTable).set({ reminderDate: suggestedDate, status: "PENDING" }).where(eq(remindersTable.taskId, taskId));
     await tx.update(recommendationsTable).set({ applied: 1 }).where(eq(recommendationsTable.id, rec.id));

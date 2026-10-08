@@ -9,14 +9,17 @@ import type { CareType } from './careType';
 import type { PlantCareStatus } from './plantCareStatus';
 import type { PlantCategory } from './plantCategory';
 import type { PlantEnvironmentType } from './plantEnvironmentType';
+import type { PlantIdentityKind } from './plantIdentityKind';
 
 export interface Plant {
   id: number;
   userId: number;
-  speciesId: number;
-  category?: PlantCategory;
-  categoryLabel?: string;
-  allowedCareTypes?: CareType[];
+  /** @nullable */
+  speciesId: number | null;
+  identityKind: PlantIdentityKind;
+  category: PlantCategory;
+  categoryLabel: string;
+  allowedCareTypes: CareType[];
   name: string;
   /**
      * Display alias only; botanical identity is speciesId.
@@ -40,7 +43,8 @@ export interface Plant {
   /** @nullable */
   weatherLongitude: number | null;
   addedAt: string;
-  speciesName: string;
+  /** @nullable */
+  speciesName: string | null;
   /** @nullable */
   nextTask: string | null;
   careStatus: PlantCareStatus;

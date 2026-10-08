@@ -3,7 +3,7 @@ import { test } from "node:test";
 import pg from "pg";
 import { randomUUID } from "node:crypto";
 import { z } from "zod/v4";
-import { identityInput, normalizeSearch, resolvePlantName } from "./plant-identity";
+import { identityInput, normalizeSearch, resolvePlantName, resolveIdentityFields } from "./plant-identity";
 import { migratePlantNames } from "./plant-name-migration";
 
 test("optional aliases default, trim, clear, and never affect identity", () => {
@@ -26,11 +26,20 @@ test("legacy name is an alias with explicit personalName precedence", () => {
   assert.equal(resolvePlantName({ name: "  " }, "Фікус").name, "Фікус");
 });
 
-test("species IDs are mandatory, positive integer records, not name text", () => {
+test("identity is explicit: positive species ID or deliberate custom null", () => {
   const input = z.object(identityInput);
-  for (const speciesId of [0, -1, 1.5, null, "1", "Малина"]) assert.equal(input.safeParse({ speciesId }).success, false);
+  for (const speciesId of [0, -1, 1.5, "1", "Малина"]) assert.equal(input.safeParse({ speciesId }).success, false);
   assert.equal(input.safeParse({ personalName: "Малина" }).success, false);
   assert.equal(input.safeParse({ speciesId: 1 }).success, true);
+  assert.equal(input.safeParse({ speciesId: null }).success, true);
+  assert.throws(() => resolveIdentityFields({ speciesId: null }), /категорію/);
+  assert.throws(() => resolveIdentityFields({ speciesId: null, category: "HERB", name: "  " }), /назву/);
+  assert.throws(() => resolveIdentityFields({ speciesId: 1, category: "HERB" }), /лише видом/);
+  const custom = resolveIdentityFields({ speciesId: null, category: "HERB", name: "  Мій сад  " });
+  assert.deepEqual(custom, { speciesId: null, category: "HERB", name: "Мій сад", personalName: null });
+  assert.deepEqual(resolveIdentityFields({}, custom), custom);
+  assert.throws(() => resolveIdentityFields({ speciesId: null }, { speciesId: 1, name: "Alias", category: null }), /категорію/);
+  assert.deepEqual(resolveIdentityFields({ speciesId: 2 }, custom), { speciesId: 2, category: null });
 });
 
 test("search normalizes Ukrainian case and repeated whitespace without substitutions", () => {

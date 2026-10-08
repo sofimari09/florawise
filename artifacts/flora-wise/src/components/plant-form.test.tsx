@@ -98,3 +98,56 @@ test("photo removal sends explicit clears without changing species identity", as
   await waitFor(() => expect(mock.update).toHaveBeenCalledOnce());
   expect(mock.update.mock.calls[0][0].data).toMatchObject({ speciesId: 19, photoObjectPath: null, photoUrl: "" });
 });
+
+test("custom mode requires manual category and submits null species", async () => {
+  show();
+  fireEvent.focus(screen.getByRole("combobox", { name: "Рослина" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Рослина" }), { target: { value: "Моя квітка" } });
+  expect(screen.getByText("Не знайшли рослину?")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Додати іншу рослину" }));
+  expect((screen.getByTestId("input-custom-plant-name") as HTMLInputElement).value).toBe("Моя квітка");
+  fireEvent.click(screen.getByText("Оберіть місце тесту"));
+  fireEvent.click(screen.getByTestId("button-save-plant"));
+  await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+  expect(mock.create).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByTestId("select-custom-plant-category"), { target: { value: "HERB" } });
+  fireEvent.click(screen.getByTestId("button-save-plant"));
+  await waitFor(() => expect(mock.create).toHaveBeenCalled());
+  const data = mock.create.mock.calls[0][0].data;
+  expect(data).toMatchObject({ speciesId: null, name: "Моя квітка", category: "HERB", personalName: null });
+});
+
+test("custom edit initializes independently of species and preserves weather/photo", async () => {
+  show({ ...saved, speciesId: null, speciesName: null, category: "HERB", identityKind: "CUSTOM", name: "Моя зелень" });
+  expect((screen.getByTestId("input-custom-plant-name") as HTMLInputElement).value).toBe("Моя зелень");
+  expect((screen.getByTestId("select-custom-plant-category") as HTMLSelectElement).value).toBe("HERB");
+  expect(screen.queryByTestId("preview-selected-species")).toBeNull();
+  fireEvent.change(screen.getByTestId("input-custom-plant-name"), { target: { value: "  " } });
+  fireEvent.click(screen.getByTestId("button-save-plant"));
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert").textContent).toContain("Вкажіть назву");
+  fireEvent.change(screen.getByTestId("input-custom-plant-name"), { target: { value: "  Нова зелень  " } });
+  fireEvent.click(screen.getByTestId("button-save-plant"));
+  await waitFor(() => expect(mock.update).toHaveBeenCalledOnce());
+  const data = mock.update.mock.calls[0][0].data;
+  expect(data).toMatchObject({ speciesId: null, name: "Нова зелень", category: "HERB", personalName: null, photoObjectPath: saved.photoObjectPath });
+  expect(data).not.toHaveProperty("weatherLocationId");
+});
+
+test("mode switches clear prior species/category and do not submit stale values", async () => {
+  show(saved);
+  await screen.findByTestId("preview-selected-species");
+  fireEvent.focus(screen.getByRole("combobox", { name: "Рослина" }));
+  fireEvent.click(screen.getByRole("button", { name: "Додати іншу рослину" }));
+  fireEvent.change(screen.getByTestId("select-custom-plant-category"), { target: { value: "HERB" } });
+  fireEvent.click(screen.getByTestId("button-back-to-species"));
+  fireEvent.click(screen.getByTestId("button-save-plant"));
+  expect(mock.update).not.toHaveBeenCalled();
+  fireEvent.focus(screen.getByRole("combobox", { name: "Рослина" }));
+  fireEvent.click(await screen.findByTestId("option-species-19"));
+  fireEvent.click(screen.getByTestId("button-save-plant"));
+  await waitFor(() => expect(mock.update).toHaveBeenCalledOnce());
+  expect(mock.update.mock.calls[0][0].data).toMatchObject({ speciesId: 19 });
+  expect(mock.update.mock.calls[0][0].data).not.toHaveProperty("category");
+  expect(mock.update.mock.calls[0][0].data).not.toHaveProperty("name");
+});

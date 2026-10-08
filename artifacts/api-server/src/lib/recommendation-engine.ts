@@ -1,6 +1,7 @@
 import type { PlantSpecies, CareTask, SpeciesCareRule } from "@workspace/db";
 import type { WeatherDay } from "./weather";
 import { CARE_LABELS, eligibilityError, eligibilityBasis } from "@workspace/plant-care";
+import type { CareContext } from "./effective-care";
 
 export type RecommendationDraft = {
   type: string; text: string; priority: string; explanation: string;
@@ -11,18 +12,18 @@ const exposed = (environment: string) => ["BALCONY", "OUTDOOR"].includes(environ
 const labels: Record<string, string> = CARE_LABELS;
 const priorityRank: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, URGENT: 3 };
 const higherPriority = (a: string, b: string) => priorityRank[a] >= priorityRank[b] ? a : b;
-function thresholds(type: string, species: PlantSpecies, rules: SpeciesCareRule[]) {
+function thresholds(type: string, species: CareContext, rules: SpeciesCareRule[]) {
   const rule = rules.find(item => item.careType === type);
   return {
     rain: rule?.rainThresholdMm !== null && rule?.rainThresholdMm !== undefined ? Number(rule.rainThresholdMm) : type === "TREATMENT" ? 1 : ["WATERING", "FERTILIZING", "PRUNING", "HARVEST"].includes(type) ? RULE_PARAMETERS.significantRainMm : Infinity,
     wind: rule?.maxWindSpeedMps !== null && rule?.maxWindSpeedMps !== undefined ? Number(rule.maxWindSpeedMps) : ["TREATMENT", "PRUNING"].includes(type) ? RULE_PARAMETERS.safeSprayingWindMps : Infinity,
-    min: rule?.minTemperature !== null && rule?.minTemperature !== undefined ? Number(rule.minTemperature) : type === "TRANSPLANTING" ? Number(species.optimalTempMin) - 3 : -Infinity,
-    max: rule?.maxTemperature !== null && rule?.maxTemperature !== undefined ? Number(rule.maxTemperature) : type === "TRANSPLANTING" ? Number(species.optimalTempMax) + 3 : Infinity,
-    source: rule ? `правило виду «${species.name}»` : `базові правила FloraWise та характеристики виду «${species.name}»`,
+    min: rule?.minTemperature !== null && rule?.minTemperature !== undefined ? Number(rule.minTemperature) : type === "TRANSPLANTING" && species.id !== null ? Number(species.optimalTempMin) - 3 : -Infinity,
+    max: rule?.maxTemperature !== null && rule?.maxTemperature !== undefined ? Number(rule.maxTemperature) : type === "TRANSPLANTING" && species.id !== null ? Number(species.optimalTempMax) + 3 : Infinity,
+    source: species.id === null ? "загальні погодні правила FloraWise для дій категорії; видові межі невідомі, відповідність цим правилам не означає безпечність усіх умов" : rule ? `правило виду «${species.name}»` : `базові правила FloraWise та характеристики виду «${species.name}»`,
     notes: rule?.notes ?? "",
   };
 }
-function weatherReasons(type: string, species: PlantSpecies, weather: WeatherDay, environment: string, rules: SpeciesCareRule[]) {
+function weatherReasons(type: string, species: CareContext, weather: WeatherDay, environment: string, rules: SpeciesCareRule[]) {
   if (!exposed(environment)) return [];
   const limits = thresholds(type, species, rules);
   const reasons: string[] = [];
@@ -32,13 +33,13 @@ function weatherReasons(type: string, species: PlantSpecies, weather: WeatherDay
   if (weather.temperature > limits.max) reasons.push(`температура ${weather.temperature}°C > максимуму ${limits.max}°C`);
   return reasons;
 }
-export function isWeatherSuitable(type: string, species: PlantSpecies, weather: WeatherDay, environment: string, rules: SpeciesCareRule[] = []) {
-  return weatherReasons(type, species, weather, environment, rules).length === 0;
+export function isWeatherSuitable(type: string, species: CareContext, weather: WeatherDay, environment: string, rules: SpeciesCareRule[] = []) {
+  return !eligibilityError(species, type) && weatherReasons(type, species, weather, environment, species.id === null ? [] : rules).length === 0;
 }
-export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast: WeatherDay[], location: string, environment: string, lastWatered: string | null, rules: SpeciesCareRule[] = []): RecommendationDraft[] {
+export function generateRules(species: CareContext, tasks: CareTask[], forecast: WeatherDay[], location: string, environment: string, lastWatered: string | null, rules: SpeciesCareRule[] = []): RecommendationDraft[] {
   if (!forecast.length) return [];
   tasks = tasks.filter(task => !eligibilityError(species, task.type));
-  rules = rules.filter(rule => !eligibilityError(species, rule.careType));
+  rules = species.id === null ? [] : rules.filter(rule => !eligibilityError(species, rule.careType));
   if (eligibilityError(species, "WATERING")) lastWatered = null;
   const basis = eligibilityBasis(species);
   const results: RecommendationDraft[] = [];
@@ -51,7 +52,7 @@ export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast
     const weather = forecast.find(day => day.date === task.scheduledDate) ?? (task.scheduledDate < today ? forecast[0] : undefined);
     const limits = thresholds(task.type, species, rules);
     const reasons = weather ? weatherReasons(task.type, species, weather, environment, rules) : [];
-    const context = `Вид: «${species.name}». ${basis} Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}.`;
+    const context = `${species.id === null ? `Рослина поза довідником: «${species.name}». ${species.generalCareRecommendations} ${lastWatered ? `Останній виконаний полив: ${lastWatered.slice(0, 10)}; інтервал невідомий.` : "Історії виконаного поливу немає."}` : `Вид: «${species.name}».`} ${basis} Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}.`;
     if (weather && reasons.length) {
       const earliest = task.scheduledDate < today ? today : task.scheduledDate;
       const alternative = forecast.find(day => day.date > earliest && isWeatherSuitable(task.type, species, day, environment, rules));
@@ -73,14 +74,14 @@ export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast
       priority = higherPriority(priority, "HIGH");
       priorityReasons.push(`завдання вже переносили ${task.postponementCount} рази`);
     }
-    if (task.type === "WATERING" && lastWatered) {
+    if (task.type === "WATERING" && lastWatered && species.wateringFrequencyDays !== null) {
       const days = elapsed(lastWatered);
       if (days > species.wateringFrequencyDays) {
         priority = higherPriority(priority, days > species.wateringFrequencyDays + RULE_PARAMETERS.overdueUrgentDays ? "URGENT" : "HIGH");
         priorityReasons.push(`останній виконаний полив: ${lastWatered.slice(0, 10)} (${days} дн. тому), інтервал виду — ${species.wateringFrequencyDays} дн.`);
       }
     }
-    if (task.type === "WATERING" && weather && exposed(environment) && weather.temperature >= Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta && weather.precipitation < 2) {
+    if (species.id !== null && task.type === "WATERING" && weather && exposed(environment) && weather.temperature >= Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta && weather.precipitation < 2) {
       priority = higherPriority(priority, "HIGH");
       priorityReasons.push(`температура ${weather.temperature}°C ≥ ${Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta}°C, опади ${weather.precipitation} мм < 2 мм`);
     }
@@ -106,9 +107,9 @@ export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast
     const risk = rules.some(rule => weatherReasons(rule.careType, species, forecast[0], environment, rules).length > 0);
     results.push({
       type: "GENERAL",
-      text: risk ? `Для ${species.name} прогноз виходить за пороги правил виду. Перевірте умови догляду.` : `Для ${species.name} немає критичних змін у плані догляду.`,
+      text: species.id === null ? `Загальні поради для категорії рослини «${species.name}». Видові ризики та частота догляду невідомі.` : risk ? `Для ${species.name} прогноз виходить за пороги правил виду. Перевірте умови догляду.` : `Для ${species.name} немає критичних змін у плані догляду.`,
       priority: risk ? "MEDIUM" : "LOW",
-      explanation: `${basis} Локація: «${location}». Середовище: ${environmentLabel}. Перевірено ${activeCount} активних завдань і доступний прогноз. ${checks.join(" ")} ${lastWatered ? `Останній виконаний полив: ${lastWatered.slice(0, 10)}; орієнтовний інтервал виду — ${species.wateringFrequencyDays} дн.` : eligibilityError(species, "WATERING") ? "Полив не застосовується до цього виду." : "Історії виконаного поливу немає: дату не припущено."} ${!exposed(environment) && !eligibilityError(species, "WATERING") ? "Зовнішній дощ не є підставою для перенесення поливу." : ""} Завдання не створено, дати не змінено. ${species.generalCareRecommendations ?? species.careRecommendations}`,
+      explanation: `${basis} Локація: «${location}». Середовище: ${environmentLabel}. Перевірено ${activeCount} активних завдань і доступний прогноз. ${checks.join(" ")} ${lastWatered ? `Останній виконаний полив: ${lastWatered.slice(0, 10)}; ${species.wateringFrequencyDays === null ? "інтервал поливу невідомий, прострочення поливу не припущено" : `орієнтовний інтервал виду — ${species.wateringFrequencyDays} дн.`}.` : eligibilityError(species, "WATERING") ? "Полив не застосовується до цього виду." : "Історії виконаного поливу немає: дату не припущено."} ${!exposed(environment) && !eligibilityError(species, "WATERING") ? "Зовнішній дощ і вітер не є підставою для перенесення догляду. Умови приміщення чи теплиці не оцінено за зовнішнім прогнозом." : ""} Завдання не створено, дати не змінено. ${species.generalCareRecommendations ?? species.careRecommendations}`,
       relatedTaskId: null, originalDate: null, suggestedDate: null, weather: forecast[0],
     });
   }

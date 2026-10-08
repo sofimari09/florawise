@@ -5,18 +5,22 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlantCategory } from './plantCategory';
 import type { PlantUpdateEnvironmentType } from './plantUpdateEnvironmentType';
 
 /**
- * Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias.
+ * Omitted identity fields preserve them. Explicit speciesId=null switches to custom and requires explicit name and category. Linked plants reject nonnull category overrides. Aliases never infer identity.
  */
 export interface PlantUpdate {
-  /** @deprecated */
   name?: string;
   /** @nullable */
   personalName?: string | null;
-  /** @minimum 1 */
-  speciesId?: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  speciesId?: number | null;
+  category?: PlantCategory | null;
   /** @minLength 1 */
   location?: string;
   placeId?: number;

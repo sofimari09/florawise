@@ -122,3 +122,21 @@ test("Escape and Tab close; arrows wrap; Enter with no result does nothing", () 
   fireEvent.keyDown(input, { key: "Tab" });
   expect(input.getAttribute("aria-expanded")).toBe("false");
 });
+
+test("custom fallback remains keyboard-accessible after Tab closes an empty result list", () => {
+  mock.empty = true;
+  const custom = vi.fn();
+  const changed = vi.fn();
+  render(<SpeciesPicker value={null} onChange={changed} onCustom={custom} />);
+  const input = screen.getByRole("combobox");
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: "Невідома рослина" } });
+  fireEvent.keyDown(input, { key: "Tab" });
+  const fallback = screen.getByRole("button", { name: "Додати іншу рослину" });
+  fallback.focus();
+  expect(document.activeElement).toBe(fallback);
+  expect(custom).not.toHaveBeenCalled();
+  fireEvent.click(fallback);
+  expect(custom).toHaveBeenCalledWith("Невідома рослина");
+  expect(changed).toHaveBeenCalledWith(null);
+});

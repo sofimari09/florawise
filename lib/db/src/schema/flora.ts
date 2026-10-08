@@ -95,7 +95,8 @@ export const knowledgeSourcesTable = pgTable("flora_knowledge_sources", {
 export const plantsTable = pgTable("flora_plants", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id),
-  speciesId: integer("species_id").notNull().references(() => speciesTable.id),
+  speciesId: integer("species_id").references(() => speciesTable.id),
+  category: text("category"),
   eligibilityRevision: integer("eligibility_revision").notNull().default(0),
   name: text("name").notNull(),
   personalName: text("personal_name"),
@@ -110,7 +111,9 @@ export const plantsTable = pgTable("flora_plants", {
   weatherLatitude: numeric("weather_latitude", { precision: 10, scale: 7 }),
   weatherLongitude: numeric("weather_longitude", { precision: 11, scale: 7 }),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  identityValid: check("flora_plants_identity_valid", sql`(${table.speciesId} IS NOT NULL AND ${table.category} IS NULL) OR (${table.speciesId} IS NULL AND ${table.category} IS NOT NULL AND ${table.category} IN ('INDOOR_DECORATIVE','OUTDOOR_DECORATIVE','FRUIT_TREE','BERRY_SHRUB','VEGETABLE','HERB') AND length(btrim(${table.name})) > 0 AND ${table.personalName} IS NULL)`),
+}));
 
 export const plantPhotosTable = pgTable("flora_plant_photos", {
   objectPath: text("object_path").primaryKey(),

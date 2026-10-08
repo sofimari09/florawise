@@ -16,6 +16,7 @@
     "test:rules": "esbuild src/lib/recommendation-engine.test.ts --bundle --platform=node --format=esm --outfile=dist/rules.test.mjs && node --test dist/rules.test.mjs"
     ,"test:categories": "esbuild src/lib/category-care.test.ts --bundle --platform=node --format=esm --external:pg --outfile=dist/category-care.test.mjs && node --test dist/category-care.test.mjs"
     ,"test:category-api": "node --test src/lib/category-api.test.mjs"
+    ,"test:custom-api": "node --test src/lib/custom-plant-api.test.mjs"
   },
   "dependencies": {
     "@clerk/express": "^2.1.67",

@@ -223,6 +223,14 @@ export type SpeciesInput = PlantSpecies & {
   knowledge?: SpeciesKnowledgeInput;
 };
 
+export type PlantIdentityKind = typeof PlantIdentityKind[keyof typeof PlantIdentityKind];
+
+
+export const PlantIdentityKind = {
+  LINKED: 'LINKED',
+  CUSTOM: 'CUSTOM',
+} as const;
+
 export type PlantEnvironmentType = typeof PlantEnvironmentType[keyof typeof PlantEnvironmentType];
 
 
@@ -245,10 +253,12 @@ export const PlantCareStatus = {
 export interface Plant {
   id: number;
   userId: number;
-  speciesId: number;
-  category?: PlantCategory;
-  categoryLabel?: string;
-  allowedCareTypes?: CareType[];
+  /** @nullable */
+  speciesId: number | null;
+  identityKind: PlantIdentityKind;
+  category: PlantCategory;
+  categoryLabel: string;
+  allowedCareTypes: CareType[];
   name: string;
   /**
      * Display alias only; botanical identity is speciesId.
@@ -272,7 +282,8 @@ export interface Plant {
   /** @nullable */
   weatherLongitude: number | null;
   addedAt: string;
-  speciesName: string;
+  /** @nullable */
+  speciesName: string | null;
   /** @nullable */
   nextTask: string | null;
   careStatus: PlantCareStatus;
@@ -290,19 +301,23 @@ export const PlantInputEnvironmentType = {
   GREENHOUSE: 'GREENHOUSE',
 } as const;
 
+/**
+ * speciesId=null explicitly creates a custom plant, requiring a nonblank name and manually selected category. Linked plants reject category overrides.
+ */
 export interface PlantInput {
-  /**
-     * Legacy alias input. personalName takes precedence when supplied.
-     * @deprecated
-     */
+  /** Required nonblank custom name; legacy alias for linked plants. */
   name?: string;
   /**
      * Optional alias. Blank or null uses the selected species name.
      * @nullable
      */
   personalName?: string | null;
-  /** @minimum 1 */
-  speciesId: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  speciesId: number | null;
+  category?: PlantCategory | null;
   /** @minLength 1 */
   location: string;
   placeId?: number;
@@ -339,15 +354,18 @@ export const PlantUpdateEnvironmentType = {
 } as const;
 
 /**
- * Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias.
+ * Omitted identity fields preserve them. Explicit speciesId=null switches to custom and requires explicit name and category. Linked plants reject nonnull category overrides. Aliases never infer identity.
  */
 export interface PlantUpdate {
-  /** @deprecated */
   name?: string;
   /** @nullable */
   personalName?: string | null;
-  /** @minimum 1 */
-  speciesId?: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  speciesId?: number | null;
+  category?: PlantCategory | null;
   /** @minLength 1 */
   location?: string;
   placeId?: number;
@@ -470,13 +488,13 @@ export interface PlantStats {
   lastWatered: string | null;
 }
 
-export type PlantDetail = Plant & {
-  species?: PlantSpecies;
+export type PlantDetail = Plant & ({
+  species?: PlantSpecies | null;
   upcomingTasks?: CareTask[];
   history?: CareHistory[];
   recommendations?: Recommendation[];
   stats?: PlantStats;
-};
+});
 
 export interface TaskInput {
   plantId: number;

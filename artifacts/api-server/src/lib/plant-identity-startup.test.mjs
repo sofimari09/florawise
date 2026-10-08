@@ -62,11 +62,13 @@ test("API startup provisions fresh schema, safely upgrades legacy data, and pres
     await startup(schema); // Empty-schema provisioning, migration, seed, listen, and API read.
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname=$1", [schema])).rows;
     assert.equal(tables.length, 14); // 13 current model tables plus the migration ledger.
-    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations")).rows[0].n, 1);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations WHERE version IN ('plant-personal-name', 'custom-plant-identity')")).rows[0].n, 2);
     const before = (await client.query("SELECT to_jsonb(p) - 'personal_name' AS row FROM flora_plants p ORDER BY id")).rows;
     const tasksBefore = (await client.query("SELECT * FROM flora_tasks ORDER BY id")).rows;
     // Simulate the pre-alias schema ONLY inside this disposable test schema.
-    await client.query("ALTER TABLE flora_plants DROP COLUMN personal_name");
+    await client.query("ALTER TABLE flora_plants DROP CONSTRAINT flora_plants_identity_valid");
+    await client.query("ALTER TABLE flora_plants DROP COLUMN category, DROP COLUMN personal_name");
+    await client.query("ALTER TABLE flora_plants ALTER COLUMN species_id SET NOT NULL");
     await client.query("DROP TABLE flora_schema_migrations");
     const upgraded = await startup(schema);
     assert.deepEqual((await client.query("SELECT to_jsonb(p) - 'personal_name' AS row FROM flora_plants p ORDER BY id")).rows, before);

@@ -5,21 +5,26 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlantCategory } from './plantCategory';
 import type { PlantInputEnvironmentType } from './plantInputEnvironmentType';
 
+/**
+ * speciesId=null explicitly creates a custom plant, requiring a nonblank name and manually selected category. Linked plants reject category overrides.
+ */
 export interface PlantInput {
-  /**
-     * Legacy alias input. personalName takes precedence when supplied.
-     * @deprecated
-     */
+  /** Required nonblank custom name; legacy alias for linked plants. */
   name?: string;
   /**
      * Optional alias. Blank or null uses the selected species name.
      * @nullable
      */
   personalName?: string | null;
-  /** @minimum 1 */
-  speciesId: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  speciesId: number | null;
+  category?: PlantCategory | null;
   /** @minLength 1 */
   location: string;
   placeId?: number;

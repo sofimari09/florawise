@@ -32,6 +32,7 @@ export * from './plantCareStatus';
 export * from './plantCategory';
 export * from './plantDetail';
 export * from './plantEnvironmentType';
+export * from './plantIdentityKind';
 export * from './plantInput';
 export * from './plantInputEnvironmentType';
 export * from './plantPlace';

@@ -40,10 +40,10 @@ export function CarePlanDialog({ plantId, plantName, onClose, onConfirmed }: { p
     });
   };
   return <Modal title={`План догляду: ${plantName}`} onClose={onClose} wide>
-    <p className="mb-4 text-sm leading-6 text-muted-foreground">Ми запропонували стартові завдання за правилами виду. Нічого не буде створено, доки ви не підтвердите: оберіть потрібні пункти та за потреби змініть дати.</p>
+    <p className="mb-4 text-sm leading-6 text-muted-foreground">Пропозиції можливі лише за наявності підтвердженого інтервалу догляду. Для рослини поза довідником категорія визначає доступні дії, але не частоту догляду. Нічого не буде створено, доки ви не підтвердите обрані пункти та дати.</p>
     {preview.isLoading && <div className="space-y-2"><div className="fw-skeleton h-16 rounded-xl" /><div className="fw-skeleton h-16 rounded-xl" /></div>}
     {preview.error && <Alert>Не вдалося підготувати план. <button type="button" className="font-semibold underline" onClick={() => preview.refetch()}>Повторити</button></Alert>}
-    {loaded && rows.length === 0 && <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">Для цієї рослини немає пропозицій. Ви можете додати завдання вручну в календарі.</p>}
+    {loaded && rows.length === 0 && <p role="status" className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">Немає підтверджених інтервалів для нового плану або відповідний догляд уже заплановано. Частоту й дати не припущено. Перевірте стан рослини та додайте потрібне завдання вручну в календарі.</p>}
     <div className="space-y-2">{rows.map((r, i) => <div key={i} data-testid={`row-care-plan-${i}`} className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${r.selected ? "border-primary/40 bg-primary/5" : "border-border"}`}>
       <input type="checkbox" aria-label={`обрати ${careTypeLabel[r.type] || r.type}`} data-testid={`checkbox-care-plan-${i}`} checked={r.selected} onChange={e => patch(i, { selected: e.target.checked })} className="h-4 w-4 accent-primary" />
       <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{careTypeLabel[r.type] || careTypeLabel[r.type.toUpperCase()] || r.type}</p><p className="text-xs leading-5 text-muted-foreground">{r.reason}</p></div>

@@ -873,7 +873,8 @@ components:
       properties:
         id: { type: integer }
         userId: { type: integer }
-        speciesId: { type: integer }
+        speciesId: { type: [integer, "null"] }
+        identityKind: { type: string, enum: [LINKED, CUSTOM] }
         category: { $ref: "#/components/schemas/PlantCategory" }
         categoryLabel: { type: string }
         allowedCareTypes: { type: array, items: { $ref: "#/components/schemas/CareType" } }
@@ -890,17 +891,22 @@ components:
         weatherLatitude: { type: [number, "null"] }
         weatherLongitude: { type: [number, "null"] }
         addedAt: { type: string }
-        speciesName: { type: string }
+        speciesName: { type: [string, "null"] }
         nextTask: { type: [string, "null"] }
         careStatus: { type: string, enum: [OVERDUE, PLANNED, NO_PLAN] }
         nextTaskType: { type: [string, "null"] }
-      required: [id, userId, speciesId, name, photoUrl, location, environmentType, weatherLocationName, weatherLatitude, weatherLongitude, addedAt, speciesName, nextTask, careStatus, nextTaskType]
+      required: [id, userId, speciesId, identityKind, category, categoryLabel, allowedCareTypes, name, photoUrl, location, environmentType, weatherLocationName, weatherLatitude, weatherLongitude, addedAt, speciesName, nextTask, careStatus, nextTaskType]
     PlantInput:
       type: object
+      description: "speciesId=null explicitly creates a custom plant, requiring a nonblank name and manually selected category. Linked plants reject category overrides."
       properties:
-        name: { type: string, deprecated: true, description: "Legacy alias input. personalName takes precedence when supplied." }
+        name: { type: string, description: "Required nonblank custom name; legacy alias for linked plants." }
         personalName: { type: [string, "null"], description: "Optional alias. Blank or null uses the selected species name." }
-        speciesId: { type: integer, minimum: 1 }
+        speciesId: { type: [integer, "null"], minimum: 1 }
+        category:
+          anyOf:
+            - $ref: "#/components/schemas/PlantCategory"
+            - type: "null"
         location: { type: string, minLength: 1 }
         placeId: { type: integer }
         weatherLocationId: { type: [integer, "null"] }
@@ -913,11 +919,15 @@ components:
       required: [speciesId, location, photoUrl]
     PlantUpdate:
       type: object
-      description: "Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias."
+      description: "Omitted identity fields preserve them. Explicit speciesId=null switches to custom and requires explicit name and category. Linked plants reject nonnull category overrides. Aliases never infer identity."
       properties:
-        name: { type: string, deprecated: true }
+        name: { type: string }
         personalName: { type: [string, "null"] }
-        speciesId: { type: integer, minimum: 1 }
+        speciesId: { type: [integer, "null"], minimum: 1 }
+        category:
+          anyOf:
+            - $ref: "#/components/schemas/PlantCategory"
+            - type: "null"
         location: { type: string, minLength: 1 }
         placeId: { type: integer }
         weatherLocationId: { type: [integer, "null"] }
@@ -950,7 +960,9 @@ components:
         - $ref: "#/components/schemas/Plant"
       properties:
         species:
-          $ref: "#/components/schemas/PlantSpecies"
+          anyOf:
+            - $ref: "#/components/schemas/PlantSpecies"
+            - type: "null"
         upcomingTasks:
           type: array
           items:

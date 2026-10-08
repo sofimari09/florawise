@@ -81,3 +81,12 @@ Development preview seeds four plants, care tasks, reminders, and a recommendati
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+
+## Custom plant identity and rollout
+
+- The existing `migrate:names` command now applies the name, category and custom-identity migrations in order. Run it **before releasing the API and its callers**; startup also applies them before seed/ORM access. The custom migration adds a nullable category, drops the species-link NOT NULL constraint, adds a checked identity invariant and records a version. It is schema-only, transactional and rerunnable on fresh and existing installations; it never replays alias backfills or changes existing plants/tasks/photos/locations.
+- Linked plants have `identityKind=LINKED`, a real `speciesId`, and no stored category override. Their effective category and all species knowledge come solely from that species, regardless of aliases.
+- Custom plants have `identityKind=CUSTOM`, `speciesId=null`, a manually selected controlled category, a required nonblank name and no species alias. Their `speciesName` and detail `species` are null. Text that does not match search never implies custom identity.
+- POST requires an explicit species ID or explicit null. PATCH omission preserves the mode/name/category; explicit null switches to custom and requires an explicit name/category. Switching to linked clears the custom category; nonnull category overrides on linked requests are rejected.
+- Category defaults determine eligible activities for custom plants without species refinements. General weather/activity rules are labeled generic; species thresholds/cadences remain unknown. No supported category-level biological cadence is currently available, so custom previews deliberately return an empty list with a Ukrainian explanation in the UI; users may schedule eligible tasks manually.
+- Advice/previews never mutate tasks. Confirmation compares identity revisions and current environment, resolved weather location, care history and task context. Existing incompatible historical tasks remain visible and can be completed/cancelled; they cannot be newly scheduled under an incompatible category.
