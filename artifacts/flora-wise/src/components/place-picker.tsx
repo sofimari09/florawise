@@ -7,7 +7,7 @@ import { Alert, Btn, environmentOptions, envLabel, errMsg, inputCls } from "./fw
 
 type Env = PlantPlaceInput["environmentType"];
 
-export function PlacePicker({ value, onChange }: { value: number | null; onChange: (place: PlantPlace | null) => void }) {
+export function PlacePicker({ value, onChange, required = true }: { value: number | null; onChange: (place: PlantPlace | null) => void; required?: boolean }) {
   const q = useQueryClient();
   const places = useListPlantPlaces();
   const create = useCreatePlantPlace();
@@ -51,7 +51,7 @@ export function PlacePicker({ value, onChange }: { value: number | null; onChang
   return <div className="min-w-0 md:col-span-2">
     <span className="text-sm font-semibold">Місце вирощування</span>
     <div className="mt-2 flex flex-wrap items-center gap-2">
-      <select required data-testid="select-plant-place" value={value ?? ""} onChange={e => onChange(list.find(p => p.id === Number(e.target.value)) ?? null)} className="min-w-[220px] flex-1 rounded-xl border border-input bg-background px-4 py-3 text-sm">
+      <select required={required} data-testid="select-plant-place" value={value ?? ""} onChange={e => onChange(list.find(p => p.id === Number(e.target.value)) ?? null)} className="min-w-[220px] flex-1 rounded-xl border border-input bg-background px-4 py-3 text-sm">
         <option value="">{places.isLoading ? "Завантаження…" : "Оберіть місце"}</option>
         {list.map(p => <option key={p.id} value={p.id}>{p.name} · {envLabel[p.environmentType]}</option>)}
       </select>

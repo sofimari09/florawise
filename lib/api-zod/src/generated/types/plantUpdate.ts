@@ -5,6 +5,39 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
-import type { PlantInput } from './plantInput';
+import type { PlantUpdateEnvironmentType } from './plantUpdateEnvironmentType';
 
-export type PlantUpdate = PlantInput;
+/**
+ * Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias.
+ */
+export interface PlantUpdate {
+  /** @deprecated */
+  name?: string;
+  /** @nullable */
+  personalName?: string | null;
+  /** @minimum 1 */
+  speciesId?: number;
+  /** @minLength 1 */
+  location?: string;
+  placeId?: number;
+  /** @nullable */
+  weatherLocationId?: number | null;
+  photoUrl?: string;
+  /** @nullable */
+  photoObjectPath?: string | null;
+  environmentType?: PlantUpdateEnvironmentType;
+  /** @nullable */
+  weatherLocationName?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  weatherLatitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  weatherLongitude?: number | null;
+}

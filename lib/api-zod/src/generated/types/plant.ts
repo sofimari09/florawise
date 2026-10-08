@@ -13,6 +13,11 @@ export interface Plant {
   userId: number;
   speciesId: number;
   name: string;
+  /**
+     * Display alias only; botanical identity is speciesId.
+     * @nullable
+     */
+  personalName?: string | null;
   photoUrl: string;
   /** @nullable */
   photoObjectPath?: string | null;

@@ -3,3 +3,4 @@
 - [Care knowledge policy](care-knowledge-policy.md) — factual species knowledge must not come from an LLM; care plans and date changes require user confirmation.
 - [Plant photo policy](plant-photo-policy.md) — photo bytes belong only in App Storage; preserve Clerk and legacy photo URLs when extending uploads.
 - [Clerk localization boundary](clerk-localization-boundary.md) — the development watermark remained English despite a Ukrainian localization override.
+- [Species identity policy](species-identity-policy.md) — arbitrary aliases are allowed; never infer or repair botanical identity from display names.

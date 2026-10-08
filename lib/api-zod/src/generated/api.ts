@@ -663,6 +663,7 @@ export const ListPlantsResponseItem = zod.object({
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
   "name": zod.string(),
+  "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
   "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
@@ -696,8 +697,9 @@ export const createPlantBodyWeatherLongitudeMax = 180;
 
 
 export const CreatePlantBody = zod.object({
-  "name": zod.string().min(1),
-  "speciesId": zod.number().int(),
+  "name": zod.string().optional().describe('Legacy alias input. personalName takes precedence when supplied.'),
+  "personalName": zod.string().nullish().describe('Optional alias. Blank or null uses the selected species name.'),
+  "speciesId": zod.number().int().min(1),
   "location": zod.string().min(1),
   "placeId": zod.number().int().optional(),
   "weatherLocationId": zod.number().int().nullish(),
@@ -714,6 +716,7 @@ export const CreatePlantResponse = zod.object({
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
   "name": zod.string(),
+  "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
   "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
@@ -744,6 +747,7 @@ export const GetPlantResponse = zod.object({
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
   "name": zod.string(),
+  "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
   "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),
@@ -850,33 +854,35 @@ export const UpdatePlantParams = zod.object({
 
 
 
-export const updatePlantBodyOneWeatherLatitudeMin = -90;
-export const updatePlantBodyOneWeatherLatitudeMax = 90;
+export const updatePlantBodyWeatherLatitudeMin = -90;
+export const updatePlantBodyWeatherLatitudeMax = 90;
 
-export const updatePlantBodyOneWeatherLongitudeMin = -180;
-export const updatePlantBodyOneWeatherLongitudeMax = 180;
+export const updatePlantBodyWeatherLongitudeMin = -180;
+export const updatePlantBodyWeatherLongitudeMax = 180;
 
 
 
 export const UpdatePlantBody = zod.object({
-  "name": zod.string().min(1),
-  "speciesId": zod.number().int(),
-  "location": zod.string().min(1),
+  "name": zod.string().optional(),
+  "personalName": zod.string().nullish(),
+  "speciesId": zod.number().int().min(1).optional(),
+  "location": zod.string().min(1).optional(),
   "placeId": zod.number().int().optional(),
   "weatherLocationId": zod.number().int().nullish(),
-  "photoUrl": zod.string(),
+  "photoUrl": zod.string().optional(),
   "photoObjectPath": zod.string().nullish(),
   "environmentType": zod.enum(['INDOOR', 'BALCONY', 'OUTDOOR', 'GREENHOUSE']).optional(),
   "weatherLocationName": zod.string().nullish(),
-  "weatherLatitude": zod.number().min(updatePlantBodyOneWeatherLatitudeMin).max(updatePlantBodyOneWeatherLatitudeMax).nullish(),
-  "weatherLongitude": zod.number().min(updatePlantBodyOneWeatherLongitudeMin).max(updatePlantBodyOneWeatherLongitudeMax).nullish()
-})
+  "weatherLatitude": zod.number().min(updatePlantBodyWeatherLatitudeMin).max(updatePlantBodyWeatherLatitudeMax).nullish(),
+  "weatherLongitude": zod.number().min(updatePlantBodyWeatherLongitudeMin).max(updatePlantBodyWeatherLongitudeMax).nullish()
+}).describe('Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias.')
 
 export const UpdatePlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
   "name": zod.string(),
+  "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
   "photoObjectPath": zod.string().nullish(),
   "location": zod.string(),

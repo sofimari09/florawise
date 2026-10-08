@@ -854,6 +854,7 @@ components:
         userId: { type: integer }
         speciesId: { type: integer }
         name: { type: string }
+        personalName: { type: [string, "null"], description: "Display alias only; botanical identity is speciesId." }
         photoUrl: { type: string }
         photoObjectPath: { type: [string, "null"] }
         location: { type: string }
@@ -873,8 +874,9 @@ components:
     PlantInput:
       type: object
       properties:
-        name: { type: string, minLength: 1 }
-        speciesId: { type: integer }
+        name: { type: string, deprecated: true, description: "Legacy alias input. personalName takes precedence when supplied." }
+        personalName: { type: [string, "null"], description: "Optional alias. Blank or null uses the selected species name." }
+        speciesId: { type: integer, minimum: 1 }
         location: { type: string, minLength: 1 }
         placeId: { type: integer }
         weatherLocationId: { type: [integer, "null"] }
@@ -884,10 +886,23 @@ components:
         weatherLocationName: { type: [string, "null"] }
         weatherLatitude: { type: [number, "null"], minimum: -90, maximum: 90 }
         weatherLongitude: { type: [number, "null"], minimum: -180, maximum: 180 }
-      required: [name, speciesId, location, photoUrl]
+      required: [speciesId, location, photoUrl]
     PlantUpdate:
-      allOf:
-        - $ref: "#/components/schemas/PlantInput"
+      type: object
+      description: "Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias."
+      properties:
+        name: { type: string, deprecated: true }
+        personalName: { type: [string, "null"] }
+        speciesId: { type: integer, minimum: 1 }
+        location: { type: string, minLength: 1 }
+        placeId: { type: integer }
+        weatherLocationId: { type: [integer, "null"] }
+        photoUrl: { type: string }
+        photoObjectPath: { type: [string, "null"] }
+        environmentType: { type: string, enum: [INDOOR, BALCONY, OUTDOOR, GREENHOUSE] }
+        weatherLocationName: { type: [string, "null"] }
+        weatherLatitude: { type: [number, "null"], minimum: -90, maximum: 90 }
+        weatherLongitude: { type: [number, "null"], minimum: -180, maximum: 180 }
     PhotoUploadInput:
       type: object
       required: [name, size, contentType]

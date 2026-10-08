@@ -66,6 +66,18 @@ Development preview seeds four plants, care tasks, reminders, and a recommendati
 - The Clerk proxy is production-only; development uses the Clerk development instance directly.
 - API `PORT` and frontend `BASE_PATH` are required by their Vite/server configs when running commands outside managed workflows.
 
+## Plant identity rollout
+
+- Apply `pnpm --filter @workspace/api-server run migrate:names` before starting the new API or deploying its callers. Startup also runs this transactional additive migration before seeding or any ORM reads.
+- Fresh setup is automatic: when the active schema contains no FloraWise tables, the same command (and API startup) applies the checked-in create-only baseline from `lib/db/drizzle/0000_flora_baseline.sql`, then the versioned alias migration. No schema push or external CLI is needed at runtime.
+- On existing FloraWise schemas, only nullable `personal_name` and a version ledger are added; existing data is never replaced, catalog reseeding is not part of the migration, and species links/relationships are unchanged. A partially provisioned schema without plants/species fails explicitly instead of guessing repairs.
+- The one-time backfill preserves historical names differing from their linked species name as aliases. Names exactly equal to that species name remain defaults. Equality is only used to distinguish legacy display aliases, never to guess identity or repair species links.
+- Do not rerun a null-only backfill: null is also an intentional cleared alias. The ledger prevents future reruns from repopulating clears.
+- `speciesId` alone defines botanical identity and care. `personalName` is an optional display alias. The legacy `name` response remains the resolved display name and the required DB column is synchronized on writes.
+- Legacy request `name` is treated only as an alias. Explicit `personalName` takes precedence. PATCH omission preserves the alias, blank/null clears it, and a species-only change keeps an alias but refreshes the default name.
+- Post-merge setup uses the additive migration, not a general schema push. Broader schema changes need their own reviewed migrations.
+- The baseline is a fresh-install snapshot, not an upgrade script: never manually apply it over existing FloraWise tables.
+
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details

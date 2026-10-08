@@ -92,6 +92,7 @@ export const plantsTable = pgTable("flora_plants", {
   userId: integer("user_id").notNull().references(() => usersTable.id),
   speciesId: integer("species_id").notNull().references(() => speciesTable.id),
   name: text("name").notNull(),
+  personalName: text("personal_name"),
   photoUrl: text("photo_url").notNull(),
   photoObjectPath: text("photo_object_path"),
   placeId: integer("place_id").references(() => plantPlacesTable.id, { onDelete: "set null" }),

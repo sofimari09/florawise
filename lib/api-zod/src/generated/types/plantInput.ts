@@ -8,8 +8,17 @@
 import type { PlantInputEnvironmentType } from './plantInputEnvironmentType';
 
 export interface PlantInput {
-  /** @minLength 1 */
-  name: string;
+  /**
+     * Legacy alias input. personalName takes precedence when supplied.
+     * @deprecated
+     */
+  name?: string;
+  /**
+     * Optional alias. Blank or null uses the selected species name.
+     * @nullable
+     */
+  personalName?: string | null;
+  /** @minimum 1 */
   speciesId: number;
   /** @minLength 1 */
   location: string;

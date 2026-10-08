@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, gte, lte, inArray, or } from "drizzle-orm";
+import { and, desc, eq, gte, lte, inArray, or, isNull } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
 import {
@@ -23,6 +23,7 @@ import { weatherService } from "../lib/weather";
 import { generateRules } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
 import { canAttachPhoto } from "../lib/plant-photos";
+import { identityInput, normalizeSearch, resolvePlantName } from "../lib/plant-identity";
 
 const router: IRouter = Router();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -46,8 +47,7 @@ const profileWeatherLocationInput = z.object({
   message: "Широта й довгота мають бути заповнені разом",
 });
 const plantInput = z.object({
-  name: z.string().trim().min(1, "Назва рослини обов'язкова"),
-  speciesId: z.coerce.number().int().positive(),
+  ...identityInput,
   location: z.string().trim().min(1, "Локація обов'язкова"),
   photoUrl: z.string().url().refine(value => /^https?:\/\//.test(value), "Фото має бути HTTP(S) URL").or(z.literal("")),
   photoObjectPath: z.string().regex(/^\/objects\/photos\/[0-9a-f-]{36}$/).nullable().optional(),
@@ -147,6 +147,7 @@ async function mapPlant(plant: typeof plantsTable.$inferSelect) {
   const next = tasks[0];
   return {
     ...plant,
+    name: resolvePlantName({}, species?.name ?? plant.name, plant).name,
     photoUrl: plant.photoObjectPath ? `/api/storage${plant.photoObjectPath}` : plant.photoUrl,
     location: place?.name ?? plant.location,
     environmentType: place?.environmentType ?? plant.environmentType,
@@ -222,9 +223,9 @@ router.patch("/me", async (req, res): Promise<void> => {
 });
 
 router.get("/species", async (req, res): Promise<void> => {
-  const search = stringParam(req.query.search)?.toLowerCase();
+  const search = normalizeSearch(stringParam(req.query.search) ?? "");
   const rows = await db.select().from(speciesTable).orderBy(speciesTable.name);
-  const result = await Promise.all(rows.filter((item) => !search || item.name.toLowerCase().includes(search)).map(mapSpecies));
+  const result = await Promise.all(rows.filter((item) => !search || normalizeSearch(item.name).includes(search)).map(mapSpecies));
   res.json(result);
 });
 
@@ -248,7 +249,13 @@ router.patch("/species/:id", async (req, res): Promise<void> => {
   const merged = { ...existing, ...parsed.data };
   if (Number(merged.optimalTempMin) > Number(merged.optimalTempMax) || merged.humidityMin != null && merged.humidityMax != null && merged.humidityMin > merged.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
   const values = { ...parsed.data, ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: String(parsed.data.optimalTempMin) }), ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: String(parsed.data.optimalTempMax) }) } as Partial<typeof speciesTable.$inferInsert>;
-  const [updated] = await db.update(speciesTable).set(values).where(eq(speciesTable.id, idFrom(req))).returning();
+  const updated = await db.transaction(async tx => {
+    const [species] = await tx.update(speciesTable).set(values).where(eq(speciesTable.id, idFrom(req))).returning();
+    if (species && parsed.data.name !== undefined) {
+      await tx.update(plantsTable).set({ name: species.name }).where(and(eq(plantsTable.speciesId, species.id), isNull(plantsTable.personalName)));
+    }
+    return species;
+  });
   if (!updated) { res.status(404).json({ error: "Вид не знайдено" }); return; }
   res.json(await mapSpecies(updated));
 });
@@ -288,11 +295,15 @@ async function validatedPlantLocation(userId: number, data: Partial<z.infer<type
     const [location] = await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.userId, userId), eq(savedLocationsTable.latitude, String(data.weatherLatitude)), eq(savedLocationsTable.longitude, String(data.weatherLongitude))));
     values.weatherLocationId = location.id;
   } else if (data.weatherLocationName === null) values.weatherLocationId = null;
-  if (data.speciesId !== undefined) {
-    const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, data.speciesId));
-    if (!species) throw new Error("Оберіть вид із довідника");
-  }
   return values;
+}
+
+async function validatedPlantIdentity(data: Partial<z.infer<typeof plantInput>>, existing?: typeof plantsTable.$inferSelect) {
+  const speciesId = data.speciesId ?? existing?.speciesId;
+  if (!speciesId) throw new Error("Оберіть рослину з довідника");
+  const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, speciesId));
+  if (!species) throw new Error("Оберіть рослину з довідника");
+  return { speciesId: species.id, ...resolvePlantName(data, species.name, existing) };
 }
 
 const knowledgeInput = z.object({
@@ -364,10 +375,15 @@ router.post("/plants", async (req, res): Promise<void> => {
   if (!parsed.success || !hasValidWeatherOverride(parsed.data)) { res.status(400).json({ error: "Перевірте назву, вид, фізичне місце та погодну локацію рослини" }); return; }
   if (!await canAttachPhoto(parsed.data.photoObjectPath, getAuth(req).userId)) { res.status(400).json({ error: "Фото не завантажене або належить іншому користувачу." }); return; }
   let locations: Partial<typeof plantsTable.$inferInsert>;
-  try { locations = await validatedPlantLocation(user.id, parsed.data); }
+  let identity: Awaited<ReturnType<typeof validatedPlantIdentity>>;
+  try {
+    identity = await validatedPlantIdentity(parsed.data);
+    locations = await validatedPlantLocation(user.id, parsed.data);
+  }
   catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Некоректна локація" }); return; }
   const [created] = await db.insert(plantsTable).values({
     ...parsed.data,
+    ...identity,
     environmentType: parsed.data.environmentType ?? "INDOOR",
     weatherLocationName: parsed.data.weatherLocationName ?? null,
     weatherLatitude: dbCoordinate(parsed.data.weatherLatitude) ?? null,
@@ -401,10 +417,15 @@ router.patch("/plants/:id", async (req, res): Promise<void> => {
   if (!await canAttachPhoto(parsed.data.photoObjectPath, getAuth(req).userId)) { res.status(400).json({ error: "Фото не завантажене або належить іншому користувачу." }); return; }
   const { weatherLatitude, weatherLongitude, ...plantValues } = parsed.data;
   let locations: Partial<typeof plantsTable.$inferInsert>;
-  try { locations = await validatedPlantLocation(user.id, parsed.data, plant); }
+  let identity: Awaited<ReturnType<typeof validatedPlantIdentity>>;
+  try {
+    identity = await validatedPlantIdentity(parsed.data, plant);
+    locations = await validatedPlantLocation(user.id, parsed.data, plant);
+  }
   catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Некоректна локація" }); return; }
   const [updated] = await db.update(plantsTable).set({
     ...plantValues,
+    ...identity,
     ...(weatherLatitude === undefined ? {} : { weatherLatitude: dbCoordinate(weatherLatitude) }),
     ...(weatherLongitude === undefined ? {} : { weatherLongitude: dbCoordinate(weatherLongitude) }),
     ...locations,

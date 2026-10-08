@@ -38,6 +38,7 @@ export * from './plantPlaceInputEnvironmentType';
 export * from './plantSpecies';
 export * from './plantStats';
 export * from './plantUpdate';
+export * from './plantUpdateEnvironmentType';
 export * from './profileWeatherLocationInput';
 export * from './recommendation';
 export * from './recommendationInput';

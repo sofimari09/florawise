@@ -1,24 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
-import { requestPhotoUpload, completePhotoUpload, getGetPlantQueryKey, getListPlantsQueryKey, useCreatePlant, useListPlantPlaces, useListSavedLocations, useListSpecies, useUpdatePlant } from "@workspace/api-client-react";
-import type { Plant, PlantInput } from "@workspace/api-client-react";
+import { requestPhotoUpload, completePhotoUpload, getGetPlantQueryKey, getListPlantsQueryKey, getListSpeciesQueryKey, useCreatePlant, useListPlantPlaces, useListSavedLocations, useListSpecies, useUpdatePlant } from "@workspace/api-client-react";
+import type { Plant, PlantInput, PlantSpecies } from "@workspace/api-client-react";
 import { Alert, Btn, Pnl, errMsg, inputCls } from "./fw-ui";
 import { PlacePicker } from "./place-picker";
 import { LocationSearch } from "./location-search";
 import { PlantPhoto } from "./plant-photo";
+import { SpeciesPicker } from "./species-picker";
 
 export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; onDone: (plant: Plant, created: boolean) => void; onCancel: () => void }) {
   const q = useQueryClient();
-  const species = useListSpecies();
+  const species = useListSpecies(undefined, { query: { queryKey: getListSpeciesQueryKey(), enabled: !!plant, staleTime: 60_000, retry: false } });
   const places = useListPlantPlaces();
   const locations = useListSavedLocations();
   const create = useCreatePlant();
   const update = useUpdatePlant();
-  const [name, setName] = useState(plant?.name ?? "");
-  const [speciesId, setSpeciesId] = useState(plant ? String(plant.speciesId) : "");
+  const [name, setName] = useState(plant?.personalName ?? "");
+  const [selectedSpecies, setSelectedSpecies] = useState<PlantSpecies | null>(null);
+  const initialized = useRef(false);
+  useEffect(() => {
+    if (plant && species.data && !initialized.current) {
+      setSelectedSpecies(species.data.find(s => s.id === plant.speciesId) ?? null);
+      initialized.current = true;
+    }
+  }, [plant, species.data]);
   const [placeId, setPlaceId] = useState<number | null>(plant?.placeId ?? null);
   const [weatherId, setWeatherId] = useState<number | null>(plant?.weatherLocationId ?? null);
+  const [weatherChanged, setWeatherChanged] = useState(false);
   const { getToken, isSignedIn } = useAuth();
   const [photoObjectPath, setPhotoObjectPath] = useState(plant?.photoObjectPath ?? null);
   const [photoUrl, setPhotoUrl] = useState(plant?.photoObjectPath ? "" : plant?.photoUrl ?? "");
@@ -41,14 +50,13 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
     event.preventDefault();
     if (busy.current || pending) return;
     setError("");
-    if (!name.trim()) { setError("Вкажіть назву рослини."); return; }
-    if (!speciesId) { setError("Оберіть вид рослини."); return; }
+    if (!selectedSpecies) { setError("Оберіть рослину з довідника."); return; }
     const place = (places.data ?? []).find(p => p.id === placeId);
     if (!plant && !place) { setError("Оберіть або створіть місце вирощування."); return; }
     const weather = (locations.data ?? []).find(l => l.id === weatherId);
     const data: PlantInput = {
-      name: name.trim(),
-      speciesId: Number(speciesId),
+      personalName: name.trim() || null,
+      speciesId: selectedSpecies.id,
       location: place?.name ?? plant?.location ?? "",
       environmentType: place?.environmentType ?? plant?.environmentType,
       photoUrl,
@@ -58,6 +66,13 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
       weatherLatitude: weather?.latitude ?? null,
       weatherLongitude: weather?.longitude ?? null,
     };
+    // An untouched legacy coordinate override must not be cleared by this form.
+    if (plant && !weatherChanged) {
+      delete data.weatherLocationId;
+      delete data.weatherLocationName;
+      delete data.weatherLatitude;
+      delete data.weatherLongitude;
+    }
     if (place) data.placeId = place.id;
     if (!data.location) { setError("Оберіть місце вирощування."); return; }
     const fail = (e: unknown) => setError(errMsg(e, "Не вдалося зберегти рослину. Перевірте дані й спробуйте ще раз."));
@@ -81,6 +96,8 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
       const saved = plant ? await update.mutateAsync({ id: plant.id, data }) : await create.mutateAsync({ data });
       q.invalidateQueries({ queryKey: getListPlantsQueryKey() });
       if (plant) q.invalidateQueries({ queryKey: getGetPlantQueryKey(plant.id) });
+      // Names are also embedded in task, reminder, history and advice responses.
+      q.invalidateQueries({ predicate: query => typeof query.queryKey[0] === "string" && /^\/api\/(tasks|reminders|history|recommendations|dashboard|statistics)(\/|$)/.test(query.queryKey[0]) });
       onDone(saved, !plant);
     } catch (e) { fail(e); }
     finally { busy.current = false; setUploading(false); }
@@ -89,18 +106,22 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
   return <Pnl className="mb-6 p-6">
     <h2 className="mb-5 font-serif text-2xl">{plant ? "Редагувати рослину" : "Нова рослина"}</h2>
     <form onSubmit={submit} className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-      <label className="min-w-0 text-sm font-semibold">Назва рослини<input data-testid="input-plant-name" value={name} onChange={e => setName(e.target.value)} placeholder="Наприклад, Монстера" className={inputCls} /></label>
-      <label className="min-w-0 text-sm font-semibold">Вид рослини<select data-testid="select-plant-species" value={speciesId} onChange={e => setSpeciesId(e.target.value)} className={inputCls}><option value="">Оберіть вид</option>{(species.data ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-      <PlacePicker value={placeId} onChange={p => setPlaceId(p?.id ?? null)} />
+      <SpeciesPicker value={selectedSpecies} initialName={plant?.speciesName} disabled={pending} onChange={s => { initialized.current = true; setSelectedSpecies(s); }} />
+      {plant && species.isError && !initialized.current && <p role="alert" className="text-sm md:col-span-2">Не вдалося завантажити збережений вид. <button type="button" className="font-semibold text-primary" onClick={() => species.refetch()}>Повторити</button></p>}
+      <div className="min-w-0 md:col-span-2">
+        <label className="text-sm font-semibold">Власна назва (необов’язково)<input data-testid="input-plant-name" value={name} disabled={pending} onChange={e => setName(e.target.value)} placeholder="Наприклад, Малина біля паркану" className={inputCls} /></label>
+        <p className="mt-2 text-xs text-muted-foreground">Це лише ваша назва. Вид і догляд визначаються вибором із довідника. Без власної назви використовуємо назву виду.</p>
+      </div>
+      <PlacePicker value={placeId} required={!plant?.location} onChange={p => setPlaceId(p?.id ?? null)} />
       <div className="min-w-0 md:col-span-2">
         <label className="text-sm font-semibold">Погодна локація
-          <select data-testid="select-plant-weather" value={weatherId ?? ""} onChange={e => setWeatherId(e.target.value ? Number(e.target.value) : null)} className={inputCls}>
+          <select data-testid="select-plant-weather" value={weatherId ?? ""} onChange={e => { setWeatherChanged(true); setWeatherId(e.target.value ? Number(e.target.value) : null); }} className={inputCls}>
             <option value="">Локація профілю за замовчуванням</option>
             {(locations.data ?? []).map(l => <option key={l.id} value={l.id}>{l.displayName}{l.isDefault ? " (основна)" : ""}</option>)}
           </select>
         </label>
         <button type="button" data-testid="button-toggle-location-search" onClick={() => setShowSearch(v => !v)} className="mt-2 text-sm font-semibold text-primary">{showSearch ? "Сховати пошук" : "Знайти іншу локацію"}</button>
-        {showSearch && <div className="mt-3 rounded-xl bg-muted p-4"><LocationSearch onSaved={loc => { setWeatherId(loc.id); setShowSearch(false); }} /></div>}
+        {showSearch && <div className="mt-3 rounded-xl bg-muted p-4"><LocationSearch onSaved={loc => { setWeatherChanged(true); setWeatherId(loc.id); setShowSearch(false); }} /></div>}
       </div>
       <div className="min-w-0 rounded-xl bg-muted p-4 md:col-span-2">
         <label className="text-sm font-semibold">Фото рослини
@@ -116,7 +137,7 @@ export function PlantForm({ plant, onDone, onCancel }: { plant?: Plant | null; o
         </label>
         <p className="mt-2 text-xs text-muted-foreground">JPEG, PNG або WebP, до 5 МБ. Фото доступне лише вам.</p>
         {(preview || photoObjectPath || photoUrl) && <div className="mt-3 flex items-center gap-3">
-          <PlantPhoto src={preview || (photoObjectPath ? `/api/storage${photoObjectPath}` : photoUrl)} alt={name || "Фото рослини"} className="h-24 w-24 rounded-lg object-cover" />
+          <PlantPhoto src={preview || (photoObjectPath ? `/api/storage${photoObjectPath}` : photoUrl)} alt={name || selectedSpecies?.name || "Фото рослини"} className="h-24 w-24 rounded-lg object-cover" />
           <Btn variant="ghost" disabled={pending} testId="button-remove-plant-photo" onClick={() => { setFile(null); setPhotoObjectPath(null); setPhotoUrl(""); if (picker.current) picker.current.value = ""; }}>Прибрати фото</Btn>
         </div>}
         {uploading && <p role="status" className="mt-2 text-sm">Завантажуємо фото та зберігаємо рослину…</p>}

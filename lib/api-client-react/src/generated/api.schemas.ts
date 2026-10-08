@@ -225,6 +225,11 @@ export interface Plant {
   userId: number;
   speciesId: number;
   name: string;
+  /**
+     * Display alias only; botanical identity is speciesId.
+     * @nullable
+     */
+  personalName?: string | null;
   photoUrl: string;
   /** @nullable */
   photoObjectPath?: string | null;
@@ -261,8 +266,17 @@ export const PlantInputEnvironmentType = {
 } as const;
 
 export interface PlantInput {
-  /** @minLength 1 */
-  name: string;
+  /**
+     * Legacy alias input. personalName takes precedence when supplied.
+     * @deprecated
+     */
+  name?: string;
+  /**
+     * Optional alias. Blank or null uses the selected species name.
+     * @nullable
+     */
+  personalName?: string | null;
+  /** @minimum 1 */
   speciesId: number;
   /** @minLength 1 */
   location: string;
@@ -289,7 +303,50 @@ export interface PlantInput {
   weatherLongitude?: number | null;
 }
 
-export type PlantUpdate = PlantInput;
+export type PlantUpdateEnvironmentType = typeof PlantUpdateEnvironmentType[keyof typeof PlantUpdateEnvironmentType];
+
+
+export const PlantUpdateEnvironmentType = {
+  INDOOR: 'INDOOR',
+  BALCONY: 'BALCONY',
+  OUTDOOR: 'OUTDOOR',
+  GREENHOUSE: 'GREENHOUSE',
+} as const;
+
+/**
+ * Omitted alias preserves it; explicit blank/null clears it. Species changes never infer identity from an alias.
+ */
+export interface PlantUpdate {
+  /** @deprecated */
+  name?: string;
+  /** @nullable */
+  personalName?: string | null;
+  /** @minimum 1 */
+  speciesId?: number;
+  /** @minLength 1 */
+  location?: string;
+  placeId?: number;
+  /** @nullable */
+  weatherLocationId?: number | null;
+  photoUrl?: string;
+  /** @nullable */
+  photoObjectPath?: string | null;
+  environmentType?: PlantUpdateEnvironmentType;
+  /** @nullable */
+  weatherLocationName?: string | null;
+  /**
+     * @minimum -90
+     * @maximum 90
+     * @nullable
+     */
+  weatherLatitude?: number | null;
+  /**
+     * @minimum -180
+     * @maximum 180
+     * @nullable
+     */
+  weatherLongitude?: number | null;
+}
 
 export type PhotoUploadInputContentType = typeof PhotoUploadInputContentType[keyof typeof PhotoUploadInputContentType];
 
