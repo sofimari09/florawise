@@ -18,8 +18,8 @@ export function CarePlanDialog({ plantId, plantName, onClose, onConfirmed }: { p
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    if (preview.data && !loaded) { setRows(preview.data.map(i => ({ ...i, scheduledDate: toDateInput(i.scheduledDate), selected: true }))); setLoaded(true); }
-  }, [preview.data, loaded]);
+    if (preview.data && !preview.isFetching && !preview.isError && !loaded) { setRows(preview.data.map(i => ({ ...i, scheduledDate: toDateInput(i.scheduledDate), selected: true }))); setLoaded(true); }
+  }, [preview.data, preview.isFetching, preview.isError, loaded]);
   const patch = (i: number, p: Partial<Row>) => setRows(r => r.map((x, k) => k === i ? { ...x, ...p } : x));
   const chosen = rows.filter(r => r.selected);
   const submit = () => {
@@ -27,7 +27,7 @@ export function CarePlanDialog({ plantId, plantName, onClose, onConfirmed }: { p
     if (!chosen.length) { setError("Оберіть хоча б один пункт плану."); return; }
     if (chosen.some(r => !r.scheduledDate)) { setError("Вкажіть дату для кожного обраного пункту."); return; }
     if (chosen.length > 10) { setError("Можна підтвердити щонайбільше 10 пунктів."); return; }
-    confirm.mutate({ id: plantId, data: { items: chosen.map(({ type, scheduledDate, reason }) => ({ type, scheduledDate, reason })) } }, {
+    confirm.mutate({ id: plantId, data: { items: chosen.map(({ type, scheduledDate, reason, eligibilityVersion }) => ({ type, scheduledDate, reason, eligibilityVersion })) } }, {
       onSuccess: async () => {
         await Promise.all([
           q.invalidateQueries({ queryKey: getListTasksQueryKey() }), q.invalidateQueries({ queryKey: getListRemindersQueryKey() }),
@@ -36,7 +36,7 @@ export function CarePlanDialog({ plantId, plantName, onClose, onConfirmed }: { p
         ]);
         onConfirmed?.(); onClose();
       },
-      onError: e => setError(errMsg(e, "Не вдалося підтвердити план догляду.")),
+      onError: e => { setError(errMsg(e, "Не вдалося підтвердити план догляду.")); setLoaded(false); setRows([]); preview.refetch(); },
     });
   };
   return <Modal title={`План догляду: ${plantName}`} onClose={onClose} wide>
@@ -50,6 +50,6 @@ export function CarePlanDialog({ plantId, plantName, onClose, onConfirmed }: { p
       <input type="date" aria-label="дата" data-testid={`input-care-plan-date-${i}`} disabled={!r.selected} value={r.scheduledDate} onChange={e => patch(i, { scheduledDate: e.target.value })} className="rounded-xl border border-input bg-background px-3 py-2 text-sm disabled:opacity-50" />
     </div>)}</div>
     {error && <div className="mt-4"><Alert>{error}</Alert></div>}
-    <div className="mt-5 flex flex-wrap justify-end gap-2"><Btn variant="ghost" onClick={onClose}>Пізніше</Btn><Btn onClick={submit} disabled={confirm.isPending || !loaded || !rows.length} testId="button-confirm-care-plan"><CalendarCheck size={16} /> {confirm.isPending ? "Створюємо…" : `Підтвердити (${chosen.length})`}</Btn></div>
+    <div className="mt-5 flex flex-wrap justify-end gap-2"><Btn variant="ghost" onClick={onClose}>Пізніше</Btn><Btn onClick={submit} disabled={confirm.isPending || preview.isFetching || preview.isError || !loaded || !chosen.length} testId="button-confirm-care-plan"><CalendarCheck size={16} /> {confirm.isPending ? "Створюємо…" : `Підтвердити (${chosen.length})`}</Btn></div>
   </Modal>;
 }

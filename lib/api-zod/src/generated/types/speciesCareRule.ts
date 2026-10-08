@@ -5,10 +5,10 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
-import type { SpeciesCareRuleCareType } from './speciesCareRuleCareType';
+import type { CareType } from './careType';
 
 export interface SpeciesCareRule {
-  careType: SpeciesCareRuleCareType;
+  careType: CareType;
   /**
      * @minimum 0
      * @nullable

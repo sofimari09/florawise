@@ -1,5 +1,6 @@
 import type { PlantSpecies, CareTask, SpeciesCareRule } from "@workspace/db";
 import type { WeatherDay } from "./weather";
+import { CARE_LABELS, eligibilityError, eligibilityBasis } from "@workspace/plant-care";
 
 export type RecommendationDraft = {
   type: string; text: string; priority: string; explanation: string;
@@ -7,7 +8,7 @@ export type RecommendationDraft = {
 };
 export const RULE_PARAMETERS = { significantRainMm: 8, safeSprayingWindMps: 8, overdueUrgentDays: 5, hotTemperatureDelta: 5 };
 const exposed = (environment: string) => ["BALCONY", "OUTDOOR"].includes(environment);
-const labels: Record<string, string> = { WATERING: "Полив", FERTILIZING: "Підживлення", PRUNING: "Обрізка", TRANSPLANTING: "Пересадка", TREATMENT: "Обробка", HARVEST: "Збір урожаю" };
+const labels: Record<string, string> = CARE_LABELS;
 const priorityRank: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, URGENT: 3 };
 const higherPriority = (a: string, b: string) => priorityRank[a] >= priorityRank[b] ? a : b;
 function thresholds(type: string, species: PlantSpecies, rules: SpeciesCareRule[]) {
@@ -36,6 +37,10 @@ export function isWeatherSuitable(type: string, species: PlantSpecies, weather: 
 }
 export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast: WeatherDay[], location: string, environment: string, lastWatered: string | null, rules: SpeciesCareRule[] = []): RecommendationDraft[] {
   if (!forecast.length) return [];
+  tasks = tasks.filter(task => !eligibilityError(species, task.type));
+  rules = rules.filter(rule => !eligibilityError(species, rule.careType));
+  if (eligibilityError(species, "WATERING")) lastWatered = null;
+  const basis = eligibilityBasis(species);
   const results: RecommendationDraft[] = [];
   const today = new Date().toISOString().slice(0, 10);
   const elapsed = (date: string) => Math.max(0, Math.floor((Date.parse(today) - Date.parse(date.slice(0, 10))) / 86400000));
@@ -46,7 +51,7 @@ export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast
     const weather = forecast.find(day => day.date === task.scheduledDate) ?? (task.scheduledDate < today ? forecast[0] : undefined);
     const limits = thresholds(task.type, species, rules);
     const reasons = weather ? weatherReasons(task.type, species, weather, environment, rules) : [];
-    const context = `Вид: «${species.name}». Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}.`;
+    const context = `Вид: «${species.name}». ${basis} Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}.`;
     if (weather && reasons.length) {
       const earliest = task.scheduledDate < today ? today : task.scheduledDate;
       const alternative = forecast.find(day => day.date > earliest && isWeatherSuitable(task.type, species, day, environment, rules));
@@ -103,7 +108,7 @@ export function generateRules(species: PlantSpecies, tasks: CareTask[], forecast
       type: "GENERAL",
       text: risk ? `Для ${species.name} прогноз виходить за пороги правил виду. Перевірте умови догляду.` : `Для ${species.name} немає критичних змін у плані догляду.`,
       priority: risk ? "MEDIUM" : "LOW",
-      explanation: `Локація: «${location}». Середовище: ${environmentLabel}. Перевірено ${activeCount} активних завдань і доступний прогноз. ${checks.join(" ")} ${lastWatered ? `Останній виконаний полив: ${lastWatered.slice(0, 10)}; орієнтовний інтервал виду — ${species.wateringFrequencyDays} дн.` : "Історії виконаного поливу немає: дату не припущено."} ${!exposed(environment) ? "Зовнішній дощ не є підставою для перенесення поливу." : ""} Завдання не створено, дати не змінено. ${species.generalCareRecommendations ?? species.careRecommendations}`,
+      explanation: `${basis} Локація: «${location}». Середовище: ${environmentLabel}. Перевірено ${activeCount} активних завдань і доступний прогноз. ${checks.join(" ")} ${lastWatered ? `Останній виконаний полив: ${lastWatered.slice(0, 10)}; орієнтовний інтервал виду — ${species.wateringFrequencyDays} дн.` : eligibilityError(species, "WATERING") ? "Полив не застосовується до цього виду." : "Історії виконаного поливу немає: дату не припущено."} ${!exposed(environment) && !eligibilityError(species, "WATERING") ? "Зовнішній дощ не є підставою для перенесення поливу." : ""} Завдання не створено, дати не змінено. ${species.generalCareRecommendations ?? species.careRecommendations}`,
       relatedTaskId: null, originalDate: null, suggestedDate: null, weather: forecast[0],
     });
   }

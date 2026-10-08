@@ -5,13 +5,18 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CareType } from './careType';
 import type { PlantCareStatus } from './plantCareStatus';
+import type { PlantCategory } from './plantCategory';
 import type { PlantEnvironmentType } from './plantEnvironmentType';
 
 export interface Plant {
   id: number;
   userId: number;
   speciesId: number;
+  category?: PlantCategory;
+  categoryLabel?: string;
+  allowedCareTypes?: CareType[];
   name: string;
   /**
      * Display alias only; botanical identity is speciesId.

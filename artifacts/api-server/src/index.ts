@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { seedData } from "./lib/seed";
 import { pool } from "@workspace/db";
 import { migratePlantNames } from "./lib/plant-name-migration";
+import { migrateCategories } from "./lib/category-migration";
 
 const rawPort = process.env["PORT"];
 
@@ -19,7 +20,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const migrationClient = await pool.connect();
-try { await migratePlantNames(migrationClient); }
+try { await migratePlantNames(migrationClient); await migrateCategories(migrationClient); }
 finally { migrationClient.release(); }
 await seedData();
 app.listen(port, (err) => {

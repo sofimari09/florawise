@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PlantSpecies } from './plantSpecies';
+import type { SpeciesKnowledgeInput } from './speciesKnowledgeInput';
 
 export type SpeciesInput = PlantSpecies & {
   readonly id?: number;
+  knowledge?: SpeciesKnowledgeInput;
 };

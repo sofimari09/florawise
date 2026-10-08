@@ -1,3 +1,4 @@
+import { CATEGORY_LABELS, isCategory } from "@workspace/plant-care";
 import { useEffect, useId, useRef, useState } from "react";
 import { getListSpeciesQueryKey, useListSpecies } from "@workspace/api-client-react";
 import type { PlantSpecies } from "@workspace/api-client-react";
@@ -80,7 +81,7 @@ export function SpeciesPicker({ value, initialName = "", onChange, disabled }: {
         : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-lg bg-secondary text-primary" aria-label="Фото виду відсутнє"><Leaf size={26} /></div>}
       <div><p className="text-xs text-muted-foreground">Вид із довідника</p><p className="font-semibold">{value.name}</p>
         {value.scientificName && <p className="text-sm italic">{value.scientificName}</p>}
-        <p data-testid="text-species-category" className="mt-1 text-sm text-muted-foreground">{value.category?.trim() ? `Категорія: ${value.category}` : "Категорію не вказано"}</p>
+        <p data-testid="text-species-category" className="mt-1 text-sm text-muted-foreground">{isCategory(value.category) ? `Категорія: ${CATEGORY_LABELS[value.category]}` : "Категорію не вказано"}</p>
       </div>
     </div>}
   </div>;

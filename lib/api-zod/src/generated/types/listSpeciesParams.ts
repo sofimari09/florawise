@@ -5,6 +5,7 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlantCategory } from './plantCategory';
 import type { SearchParameter } from './searchParameter';
 
 export type ListSpeciesParams = {
@@ -12,4 +13,5 @@ export type ListSpeciesParams = {
  * @nullable
  */
 search?: SearchParameter;
+category?: PlantCategory;
 };

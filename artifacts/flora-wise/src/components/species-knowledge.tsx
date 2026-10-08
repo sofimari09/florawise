@@ -2,6 +2,7 @@ import { Droplets, ExternalLink, Thermometer, Wind } from "lucide-react";
 import { getGetSpeciesKnowledgeQueryKey, useGetSpeciesKnowledge } from "@workspace/api-client-react";
 import type { PlantSpecies } from "@workspace/api-client-react";
 import { Alert, Chip, careTypeLabel, envLabel } from "./fw-ui";
+import { CATEGORY_LABELS, allowedCareTypes } from "@workspace/plant-care";
 
 const dash = (v: unknown, suffix = "") => v === null || v === undefined || v === "" ? null : `${v}${suffix}`;
 const fmtDate = (d: string | null) => d ? new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "long", year: "numeric" }).format(new Date(d)) : null;
@@ -10,7 +11,8 @@ export function SpeciesDetails({ species: s }: { species: PlantSpecies }) {
   const knowledge = useGetSpeciesKnowledge(s.id, { query: { queryKey: getGetSpeciesKnowledgeQueryKey(s.id), retry: false } });
   const facts: Array<[string, string | null]> = [
     ["Наукова назва", dash(s.scientificName)],
-    ["Категорія", dash(s.category)],
+    ["Категорія", CATEGORY_LABELS[s.category] ?? "Потрібна класифікація"],
+    ["Доступний догляд", allowedCareTypes(s).map(type => careTypeLabel[type]).join(", ") || "Немає застосовних дій"],
     ["Середовище", s.suitableEnvironmentTypes?.length ? s.suitableEnvironmentTypes.map(e => envLabel[e] || e).join(", ") : null],
     ["Вологість повітря", s.humidityMin != null || s.humidityMax != null ? `${s.humidityMin ?? "—"}–${s.humidityMax ?? "—"}%` : null],
     ["Підживлення", s.fertilizingFrequencyDays != null ? `кожні ${s.fertilizingFrequencyDays} дн.` : null],

@@ -6,14 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SpeciesCareRuleCareType = typeof SpeciesCareRuleCareType[keyof typeof SpeciesCareRuleCareType];
+export type CareType = typeof CareType[keyof typeof CareType];
 
 
-export const SpeciesCareRuleCareType = {
+export const CareType = {
   WATERING: 'WATERING',
   FERTILIZING: 'FERTILIZING',
   PRUNING: 'PRUNING',
   TRANSPLANTING: 'TRANSPLANTING',
   TREATMENT: 'TREATMENT',
   HARVEST: 'HARVEST',
+  SOWING: 'SOWING',
+  PLANTING: 'PLANTING',
 } as const;

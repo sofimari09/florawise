@@ -81,7 +81,10 @@ test("real API: identity, default/alias PATCH semantics, preserved integrations 
     assert.equal(legacy.name, legacy.personalName);
     assert.equal(legacy.speciesId, first.id);
 
-    const tasks = await request(`/plants/${plant.id}/care-plan`, "POST", { items: preview.slice(0, 1) }, 201);
+    // Switching the linked species, even back to the original, invalidates the old confirmation snapshot.
+    await request(`/plants/${plant.id}/care-plan`, "POST", { items: preview.slice(0, 1) }, 400);
+    const currentPreview = await request(`/plants/${plant.id}/care-plan`);
+    const tasks = await request(`/plants/${plant.id}/care-plan`, "POST", { items: currentPreview.slice(0, 1) }, 201);
     assert.equal(tasks.length, 1);
     assert.equal(tasks[0].plantName, first.name);
     const dates = (await request(`/plants/${plant.id}`)).upcomingTasks.map(t => [t.id, t.scheduledDate]);
@@ -90,7 +93,7 @@ test("real API: identity, default/alias PATCH semantics, preserved integrations 
     assert.deepEqual(after.upcomingTasks.map(t => [t.id, t.scheduledDate]), dates);
     assert.equal(after.upcomingTasks[0].plantName, plant.name);
     assert.ok((await request("/reminders")).some(r => r.plantName === plant.name));
-    assert.equal((await request(`/plants/${plant.id}/care-plan`, "POST", { items: preview.slice(0, 1) }, 201)).length, 0);
+    assert.equal((await request(`/plants/${plant.id}/care-plan`, "POST", { items: currentPreview.slice(0, 1) }, 201)).length, 0);
 
     const normalized = await request(`/species?search=${encodeURIComponent(`  ${first.name.toUpperCase()}  `)}`);
     assert.ok(normalized.some(s => s.id === first.id));

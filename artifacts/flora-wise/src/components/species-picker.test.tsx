@@ -6,8 +6,8 @@ import { speciesKeyAction, speciesSearchKey } from "./species-search-state";
 import type { PlantSpecies } from "@workspace/api-client-react";
 
 const mock = vi.hoisted(() => ({ loading: false, error: false, empty: false, refetch: vi.fn(), search: "" }));
-const raspberry = { id: 31, name: "Малина", category: null, imageUrl: "", scientificName: null } as PlantSpecies;
-const strawberry = { id: 45, name: "Полуниця", category: "Ягідні", imageUrl: "https://example.com/broken.jpg" } as PlantSpecies;
+const raspberry = { id: 31, name: "Малина", category: "BERRY_SHRUB", imageUrl: "", scientificName: null } as PlantSpecies;
+const strawberry = { id: 45, name: "Полуниця", category: "BERRY_SHRUB", imageUrl: "https://example.com/broken.jpg" } as PlantSpecies;
 const cachedResults = new Map<string, PlantSpecies[]>();
 
 vi.mock("@workspace/api-client-react", () => ({
@@ -48,7 +48,7 @@ test("keyboard selection stores the actual ID, previews missing metadata, and En
   fireEvent.keyDown(input, { key: "Enter" });
   expect(screen.getByTestId("selected-id").textContent).toBe("31");
   expect(screen.getByTestId("preview-selected-species").textContent).toContain("Малина");
-  expect(screen.getByText("Категорію не вказано")).toBeTruthy();
+  expect(screen.getByText("Категорія: Ягідний кущ")).toBeTruthy();
   expect(mock.refetch).not.toHaveBeenCalled();
   fireEvent.keyDown(input, { key: "Enter" });
   expect(mock.refetch).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ test("mouse/touch click selection and broken image fallback", async () => {
   fireEvent.pointerDown(option, { pointerType: "touch" });
   fireEvent.click(option);
   expect(screen.getByTestId("selected-id").textContent).toBe("45");
-  expect(screen.getByText("Категорія: Ягідні")).toBeTruthy();
+  expect(screen.getByText("Категорія: Ягідний кущ")).toBeTruthy();
   fireEvent.error(screen.getByRole("img"));
   expect(screen.getByLabelText("Фото виду відсутнє")).toBeTruthy();
 });

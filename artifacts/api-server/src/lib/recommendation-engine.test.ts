@@ -5,7 +5,7 @@ import { generateRules, isWeatherSuitable } from "./recommendation-engine";
 import { MockWeatherService } from "./weather";
 
 const date = (offset = 0) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
-const species = { id: 1, name: "Тестовий вид", optimalTempMin: "18", optimalTempMax: "28", wateringFrequencyDays: 7, careRecommendations: "Перевірте ґрунт.", generalCareRecommendations: null } as PlantSpecies;
+const species = { id: 1, name: "Тестовий вид", category: "INDOOR_DECORATIVE", applicableCareTypes: null, careRevision: 0, optimalTempMin: "18", optimalTempMax: "28", wateringFrequencyDays: 7, careRecommendations: "Перевірте ґрунт.", generalCareRecommendations: null } as PlantSpecies;
 const task = (overrides: Partial<CareTask> = {}): CareTask => ({ id: 1, plantId: 1, type: "WATERING", scheduledDate: date(), status: "PLANNED", priority: "MEDIUM", notes: "", createdAt: new Date(), postponementCount: 0, ...overrides });
 const forecast = [{ date: date(), temperature: 22, precipitation: 10, humidity: 60, windSpeed: 3, condition: "Дощ" }, { date: date(1), temperature: 22, precipitation: 0, humidity: 55, windSpeed: 2, condition: "Ясно" }];
 const rule = (overrides: Partial<SpeciesCareRule>): SpeciesCareRule => ({ id: 1, speciesId: 1, careType: "WATERING", rainThresholdMm: null, maxWindSpeedMps: null, minTemperature: null, maxTemperature: null, notes: null, ...overrides });

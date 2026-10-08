@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { CircleAlert, X } from "lucide-react";
+import { CARE_LABELS, CATEGORY_LABELS, PLANT_CATEGORIES } from "@workspace/plant-care";
+import type { PlantCategory } from "@workspace/plant-care";
 
 export const inputCls = "mt-2 w-full min-w-0 max-w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-normal outline-none focus:ring-4 focus:ring-primary/10";
 export const environmentOptions = [
@@ -9,7 +11,12 @@ export const environmentOptions = [
   { value: "GREENHOUSE", label: "Теплиця" },
 ] as const;
 export const envLabel: Record<string, string> = Object.fromEntries(environmentOptions.map(o => [o.value, o.label]));
-export const careTypeLabel: Record<string, string> = { WATERING: "Полив", FERTILIZING: "Підживлення", PRUNING: "Обрізка", TRANSPLANTING: "Пересадка", TREATMENT: "Обробка", HARVEST: "Збір урожаю", OTHER: "Догляд" };
+export const careTypeLabel: Record<string, string> = { ...CARE_LABELS, OTHER: "Догляд" };
+export function CategoryFilter({ value, onChange }: { value: PlantCategory | ""; onChange: (value: PlantCategory | "") => void }) {
+  return <select aria-label="Фільтр категорії" data-testid="filter-category" value={value} onChange={e => onChange(e.target.value as PlantCategory | "")} className="rounded-xl border border-input bg-card px-4 py-2.5 text-sm">
+    <option value="">Усі категорії</option>{PLANT_CATEGORIES.map(category => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}
+  </select>;
+}
 
 export function errMsg(error: unknown, fallback: string): string {
   const data = (error as { data?: unknown } | null)?.data;

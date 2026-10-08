@@ -5,7 +5,7 @@ import { PlantForm } from "./plant-form";
 import type { Plant, PlantSpecies } from "@workspace/api-client-react";
 
 const mock = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn() }));
-const species = [{ id: 19, name: "Фікус", category: null, imageUrl: "" }] as PlantSpecies[];
+const species = [{ id: 19, name: "Фікус", category: "INDOOR_DECORATIVE", imageUrl: "" }] as PlantSpecies[];
 const places = [{ id: 7, name: "Сад", environmentType: "OUTDOOR" }];
 const saved = { id: 5, speciesId: 19, speciesName: "Фікус", name: "Фікус", personalName: null,
   placeId: 7, location: "Сад", environmentType: "OUTDOOR", photoUrl: "/api/storage/objects/photos/01234567-0123-0123-0123-0123456789ab",

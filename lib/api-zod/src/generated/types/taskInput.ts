@@ -5,10 +5,11 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CareType } from './careType';
 
 export interface TaskInput {
   plantId: number;
-  type: string;
+  type: CareType;
   scheduledDate: string;
   priority: string;
   notes: string;

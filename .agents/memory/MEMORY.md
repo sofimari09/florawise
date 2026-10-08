@@ -4,3 +4,5 @@
 - [Plant photo policy](plant-photo-policy.md) — photo bytes belong only in App Storage; preserve Clerk and legacy photo URLs when extending uploads.
 - [Clerk localization boundary](clerk-localization-boundary.md) — the development watermark remained English despite a Ukrainian localization override.
 - [Species identity policy](species-identity-policy.md) — arbitrary aliases are allowed; never infer or repair botanical identity from display names.
+- [Category classification](category-classification.md) — strawberry uses the user-reviewed berry-shrub care grouping, not a botanical assertion.
+- [Eligibility snapshots](eligibility-snapshots.md) — reversing an eligibility or linked-species change must not reactivate old previews or saved advice.

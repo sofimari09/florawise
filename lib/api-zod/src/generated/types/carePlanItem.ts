@@ -5,9 +5,11 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CareType } from './careType';
 
 export interface CarePlanItem {
-  type: string;
+  type: CareType;
+  eligibilityVersion: string;
   scheduledDate: string;
   reason: string;
 }

@@ -1,4 +1,5 @@
-import { boolean, date, integer, numeric, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, check, date, integer, numeric, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -41,7 +42,9 @@ export const speciesTable = pgTable("flora_species", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   scientificName: text("scientific_name"),
-  category: text("category"),
+  category: text("category").notNull(),
+  applicableCareTypes: text("applicable_care_types").array(),
+  careRevision: integer("care_revision").notNull().default(0),
   suitableEnvironmentTypes: text("suitable_environment_types").array(),
   description: text("description").notNull(),
   careRecommendations: text("care_recommendations").notNull(),
@@ -63,7 +66,9 @@ export const speciesTable = pgTable("flora_species", {
   harvestingRecommendations: text("harvesting_recommendations"),
   generalCareRecommendations: text("general_care_recommendations"),
   imageUrl: text("image_url").notNull(),
-});
+}, (table) => ({
+  categoryValid: check("flora_species_category_valid", sql`${table.category} IN ('INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB')`),
+}));
 
 export const speciesCareRulesTable = pgTable("flora_species_care_rules", {
   id: serial("id").primaryKey(),
@@ -91,6 +96,7 @@ export const plantsTable = pgTable("flora_plants", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id),
   speciesId: integer("species_id").notNull().references(() => speciesTable.id),
+  eligibilityRevision: integer("eligibility_revision").notNull().default(0),
   name: text("name").notNull(),
   personalName: text("personal_name"),
   photoUrl: text("photo_url").notNull(),
@@ -156,6 +162,8 @@ export const recommendationsTable = pgTable("flora_recommendations", {
   suggestedDate: date("suggested_date", { mode: "string" }),
   applied: integer("applied").notNull().default(0),
   weatherJson: text("weather_json").notNull().default("{}"),
+  eligibilityVersion: text("eligibility_version"),
+  careType: text("care_type"),
 });
 
 export const reportsTable = pgTable("flora_reports", {

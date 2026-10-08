@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { and, desc, eq, gte, lte, inArray, or, isNull } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
@@ -24,16 +24,18 @@ import { generateRules } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
 import { canAttachPhoto } from "../lib/plant-photos";
 import { identityInput, normalizeSearch, resolvePlantName } from "../lib/plant-identity";
+import { CARE_TYPES, CARE_LABELS, PLANT_CATEGORIES, CATEGORY_LABELS, allowedCareTypes, applicabilityError, eligibilityError, eligibilityVersion, isCategory, isCareType } from "@workspace/plant-care";
+import { CareEligibilityError, assertEligible, assertTaskUpdate, carePlan } from "../lib/care-eligibility";
 
 const router: IRouter = Router();
 const today = () => new Date().toISOString().slice(0, 10);
-const careLabels: Record<string, string> = { WATERING: "Полив", FERTILIZING: "Підживлення", PRUNING: "Обрізка", TRANSPLANTING: "Пересадка", TREATMENT: "Обробка", HARVEST: "Збір урожаю", OTHER: "Інший догляд" };
+const careLabels: Record<string, string> = { ...CARE_LABELS, OTHER: "Інший догляд" };
 const idFrom = (req: Request) => Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
 const stringParam = (value: unknown) => typeof value === "string" ? value : undefined;
-const dates = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const dates = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(date => !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date);
 const taskInput = z.object({
   plantId: z.coerce.number().int().positive(),
-  type: z.string().min(1),
+  type: z.enum(CARE_TYPES),
   scheduledDate: dates,
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
   notes: z.string(),
@@ -89,7 +91,8 @@ const speciesInput = z.object({
   transplantingRecommendations: z.string(),
   imageUrl: z.string().url().or(z.literal("")),
   scientificName: z.string().trim().nullable().optional(),
-  category: z.string().trim().nullable().optional(),
+  category: z.enum(PLANT_CATEGORIES),
+  applicableCareTypes: z.array(z.enum(CARE_TYPES)).nullable().optional(),
   suitableEnvironmentTypes: z.array(z.enum(environmentTypes)).nullable().optional(),
   humidityMin: z.number().int().min(0).max(100).nullable().optional(),
   humidityMax: z.number().int().min(0).max(100).nullable().optional(),
@@ -134,6 +137,8 @@ async function getPlantForUser(req: Request, plantId: number) {
 async function mapSpecies(species: PlantSpecies) {
   return {
     ...species,
+    allowedCareTypes: allowedCareTypes(species),
+    categoryLabel: isCategory(species.category) ? CATEGORY_LABELS[species.category] : "Потрібна класифікація",
     optimalTempMin: Number(species.optimalTempMin),
     optimalTempMax: Number(species.optimalTempMax),
   };
@@ -155,6 +160,9 @@ async function mapPlant(plant: typeof plantsTable.$inferSelect) {
     weatherLatitude: location ? Number(location.latitude) : plant.weatherLatitude === null ? null : Number(plant.weatherLatitude),
     weatherLongitude: location ? Number(location.longitude) : plant.weatherLongitude === null ? null : Number(plant.weatherLongitude),
     speciesName: species?.name ?? "Невідомий вид",
+    category: species?.category,
+    categoryLabel: species && isCategory(species.category) ? CATEGORY_LABELS[species.category] : "Потрібна класифікація",
+    allowedCareTypes: species ? allowedCareTypes(species) : [],
     nextTask: next?.scheduledDate ?? null,
     nextTaskType: next?.type ?? null,
     careStatus: next?.scheduledDate && next.scheduledDate < today() ? "OVERDUE" : next ? "PLANNED" : "NO_PLAN",
@@ -185,10 +193,16 @@ async function mapTask(task: CareTask) {
 
 async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) {
   const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, rec.plantId));
+  const [species] = plant ? await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId)) : [];
+  const [task] = rec.relatedTaskId ? await db.select().from(tasksTable).where(eq(tasksTable.id, rec.relatedTaskId)) : [];
+  const stale = !species || rec.eligibilityVersion !== eligibilityVersion(species, plant?.eligibilityRevision) || (task && (task.plantId !== rec.plantId || task.type !== rec.careType || eligibilityError(species, task.type) !== null));
+  const actionable = !stale && !rec.applied && !!task && ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today();
   return {
     ...rec,
     plantName: plant?.name ?? "Рослина",
     applied: Boolean(rec.applied),
+    actionable,
+    staleReason: stale ? "Застосовність догляду змінилася. Створіть нову пораду" : null,
     weather: JSON.parse(rec.weatherJson || "{}"),
   };
 }
@@ -226,31 +240,54 @@ router.get("/species", async (req, res): Promise<void> => {
   const search = normalizeSearch(stringParam(req.query.search) ?? "");
   const rows = await db.select().from(speciesTable).orderBy(speciesTable.name);
   const result = await Promise.all(rows.filter((item) => !search || normalizeSearch(item.name).includes(search)).map(mapSpecies));
-  res.json(result);
+  res.json(result.filter(item => !req.query.category || item.category === req.query.category));
 });
 
 router.post("/species", async (req, res): Promise<void> => {
-  const parsed = speciesInput.safeParse(req.body);
+  const parsed = speciesInput.extend({ knowledge: knowledgeInput.optional() }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Перевірте параметри виду рослини" }); return; }
   const user = await currentUser(req);
   if (!user || user.role !== "ADMIN") { res.status(403).json({ error: "Недостатньо прав" }); return; }
   if (parsed.data.optimalTempMin > parsed.data.optimalTempMax || parsed.data.humidityMin != null && parsed.data.humidityMax != null && parsed.data.humidityMin > parsed.data.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
-  const [created] = await db.insert(speciesTable).values({ ...parsed.data, optimalTempMin: String(parsed.data.optimalTempMin), optimalTempMax: String(parsed.data.optimalTempMax) }).returning();
+  const error = applicabilityError(parsed.data);
+  if (error) { res.status(400).json({ error }); return; }
+  const { knowledge, ...data } = parsed.data;
+  const created = await db.transaction(async tx => {
+    if (knowledge) for (const rule of knowledge.careRules) {
+      const error = eligibilityError(data, rule.careType);
+      if (error) throw new CareEligibilityError(error);
+    }
+    const [created] = await tx.insert(speciesTable).values({ ...data, optimalTempMin: String(data.optimalTempMin), optimalTempMax: String(data.optimalTempMax) }).returning();
+    if (knowledge) await writeSpeciesKnowledge(tx, created.id, knowledge);
+    return created;
+  });
   res.status(201).json(await mapSpecies(created));
 });
 
 router.patch("/species/:id", async (req, res): Promise<void> => {
   const user = await currentUser(req);
   if (!user || user.role !== "ADMIN") { res.status(403).json({ error: "Недостатньо прав" }); return; }
-  const parsed = speciesInput.partial().safeParse(req.body);
+  const parsed = speciesInput.partial().extend({ knowledge: knowledgeInput.optional() }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Некоректні дані виду" }); return; }
   const [existing] = await db.select().from(speciesTable).where(eq(speciesTable.id, idFrom(req)));
   if (!existing) { res.status(404).json({ error: "Вид не знайдено" }); return; }
   const merged = { ...existing, ...parsed.data };
   if (Number(merged.optimalTempMin) > Number(merged.optimalTempMax) || merged.humidityMin != null && merged.humidityMax != null && merged.humidityMin > merged.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
-  const values = { ...parsed.data, ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: String(parsed.data.optimalTempMin) }), ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: String(parsed.data.optimalTempMax) }) } as Partial<typeof speciesTable.$inferInsert>;
+  const { knowledge, ...data } = parsed.data;
+  const values = { ...data, ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: String(parsed.data.optimalTempMin) }), ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: String(parsed.data.optimalTempMax) }) } as Partial<typeof speciesTable.$inferInsert>;
   const updated = await db.transaction(async tx => {
-    const [species] = await tx.update(speciesTable).set(values).where(eq(speciesTable.id, idFrom(req))).returning();
+    const [current] = await tx.select().from(speciesTable).where(eq(speciesTable.id, idFrom(req))).for("update");
+    if (!current) throw new CareEligibilityError("Вид більше не існує. Оновіть довідник");
+    const merged = { ...current, ...parsed.data };
+    if (Number(merged.optimalTempMin) > Number(merged.optimalTempMax) || (merged.humidityMin != null && merged.humidityMax != null && merged.humidityMin > merged.humidityMax)) {
+      throw new CareEligibilityError("Мінімальне значення не може перевищувати максимальне");
+    }
+    const error = applicabilityError({ ...current, ...parsed.data });
+    if (error) throw new CareEligibilityError(error);
+    const rules = knowledge?.careRules ?? await tx.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, current.id));
+    if (rules.some(rule => eligibilityError({ ...current, ...parsed.data }, rule.careType))) throw new CareEligibilityError("Спершу приберіть погодні правила для виключених видів догляду");
+    const [species] = await tx.update(speciesTable).set({ ...values, careRevision: current.careRevision + 1 }).where(eq(speciesTable.id, idFrom(req))).returning();
+    if (knowledge) await writeSpeciesKnowledge(tx, species.id, knowledge);
     if (species && parsed.data.name !== undefined) {
       await tx.update(plantsTable).set({ name: species.name }).where(and(eq(plantsTable.speciesId, species.id), isNull(plantsTable.personalName)));
     }
@@ -308,18 +345,26 @@ async function validatedPlantIdentity(data: Partial<z.infer<typeof plantInput>>,
 
 const knowledgeInput = z.object({
   careRules: z.array(z.object({
-    careType: z.enum(["WATERING", "FERTILIZING", "PRUNING", "TRANSPLANTING", "TREATMENT", "HARVEST"]),
+    careType: z.enum(CARE_TYPES),
     rainThresholdMm: z.number().min(0).nullable(),
     maxWindSpeedMps: z.number().min(0).nullable(),
     minTemperature: z.number().nullable(),
     maxTemperature: z.number().nullable(),
     notes: z.string().nullable(),
-  }).refine(rule => rule.minTemperature === null || rule.maxTemperature === null || rule.minTemperature <= rule.maxTemperature)).max(6),
+  }).refine(rule => rule.minTemperature === null || rule.maxTemperature === null || rule.minTemperature <= rule.maxTemperature)).max(8),
   sources: z.array(z.object({
     sourceName: z.string().trim().min(1), sourceUrl: z.string().url().refine(url => /^https?:\/\//.test(url)).nullable(),
     retrievedAt: z.union([z.iso.datetime({ offset: true }), dates.refine(date => !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date)]).nullable(), notes: z.string().nullable(),
   })).max(20),
 }).refine(value => new Set(value.careRules.map(rule => rule.careType)).size === value.careRules.length);
+
+type FloraTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function writeSpeciesKnowledge(tx: FloraTransaction, speciesId: number, data: z.infer<typeof knowledgeInput>) {
+  await tx.delete(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, speciesId));
+  if (data.careRules.length) await tx.insert(speciesCareRulesTable).values(data.careRules.map(rule => ({ ...rule, speciesId, rainThresholdMm: dbCoordinate(rule.rainThresholdMm), maxWindSpeedMps: dbCoordinate(rule.maxWindSpeedMps), minTemperature: dbCoordinate(rule.minTemperature), maxTemperature: dbCoordinate(rule.maxTemperature) })));
+  await tx.delete(knowledgeSourcesTable).where(eq(knowledgeSourcesTable.speciesId, speciesId));
+  if (data.sources.length) await tx.insert(knowledgeSourcesTable).values(data.sources.map(source => ({ ...source, speciesId, retrievedAt: source.retrievedAt ? new Date(source.retrievedAt) : null })));
+}
 
 async function speciesKnowledge(speciesId: number) {
   const rules = await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, speciesId)).orderBy(speciesCareRulesTable.careType);
@@ -342,10 +387,10 @@ router.put("/species/:id/knowledge", async (req, res) => {
   const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, idFrom(req)));
   if (!species) { res.status(404).json({ error: "Вид не знайдено" }); return; }
   await db.transaction(async tx => {
-    await tx.delete(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
-    if (parsed.data.careRules.length) await tx.insert(speciesCareRulesTable).values(parsed.data.careRules.map(rule => ({ ...rule, speciesId: species.id, rainThresholdMm: dbCoordinate(rule.rainThresholdMm), maxWindSpeedMps: dbCoordinate(rule.maxWindSpeedMps), minTemperature: dbCoordinate(rule.minTemperature), maxTemperature: dbCoordinate(rule.maxTemperature) })));
-    await tx.delete(knowledgeSourcesTable).where(eq(knowledgeSourcesTable.speciesId, species.id));
-    if (parsed.data.sources.length) await tx.insert(knowledgeSourcesTable).values(parsed.data.sources.map(source => ({ ...source, speciesId: species.id, retrievedAt: source.retrievedAt ? new Date(source.retrievedAt) : null })));
+    const [current] = await tx.select().from(speciesTable).where(eq(speciesTable.id, species.id)).for("update");
+    for (const rule of parsed.data.careRules) assertEligible(current, rule.careType);
+    await tx.update(speciesTable).set({ careRevision: current.careRevision + 1 }).where(eq(speciesTable.id, species.id));
+    await writeSpeciesKnowledge(tx, species.id, parsed.data);
   });
   res.json(await speciesKnowledge(species.id));
 });
@@ -364,7 +409,7 @@ router.get("/plants", async (req, res): Promise<void> => {
     const matchesSpecies = !Number.isFinite(speciesId) || plant.speciesId === speciesId;
     const matchesOverdue = req.query.overdue !== "true" || plant.careStatus === "OVERDUE";
     const matchesPriority = req.query.highPriority !== "true" || plant.hasHighPriorityTasks;
-    return matchesSearch && matchesLocation && matchesSpecies && matchesOverdue && matchesPriority;
+    return matchesSearch && matchesLocation && matchesSpecies && matchesOverdue && matchesPriority && (!req.query.category || plant.category === req.query.category);
   }));
 });
 
@@ -423,13 +468,18 @@ router.patch("/plants/:id", async (req, res): Promise<void> => {
     locations = await validatedPlantLocation(user.id, parsed.data, plant);
   }
   catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Некоректна локація" }); return; }
-  const [updated] = await db.update(plantsTable).set({
+  const updated = await db.transaction(async tx => {
+    const [current] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
+    const [updated] = await tx.update(plantsTable).set({
     ...plantValues,
     ...identity,
+    eligibilityRevision: current.eligibilityRevision + (identity.speciesId !== current.speciesId ? 1 : 0),
     ...(weatherLatitude === undefined ? {} : { weatherLatitude: dbCoordinate(weatherLatitude) }),
     ...(weatherLongitude === undefined ? {} : { weatherLongitude: dbCoordinate(weatherLongitude) }),
     ...locations,
-  }).where(eq(plantsTable.id, plant.id)).returning();
+    }).where(eq(plantsTable.id, plant.id)).returning();
+    return updated;
+  });
   res.json(await mapPlant(updated));
 });
 
@@ -437,24 +487,27 @@ router.get("/plants/:id/care-plan", async (req, res) => {
   const { plant } = await getPlantForUser(req, idFrom(req));
   if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
   const [species] = await db.select().from(speciesTable).where(eq(speciesTable.id, plant.speciesId));
-  const firstDate = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-  const items = [{ type: "WATERING", scheduledDate: firstDate(species.wateringFrequencyDays), reason: `Орієнтовний інтервал для виду — ${species.wateringFrequencyDays} днів. ${species.wateringRecommendations}` }];
-  if (species.fertilizingFrequencyDays) items.push({ type: "FERTILIZING", scheduledDate: firstDate(species.fertilizingFrequencyDays), reason: `Інтервал — ${species.fertilizingFrequencyDays} днів. ${species.fertilizingRecommendations}` });
-  if (species.transplantingFrequencyMonths) items.push({ type: "TRANSPLANTING", scheduledDate: firstDate(species.transplantingFrequencyMonths * 30), reason: `Орієнтовний інтервал — ${species.transplantingFrequencyMonths} місяців. ${species.transplantingRecommendations}` });
-  res.json(items);
+  res.json(carePlan(species, new Date(), plant.eligibilityRevision));
 });
 router.post("/plants/:id/care-plan", async (req, res) => {
   const { plant } = await getPlantForUser(req, idFrom(req));
   if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
-  const parsed = z.object({ items: z.array(z.object({ type: z.enum(["WATERING", "FERTILIZING", "TRANSPLANTING"]), scheduledDate: dates.refine(date => !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date), reason: z.string().max(5000) })).min(1).max(10) }).safeParse(req.body);
+  const parsed = z.object({ items: z.array(z.object({ type: z.enum(CARE_TYPES), eligibilityVersion: z.string(), scheduledDate: dates, reason: z.string().max(5000) })).min(1).max(10) }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Оберіть завдання та перевірте дати плану" }); return; }
   const created = await db.transaction(async tx => {
-    await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
+    const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
+    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, currentPlant.speciesId)).for("share");
+    const candidates = carePlan(species, new Date(), currentPlant.eligibilityRevision);
+    for (const item of parsed.data.items) {
+      assertEligible(species, item.type);
+      if (item.eligibilityVersion !== eligibilityVersion(species, currentPlant.eligibilityRevision)) throw new CareEligibilityError("Знання про вид або застосовність змінилися. Оновіть попередній перегляд плану");
+      if (!candidates.some(candidate => candidate.type === item.type)) throw new CareEligibilityError("Для цього виду догляду немає підтвердженого інтервалу планування");
+    }
     const existing = await tx.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
     const keys = new Set(existing.map(task => `${task.type}:${task.scheduledDate}`));
     const items = parsed.data.items.filter(item => { const key = `${item.type}:${item.scheduledDate}`; if (keys.has(key)) return false; keys.add(key); return true; });
     if (!items.length) return [];
-    const tasks = await tx.insert(tasksTable).values(items.map(item => ({ plantId: plant.id, type: item.type, scheduledDate: item.scheduledDate, priority: "MEDIUM", notes: item.reason }))).returning();
+    const tasks = await tx.insert(tasksTable).values(items.map(item => ({ plantId: plant.id, type: item.type, scheduledDate: item.scheduledDate, priority: "MEDIUM", notes: candidates.find(candidate => candidate.type === item.type)!.reason }))).returning();
     await tx.insert(remindersTable).values(tasks.map(task => ({ taskId: task.id, reminderDate: task.scheduledDate, status: "PENDING" })));
     return tasks;
   });
@@ -478,16 +531,23 @@ router.get("/tasks", async (req, res): Promise<void> => {
   const to = stringParam(req.query.to);
   const status = stringParam(req.query.status);
   const plantId = Number(req.query.plantId);
-  const result = await Promise.all(rows.filter((task) => plantIds.has(task.plantId) && (!from || task.scheduledDate >= from) && (!to || task.scheduledDate <= to) && (!status || task.status === status) && (!Number.isFinite(plantId) || task.plantId === plantId)).map(mapTask));
+  const result = await Promise.all(rows.filter((task) => plantIds.has(task.plantId) && (!req.query.type || task.type === req.query.type) && (!from || task.scheduledDate >= from) && (!to || task.scheduledDate <= to) && (!status || task.status === status) && (!Number.isFinite(plantId) || task.plantId === plantId)).map(mapTask));
   res.json(result);
 });
 
 router.post("/tasks", async (req, res): Promise<void> => {
+  if (!isCareType(req.body?.type)) { res.status(400).json({ error: "Невідомий тип догляду. Оберіть доступну дію для рослини" }); return; }
   const parsed = taskInput.safeParse(req.body);
   const { plant } = await getPlantForUser(req, Number(req.body?.plantId));
   if (!parsed.success || !plant) { res.status(400).json({ error: "Перевірте дату, тип і рослину" }); return; }
-  const [created] = await db.insert(tasksTable).values(parsed.data).returning();
-  await db.insert(remindersTable).values({ taskId: created.id, reminderDate: created.scheduledDate, status: "PENDING" });
+  const created = await db.transaction(async tx => {
+    const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("share");
+    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, currentPlant.speciesId)).for("share");
+    assertEligible(species, parsed.data.type);
+    const [created] = await tx.insert(tasksTable).values(parsed.data).returning();
+    await tx.insert(remindersTable).values({ taskId: created.id, reminderDate: created.scheduledDate, status: "PENDING" });
+    return created;
+  });
   res.status(201).json(await mapTask(created));
 });
 
@@ -495,11 +555,22 @@ router.patch("/tasks/:id", async (req, res): Promise<void> => {
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, idFrom(req)));
   const { plant } = await getPlantForUser(req, task?.plantId ?? -1);
   if (!task || !plant) { res.status(404).json({ error: "Завдання не знайдено" }); return; }
-  const parsed = taskInput.partial().extend({ status: z.string().optional() }).safeParse(req.body);
+  const parsed = taskInput.partial().extend({ type: z.string().optional(), status: z.enum(["PLANNED", "POSTPONED", "COMPLETED", "CANCELLED"]).optional() }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Некоректні дані завдання" }); return; }
   if (parsed.data.plantId !== undefined && !(await getPlantForUser(req, parsed.data.plantId)).plant) { res.status(400).json({ error: "Оберіть власну рослину" }); return; }
-  const [updated] = await db.update(tasksTable).set(parsed.data).where(eq(tasksTable.id, task.id)).returning();
-  if (parsed.data.scheduledDate) await db.update(remindersTable).set({ reminderDate: parsed.data.scheduledDate }).where(eq(remindersTable.taskId, task.id));
+  const updated = await db.transaction(async tx => {
+    const [current] = await tx.select().from(tasksTable).where(eq(tasksTable.id, task.id)).for("update");
+    const merged = { ...current, ...parsed.data };
+    const [target] = await tx.select().from(plantsTable).where(eq(plantsTable.id, merged.plantId)).for("share");
+    if (!target || target.userId !== plant.userId) throw new CareEligibilityError("Оберіть власну рослину");
+    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, target.speciesId)).for("share");
+    assertTaskUpdate(current, merged, species);
+    const [updated] = await tx.update(tasksTable).set(parsed.data).where(eq(tasksTable.id, task.id)).returning();
+    if (merged.status === "COMPLETED" && current.status !== "COMPLETED") await tx.insert(careLogsTable).values({ taskId: task.id, comment: "" });
+    if (["COMPLETED", "CANCELLED"].includes(merged.status)) await tx.update(remindersTable).set({ status: "DISMISSED" }).where(eq(remindersTable.taskId, task.id));
+    else if (parsed.data.scheduledDate) await tx.update(remindersTable).set({ reminderDate: parsed.data.scheduledDate }).where(eq(remindersTable.taskId, task.id));
+    return updated;
+  });
   res.json(await mapTask(updated));
 });
 
@@ -580,7 +651,7 @@ router.post("/recommendations", async (req, res): Promise<void> => {
   const rules = await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
   const drafts = generateRules(species, tasks, forecast.forecast, resolvedLocation.name, await plantEnvironment(plant), lastWatering?.completedAt.toISOString().slice(0, 10) ?? null, rules);
   const saved = await Promise.all(drafts.map(async (draft) => {
-    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: draft.explanation, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0 }).returning();
+    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: draft.explanation, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0, eligibilityVersion: eligibilityVersion(species, plant.eligibilityRevision), careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
     return mapRecommendation(created);
   }));
   res.status(201).json({ recommendations: await Promise.all(saved), weather: forecast, warning: forecast.isMock ? "Використано демонстраційний прогноз, а не поточні метеодані" : null });
@@ -593,9 +664,12 @@ router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
   const taskId = rec.relatedTaskId;
   const suggestedDate = rec.suggestedDate;
   const task = await db.transaction(async tx => {
+    const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("share");
+    const [species] = await tx.select().from(speciesTable).where(eq(speciesTable.id, currentPlant.speciesId)).for("share");
     const [currentRec] = await tx.select().from(recommendationsTable).where(eq(recommendationsTable.id, rec.id)).for("update");
     const [current] = await tx.select().from(tasksTable).where(and(eq(tasksTable.id, taskId), eq(tasksTable.plantId, plant.id))).for("update");
-    if (currentRec.applied || !current || !["PLANNED", "POSTPONED"].includes(current.status) || current.scheduledDate !== rec.originalDate || suggestedDate < today()) return null;
+    if (currentRec.eligibilityVersion !== eligibilityVersion(species, currentPlant.eligibilityRevision) || !current || current.type !== currentRec.careType || eligibilityError(species, current.type)) throw new CareEligibilityError("Застосовність догляду змінилася. Створіть нову пораду");
+    if (currentRec.applied || !["PLANNED", "POSTPONED"].includes(current.status) || current.scheduledDate !== rec.originalDate || suggestedDate < today()) return null;
     const [updated] = await tx.update(tasksTable).set({ scheduledDate: suggestedDate, status: "POSTPONED", postponementCount: current.postponementCount + 1 }).where(eq(tasksTable.id, taskId)).returning();
     await tx.update(remindersTable).set({ reminderDate: suggestedDate, status: "PENDING" }).where(eq(remindersTable.taskId, taskId));
     await tx.update(recommendationsTable).set({ applied: 1 }).where(eq(recommendationsTable.id, rec.id));
@@ -667,6 +741,11 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const weather = await weatherService.getForecast(await resolveSavedWeatherLocation(user));
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
   res.json({ plantsCount: plants.length, todayTasks: activeTasks.filter((task) => task.scheduledDate === today()).length, overdueTasks: activeTasks.filter((task) => task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: activeTasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority)).length, weather, upcomingTasks: mappedTasks, latestRecommendations: await Promise.all(recommendations.map(mapRecommendation)), reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1) && ["PLANNED", "POSTPONED"].includes(taskMap.get(item.taskId)?.status ?? "")).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "OTHER", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
+});
+
+router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (error instanceof CareEligibilityError) { res.status(400).json({ error: error.message }); return; }
+  next(error);
 });
 
 export default router;

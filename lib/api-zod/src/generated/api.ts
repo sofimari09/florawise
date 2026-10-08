@@ -242,7 +242,7 @@ export const getSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin = 0;
 
 export const GetSpeciesKnowledgeResponse = zod.object({
   "careRules": zod.array(zod.object({
-  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST']),
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
   "rainThresholdMm": zod.number().min(getSpeciesKnowledgeResponseOneCareRulesItemRainThresholdMmMin).nullable(),
   "maxWindSpeedMps": zod.number().min(getSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin).nullable(),
   "minTemperature": zod.number().nullable(),
@@ -271,7 +271,7 @@ export const updateSpeciesKnowledgeBodyCareRulesItemMaxWindSpeedMpsMin = 0;
 
 export const UpdateSpeciesKnowledgeBody = zod.object({
   "careRules": zod.array(zod.object({
-  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST']),
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
   "rainThresholdMm": zod.number().min(updateSpeciesKnowledgeBodyCareRulesItemRainThresholdMmMin).nullable(),
   "maxWindSpeedMps": zod.number().min(updateSpeciesKnowledgeBodyCareRulesItemMaxWindSpeedMpsMin).nullable(),
   "minTemperature": zod.number().nullable(),
@@ -295,7 +295,7 @@ export const updateSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin = 
 
 export const UpdateSpeciesKnowledgeResponse = zod.object({
   "careRules": zod.array(zod.object({
-  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST']),
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
   "rainThresholdMm": zod.number().min(updateSpeciesKnowledgeResponseOneCareRulesItemRainThresholdMmMin).nullable(),
   "maxWindSpeedMps": zod.number().min(updateSpeciesKnowledgeResponseOneCareRulesItemMaxWindSpeedMpsMin).nullable(),
   "minTemperature": zod.number().nullable(),
@@ -316,7 +316,8 @@ export const PreviewCarePlanParams = zod.object({
 })
 
 export const PreviewCarePlanResponseItem = zod.object({
-  "type": zod.string(),
+  "type": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
+  "eligibilityVersion": zod.string(),
   "scheduledDate": zod.string(),
   "reason": zod.string()
 })
@@ -333,7 +334,8 @@ export const confirmCarePlanBodyItemsMax = 10;
 
 export const ConfirmCarePlanBody = zod.object({
   "items": zod.array(zod.object({
-  "type": zod.string(),
+  "type": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
+  "eligibilityVersion": zod.string(),
   "scheduledDate": zod.string(),
   "reason": zod.string()
 })).max(confirmCarePlanBodyItemsMax)
@@ -455,6 +457,8 @@ export const GetDashboardResponse = zod.object({
   "originalDate": zod.string().nullable(),
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
+  "actionable": zod.boolean().optional(),
+  "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
   "temperature": zod.number(),
@@ -480,14 +484,18 @@ export const GetDashboardResponse = zod.object({
  * @summary List plant species
  */
 export const ListSpeciesQueryParams = zod.object({
-  "search": zod.coerce.string().nullish()
+  "search": zod.coerce.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional()
 })
 
 export const ListSpeciesResponseItem = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
-  "category": zod.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "applicableCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).nullish().describe('Null inherits category defaults; an explicit empty array disables all activities.'),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "categoryLabel": zod.string().optional(),
   "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
   "humidityMin": zod.number().int().nullish(),
   "humidityMax": zod.number().int().nullish(),
@@ -516,11 +524,21 @@ export const ListSpeciesResponse = zod.array(ListSpeciesResponseItem)
 /**
  * @summary Create plant species
  */
+export const createSpeciesBodyTwoKnowledgeCareRulesItemRainThresholdMmMin = 0;
+
+export const createSpeciesBodyTwoKnowledgeCareRulesItemMaxWindSpeedMpsMin = 0;
+
+
+
+
 export const CreateSpeciesBody = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
-  "category": zod.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "applicableCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).nullish().describe('Null inherits category defaults; an explicit empty array disables all activities.'),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "categoryLabel": zod.string().optional(),
   "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
   "humidityMin": zod.number().int().nullish(),
   "humidityMax": zod.number().int().nullish(),
@@ -542,13 +560,33 @@ export const CreateSpeciesBody = zod.object({
   "pruningRecommendations": zod.string(),
   "transplantingRecommendations": zod.string(),
   "imageUrl": zod.string()
-}).and(zod.unknown())
+}).and(zod.object({
+  "knowledge": zod.object({
+  "careRules": zod.array(zod.object({
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
+  "rainThresholdMm": zod.number().min(createSpeciesBodyTwoKnowledgeCareRulesItemRainThresholdMmMin).nullable(),
+  "maxWindSpeedMps": zod.number().min(createSpeciesBodyTwoKnowledgeCareRulesItemMaxWindSpeedMpsMin).nullable(),
+  "minTemperature": zod.number().nullable(),
+  "maxTemperature": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})),
+  "sources": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "sourceUrl": zod.string().nullable(),
+  "retrievedAt": zod.string().nullable(),
+  "notes": zod.string().nullable()
+}))
+}).optional()
+}))
 
 export const CreateSpeciesResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
-  "category": zod.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "applicableCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).nullish().describe('Null inherits category defaults; an explicit empty array disables all activities.'),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "categoryLabel": zod.string().optional(),
   "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
   "humidityMin": zod.number().int().nullish(),
   "humidityMax": zod.number().int().nullish(),
@@ -580,11 +618,21 @@ export const UpdateSpeciesParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const updateSpeciesBodyTwoKnowledgeCareRulesItemRainThresholdMmMin = 0;
+
+export const updateSpeciesBodyTwoKnowledgeCareRulesItemMaxWindSpeedMpsMin = 0;
+
+
+
+
 export const UpdateSpeciesBody = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
-  "category": zod.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "applicableCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).nullish().describe('Null inherits category defaults; an explicit empty array disables all activities.'),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "categoryLabel": zod.string().optional(),
   "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
   "humidityMin": zod.number().int().nullish(),
   "humidityMax": zod.number().int().nullish(),
@@ -606,13 +654,33 @@ export const UpdateSpeciesBody = zod.object({
   "pruningRecommendations": zod.string(),
   "transplantingRecommendations": zod.string(),
   "imageUrl": zod.string()
-}).and(zod.unknown())
+}).and(zod.object({
+  "knowledge": zod.object({
+  "careRules": zod.array(zod.object({
+  "careType": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
+  "rainThresholdMm": zod.number().min(updateSpeciesBodyTwoKnowledgeCareRulesItemRainThresholdMmMin).nullable(),
+  "maxWindSpeedMps": zod.number().min(updateSpeciesBodyTwoKnowledgeCareRulesItemMaxWindSpeedMpsMin).nullable(),
+  "minTemperature": zod.number().nullable(),
+  "maxTemperature": zod.number().nullable(),
+  "notes": zod.string().nullable()
+})),
+  "sources": zod.array(zod.object({
+  "sourceName": zod.string().min(1),
+  "sourceUrl": zod.string().nullable(),
+  "retrievedAt": zod.string().nullable(),
+  "notes": zod.string().nullable()
+}))
+}).optional()
+}))
 
 export const UpdateSpeciesResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
-  "category": zod.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "applicableCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).nullish().describe('Null inherits category defaults; an explicit empty array disables all activities.'),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "categoryLabel": zod.string().optional(),
   "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
   "humidityMin": zod.number().int().nullish(),
   "humidityMax": zod.number().int().nullish(),
@@ -652,6 +720,7 @@ export const DeleteSpeciesResponse = zod.void()
  */
 export const ListPlantsQueryParams = zod.object({
   "search": zod.coerce.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
   "speciesId": zod.coerce.number().int().nullish(),
   "location": zod.coerce.string().nullish(),
   "overdue": zod.coerce.boolean().optional(),
@@ -662,6 +731,9 @@ export const ListPlantsResponseItem = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
+  "categoryLabel": zod.string().optional(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -715,6 +787,9 @@ export const CreatePlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
+  "categoryLabel": zod.string().optional(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -746,6 +821,9 @@ export const GetPlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
+  "categoryLabel": zod.string().optional(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -768,7 +846,10 @@ export const GetPlantResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "scientificName": zod.string().nullish(),
-  "category": zod.string().nullish(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']),
+  "applicableCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).nullish().describe('Null inherits category defaults; an explicit empty array disables all activities.'),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
+  "categoryLabel": zod.string().optional(),
   "suitableEnvironmentTypes": zod.array(zod.string()).nullish(),
   "humidityMin": zod.number().int().nullish(),
   "humidityMax": zod.number().int().nullish(),
@@ -827,6 +908,8 @@ export const GetPlantResponse = zod.object({
   "originalDate": zod.string().nullable(),
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
+  "actionable": zod.boolean().optional(),
+  "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
   "temperature": zod.number(),
@@ -881,6 +964,9 @@ export const UpdatePlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
   "speciesId": zod.number().int(),
+  "category": zod.enum(['INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB']).optional(),
+  "categoryLabel": zod.string().optional(),
+  "allowedCareTypes": zod.array(zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING'])).optional(),
   "name": zod.string(),
   "personalName": zod.string().nullish().describe('Display alias only; botanical identity is speciesId.'),
   "photoUrl": zod.string(),
@@ -915,6 +1001,7 @@ export const DeletePlantResponse = zod.void()
  * @summary List care tasks
  */
 export const ListTasksQueryParams = zod.object({
+  "type": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']).optional(),
   "from": zod.coerce.string().nullish(),
   "to": zod.coerce.string().nullish(),
   "status": zod.coerce.string().nullish(),
@@ -942,7 +1029,7 @@ export const ListTasksResponse = zod.array(ListTasksResponseItem)
  */
 export const CreateTaskBody = zod.object({
   "plantId": zod.number().int(),
-  "type": zod.string(),
+  "type": zod.enum(['WATERING', 'FERTILIZING', 'PRUNING', 'TRANSPLANTING', 'TREATMENT', 'HARVEST', 'SOWING', 'PLANTING']),
   "scheduledDate": zod.string(),
   "priority": zod.string(),
   "notes": zod.string()
@@ -971,14 +1058,13 @@ export const UpdateTaskParams = zod.object({
 })
 
 export const UpdateTaskBody = zod.object({
-  "plantId": zod.number().int(),
-  "type": zod.string(),
-  "scheduledDate": zod.string(),
-  "priority": zod.string(),
-  "notes": zod.string()
-}).and(zod.object({
-  "status": zod.string().optional()
-}))
+  "plantId": zod.number().int().optional(),
+  "type": zod.string().optional().describe('Unchanged legacy types may be retained for completion or cancellation only.'),
+  "scheduledDate": zod.string().optional(),
+  "priority": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "status": zod.enum(['PLANNED', 'POSTPONED', 'COMPLETED', 'CANCELLED']).optional()
+})
 
 export const UpdateTaskResponse = zod.object({
   "id": zod.number().int(),
@@ -1108,6 +1194,8 @@ export const ListRecommendationsResponseItem = zod.object({
   "originalDate": zod.string().nullable(),
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
+  "actionable": zod.boolean().optional(),
+  "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
   "temperature": zod.number(),
@@ -1141,6 +1229,8 @@ export const GenerateRecommendationResponse = zod.object({
   "originalDate": zod.string().nullable(),
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
+  "actionable": zod.boolean().optional(),
+  "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
   "temperature": zod.number(),

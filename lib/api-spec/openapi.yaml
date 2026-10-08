@@ -274,6 +274,7 @@ paths:
       summary: List plant species
       parameters:
         - $ref: "#/components/parameters/Search"
+        - { name: category, in: query, schema: { $ref: "#/components/schemas/PlantCategory" } }
       responses:
         "200":
           description: Species
@@ -336,6 +337,7 @@ paths:
       summary: List owned plants
       parameters:
         - $ref: "#/components/parameters/Search"
+        - { name: category, in: query, schema: { $ref: "#/components/schemas/PlantCategory" } }
         - name: speciesId
           in: query
           schema:
@@ -426,6 +428,7 @@ paths:
       tags: [tasks]
       summary: List care tasks
       parameters:
+        - { name: type, in: query, schema: { $ref: "#/components/schemas/CareType" } }
         - name: from
           in: query
           schema:
@@ -750,10 +753,16 @@ components:
       properties:
         displayName: { type: string, minLength: 1 }
         isDefault: { type: boolean }
+    PlantCategory:
+      type: string
+      enum: [INDOOR_DECORATIVE, OUTDOOR_DECORATIVE, FRUIT_TREE, BERRY_SHRUB, VEGETABLE, HERB]
+    CareType:
+      type: string
+      enum: [WATERING, FERTILIZING, PRUNING, TRANSPLANTING, TREATMENT, HARVEST, SOWING, PLANTING]
     SpeciesCareRule:
       type: object
       properties:
-        careType: { type: string, enum: [WATERING, FERTILIZING, PRUNING, TRANSPLANTING, TREATMENT, HARVEST] }
+        careType: { $ref: "#/components/schemas/CareType" }
         rainThresholdMm: { type: [number, "null"], minimum: 0 }
         maxWindSpeedMps: { type: [number, "null"], minimum: 0 }
         minTemperature: { type: [number, "null"] }
@@ -780,10 +789,11 @@ components:
     CarePlanItem:
       type: object
       properties:
-        type: { type: string }
+        type: { $ref: "#/components/schemas/CareType" }
+        eligibilityVersion: { type: string }
         scheduledDate: { type: string }
         reason: { type: string }
-      required: [type, scheduledDate, reason]
+      required: [type, scheduledDate, reason, eligibilityVersion]
     CarePlanInput:
       type: object
       properties:
@@ -819,7 +829,17 @@ components:
         id: { type: integer }
         name: { type: string }
         scientificName: { type: [string, "null"] }
-        category: { type: [string, "null"] }
+        category: { $ref: "#/components/schemas/PlantCategory" }
+        applicableCareTypes:
+          type: [array, "null"]
+          description: "Null inherits category defaults; an explicit empty array disables all activities."
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/CareType" }
+        allowedCareTypes:
+          type: array
+          readOnly: true
+          items: { $ref: "#/components/schemas/CareType" }
+        categoryLabel: { type: string, readOnly: true }
         suitableEnvironmentTypes: { type: [array, "null"], items: { type: string } }
         humidityMin: { type: [integer, "null"] }
         humidityMax: { type: [integer, "null"] }
@@ -841,18 +861,22 @@ components:
         pruningRecommendations: { type: string }
         transplantingRecommendations: { type: string }
         imageUrl: { type: string }
-      required: [id, name, description, careRecommendations, optimalTempMin, optimalTempMax, optimalHumidity, wateringFrequencyDays, lightRequirements, soilRecommendations, wateringRecommendations, fertilizingRecommendations, pruningRecommendations, transplantingRecommendations, imageUrl]
+      required: [id, name, category, description, careRecommendations, optimalTempMin, optimalTempMax, optimalHumidity, wateringFrequencyDays, lightRequirements, soilRecommendations, wateringRecommendations, fertilizingRecommendations, pruningRecommendations, transplantingRecommendations, imageUrl]
     SpeciesInput:
       allOf:
         - $ref: "#/components/schemas/PlantSpecies"
       properties:
         id: { type: integer, readOnly: true }
+        knowledge: { $ref: "#/components/schemas/SpeciesKnowledgeInput" }
     Plant:
       type: object
       properties:
         id: { type: integer }
         userId: { type: integer }
         speciesId: { type: integer }
+        category: { $ref: "#/components/schemas/PlantCategory" }
+        categoryLabel: { type: string }
+        allowedCareTypes: { type: array, items: { $ref: "#/components/schemas/CareType" } }
         name: { type: string }
         personalName: { type: [string, "null"], description: "Display alias only; botanical identity is speciesId." }
         photoUrl: { type: string }
@@ -960,16 +984,20 @@ components:
       type: object
       properties:
         plantId: { type: integer }
-        type: { type: string }
+        type: { $ref: "#/components/schemas/CareType" }
         scheduledDate: { type: string }
         priority: { type: string }
         notes: { type: string }
       required: [plantId, type, scheduledDate, priority, notes]
     TaskUpdate:
-      allOf:
-        - $ref: "#/components/schemas/TaskInput"
+      type: object
       properties:
-        status: { type: string }
+        plantId: { type: integer }
+        type: { type: string, description: "Unchanged legacy types may be retained for completion or cancellation only." }
+        scheduledDate: { type: string }
+        priority: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [PLANNED, POSTPONED, COMPLETED, CANCELLED] }
     CompletionInput:
       type: object
       properties:
@@ -1039,6 +1067,8 @@ components:
         originalDate: { type: [string, "null"] }
         suggestedDate: { type: [string, "null"] }
         applied: { type: boolean }
+        actionable: { type: boolean }
+        staleReason: { type: [string, "null"] }
         weather:
           $ref: "#/components/schemas/WeatherForecast"
       required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, weather]

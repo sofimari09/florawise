@@ -3,6 +3,7 @@
   "compileOnSave": false,
   "files": [],
   "references": [
+    { "path": "./lib/plant-care" },
     {
       "path": "./lib/db"
     },

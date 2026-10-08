@@ -5,14 +5,22 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CareType } from './careType';
+import type { PlantCategory } from './plantCategory';
 
 export interface PlantSpecies {
   id: number;
   name: string;
   /** @nullable */
   scientificName?: string | null;
-  /** @nullable */
-  category?: string | null;
+  category: PlantCategory;
+  /**
+     * Null inherits category defaults; an explicit empty array disables all activities.
+     * @nullable
+     */
+  applicableCareTypes?: CareType[] | null;
+  readonly allowedCareTypes?: readonly CareType[];
+  readonly categoryLabel?: string;
   /** @nullable */
   suitableEnvironmentTypes?: string[] | null;
   /** @nullable */

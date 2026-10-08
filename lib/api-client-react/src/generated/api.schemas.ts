@@ -57,20 +57,34 @@ export interface SavedLocationUpdate {
   isDefault?: boolean;
 }
 
-export type SpeciesCareRuleCareType = typeof SpeciesCareRuleCareType[keyof typeof SpeciesCareRuleCareType];
+export type PlantCategory = typeof PlantCategory[keyof typeof PlantCategory];
 
 
-export const SpeciesCareRuleCareType = {
+export const PlantCategory = {
+  INDOOR_DECORATIVE: 'INDOOR_DECORATIVE',
+  OUTDOOR_DECORATIVE: 'OUTDOOR_DECORATIVE',
+  FRUIT_TREE: 'FRUIT_TREE',
+  BERRY_SHRUB: 'BERRY_SHRUB',
+  VEGETABLE: 'VEGETABLE',
+  HERB: 'HERB',
+} as const;
+
+export type CareType = typeof CareType[keyof typeof CareType];
+
+
+export const CareType = {
   WATERING: 'WATERING',
   FERTILIZING: 'FERTILIZING',
   PRUNING: 'PRUNING',
   TRANSPLANTING: 'TRANSPLANTING',
   TREATMENT: 'TREATMENT',
   HARVEST: 'HARVEST',
+  SOWING: 'SOWING',
+  PLANTING: 'PLANTING',
 } as const;
 
 export interface SpeciesCareRule {
-  careType: SpeciesCareRuleCareType;
+  careType: CareType;
   /**
      * @minimum 0
      * @nullable
@@ -108,7 +122,8 @@ export interface SpeciesKnowledgeInput {
 export type SpeciesKnowledge = SpeciesKnowledgeInput;
 
 export interface CarePlanItem {
-  type: string;
+  type: CareType;
+  eligibilityVersion: string;
   scheduledDate: string;
   reason: string;
 }
@@ -164,8 +179,14 @@ export interface PlantSpecies {
   name: string;
   /** @nullable */
   scientificName?: string | null;
-  /** @nullable */
-  category?: string | null;
+  category: PlantCategory;
+  /**
+     * Null inherits category defaults; an explicit empty array disables all activities.
+     * @nullable
+     */
+  applicableCareTypes?: CareType[] | null;
+  readonly allowedCareTypes?: readonly CareType[];
+  readonly categoryLabel?: string;
   /** @nullable */
   suitableEnvironmentTypes?: string[] | null;
   /** @nullable */
@@ -199,6 +220,7 @@ export interface PlantSpecies {
 
 export type SpeciesInput = PlantSpecies & {
   readonly id?: number;
+  knowledge?: SpeciesKnowledgeInput;
 };
 
 export type PlantEnvironmentType = typeof PlantEnvironmentType[keyof typeof PlantEnvironmentType];
@@ -224,6 +246,9 @@ export interface Plant {
   id: number;
   userId: number;
   speciesId: number;
+  category?: PlantCategory;
+  categoryLabel?: string;
+  allowedCareTypes?: CareType[];
   name: string;
   /**
      * Display alias only; botanical identity is speciesId.
@@ -431,6 +456,9 @@ export interface Recommendation {
   /** @nullable */
   suggestedDate: string | null;
   applied: boolean;
+  actionable?: boolean;
+  /** @nullable */
+  staleReason?: string | null;
   weather: WeatherForecast;
 }
 
@@ -452,15 +480,31 @@ export type PlantDetail = Plant & {
 
 export interface TaskInput {
   plantId: number;
-  type: string;
+  type: CareType;
   scheduledDate: string;
   priority: string;
   notes: string;
 }
 
-export type TaskUpdate = TaskInput & {
-  status?: string;
-};
+export type TaskUpdateStatus = typeof TaskUpdateStatus[keyof typeof TaskUpdateStatus];
+
+
+export const TaskUpdateStatus = {
+  PLANNED: 'PLANNED',
+  POSTPONED: 'POSTPONED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export interface TaskUpdate {
+  plantId?: number;
+  /** Unchanged legacy types may be retained for completion or cancellation only. */
+  type?: string;
+  scheduledDate?: string;
+  priority?: string;
+  notes?: string;
+  status?: TaskUpdateStatus;
+}
 
 export interface CompletionInput {
   comment?: string;
@@ -573,6 +617,7 @@ export type ListSpeciesParams = {
  * @nullable
  */
 search?: SearchParameter;
+category?: PlantCategory;
 };
 
 export type ListPlantsParams = {
@@ -580,6 +625,7 @@ export type ListPlantsParams = {
  * @nullable
  */
 search?: SearchParameter;
+category?: PlantCategory;
 /**
  * @nullable
  */
@@ -593,6 +639,7 @@ highPriority?: boolean;
 };
 
 export type ListTasksParams = {
+type?: CareType;
 /**
  * @nullable
  */

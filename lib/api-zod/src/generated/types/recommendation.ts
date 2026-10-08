@@ -23,5 +23,8 @@ export interface Recommendation {
   /** @nullable */
   suggestedDate: string | null;
   applied: boolean;
+  actionable?: boolean;
+  /** @nullable */
+  staleReason?: string | null;
   weather: WeatherForecast;
 }

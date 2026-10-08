@@ -5,8 +5,14 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
-import type { TaskInput } from './taskInput';
+import type { TaskUpdateStatus } from './taskUpdateStatus';
 
-export type TaskUpdate = TaskInput & {
-  status?: string;
-};
+export interface TaskUpdate {
+  plantId?: number;
+  /** Unchanged legacy types may be retained for completion or cancellation only. */
+  type?: string;
+  scheduledDate?: string;
+  priority?: string;
+  notes?: string;
+  status?: TaskUpdateStatus;
+}

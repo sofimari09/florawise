@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { plantsTable, speciesTable, tasksTable, usersTable, careLogsTable, remindersTable, recommendationsTable } from "@workspace/db";
 import { logger } from "./logger";
 import { migrateLegacyLocations } from "./legacy-location-migration";
+import { SEED_CATEGORIES } from "./category-migration";
 
 const speciesSeed = [
   ["Монстера", "Велика тропічна рослина з характерними прорізами на листі.", 18, 28, 65, 7, "Яскраве розсіяне світло", "Легкий поживний субстрат із дренажем", "Поливайте після підсихання верхніх 3 см ґрунту.", "Раз на місяць у період росту.", "Видаляйте сухе листя та слабкі пагони.", "Пересаджуйте раз на 2–3 роки."],
@@ -17,6 +18,7 @@ const speciesSeed = [
   ["Гортензія", "Пишноквітучий кущ із великими суцвіттями.", 14, 25, 70, 4, "Світла напівтінь", "Кислий вологий ґрунт", "Підтримуйте рівномірну вологість.", "Добриво для гортензій навесні та влітку.", "Обрізайте за типом цвітіння.", "Пересаджуйте навесні або восени."],
 ].map((item, index) => ({
   name: item[0] as string,
+  category: SEED_CATEGORIES[item[0] as string],
   description: item[1] as string,
   optimalTempMin: String(item[2]),
   optimalTempMax: String(item[3]),

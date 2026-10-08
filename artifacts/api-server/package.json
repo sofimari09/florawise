@@ -14,6 +14,8 @@
     "test:identity-flow": "node --test src/lib/plant-identity-flow.test.mjs",
     "test:photos": "esbuild src/lib/plant-photos.test.ts --bundle --platform=node --format=esm --outfile=dist/photos.test.mjs && node --test dist/photos.test.mjs",
     "test:rules": "esbuild src/lib/recommendation-engine.test.ts --bundle --platform=node --format=esm --outfile=dist/rules.test.mjs && node --test dist/rules.test.mjs"
+    ,"test:categories": "esbuild src/lib/category-care.test.ts --bundle --platform=node --format=esm --external:pg --outfile=dist/category-care.test.mjs && node --test dist/category-care.test.mjs"
+    ,"test:category-api": "node --test src/lib/category-api.test.mjs"
   },
   "dependencies": {
     "@clerk/express": "^2.1.67",
@@ -21,6 +23,7 @@
     "@google-cloud/storage": "^8.2.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/plant-care": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
