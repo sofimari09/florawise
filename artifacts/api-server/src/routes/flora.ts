@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, desc, eq, gte, lte, inArray, or, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, lte, inArray, or, isNull, max } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
 import { createHash } from "node:crypto";
@@ -792,9 +792,18 @@ router.post("/recommendations", async (req, res): Promise<void> => {
   const resolvedLocation = await resolveSavedWeatherLocation(user, plant);
   const forecast = await weatherService.getForecast(resolvedLocation);
   const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
-  const [lastWatering] = await db.select({ completedAt: careLogsTable.completedAt }).from(careLogsTable).innerJoin(tasksTable, eq(careLogsTable.taskId, tasksTable.id)).where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.type, "WATERING"), eq(tasksTable.status, "COMPLETED"))).orderBy(desc(careLogsTable.completedAt)).limit(1);
+  const completedCare = await db.select({ type: tasksTable.type, completedAt: max(careLogsTable.completedAt) })
+    .from(careLogsTable)
+    .innerJoin(tasksTable, eq(careLogsTable.taskId, tasksTable.id))
+    .where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.status, "COMPLETED")))
+    .groupBy(tasksTable.type);
+  const lastCompletedByType: Record<string, string> = {};
+  for (const action of completedCare) {
+    if (action.completedAt) lastCompletedByType[action.type] = action.completedAt.toISOString().slice(0, 10);
+  }
+  const lastWatering = lastCompletedByType.WATERING ?? null;
   const rules = species.id === null ? [] : await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
-  const drafts = generateRules(species, tasks, forecast.forecast, resolvedLocation.name, await plantEnvironment(plant), lastWatering?.completedAt.toISOString().slice(0, 10) ?? null, rules);
+  const drafts = generateRules(species, tasks, forecast.forecast, resolvedLocation.name, await plantEnvironment(plant), lastWatering, rules, lastCompletedByType);
   const [latestPlant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plant.id));
   if (!latestPlant || snapshot !== await careSnapshot(latestPlant, await effectiveCare(latestPlant))) {
     res.status(409).json({ error: "Умови або план змінилися під час підготовки. Створіть нову пораду" }); return;

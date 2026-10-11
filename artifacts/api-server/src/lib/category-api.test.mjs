@@ -20,7 +20,15 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     const response = await fetch(`http://127.0.0.1:${port}/api${path}`, {
       method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body),
     });
-    const data = response.status === 204 ? null : await response.json();
+    const responseText = response.status === 204 ? "" : await response.text();
+    let data = null;
+    if (responseText) {
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`${method} ${path} returned non-JSON (${response.status}): ${responseText.slice(0, 240)}`);
+      }
+    }
     assert.equal(response.status, status, `${method} ${path}: ${JSON.stringify(data)}`);
     return data;
   };
@@ -53,11 +61,29 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     const blackcurrant = catalog.find(species => species.speciesCode === "BLACKCURRANT");
     const blackcurrantPlant = await request("/plants", "POST", {
       speciesId: blackcurrant.id, personalName: null, location: "Тест інтервалу", environmentType: "OUTDOOR", photoUrl: "",
+      weatherLocationName: "Тестова погодна локація", weatherLatitude: 49.84, weatherLongitude: 24.03,
     }, 201);
     const blackcurrantPlan = await request(`/plants/${blackcurrantPlant.id}/care-plan`);
     assert.ok(blackcurrantPlan.some(item => item.type === "WATERING"
       && /Інтервал за джерелом — 7 днів/.test(item.reason)
       && /Нова рослина, контейнер або тривала посуха/.test(item.reason)));
+    const today = new Date().toISOString().slice(0, 10);
+    const previousWatering = await request("/tasks", "POST", {
+      plantId: blackcurrantPlant.id, type: "WATERING", scheduledDate: today, priority: "LOW", notes: "",
+    }, 201);
+    await request(`/tasks/${previousWatering.id}/complete`, "POST", {}, 200);
+    await client.query("UPDATE flora_care_logs SET completed_at = NOW() - INTERVAL '8 days' WHERE task_id = $1", [previousWatering.id]);
+    const nextWatering = await request("/tasks", "POST", {
+      plantId: blackcurrantPlant.id, type: "WATERING", scheduledDate: today, priority: "LOW", notes: "",
+    }, 201);
+    const recommendationResult = await request("/recommendations", "POST", { plantId: blackcurrantPlant.id }, 201);
+    const wateringAdvice = recommendationResult.recommendations.find(item => item.relatedTaskId === nextWatering.id);
+    assert.ok(wateringAdvice, "the saved task receives a generated care recommendation");
+    assert.ok(["HIGH", "URGENT"].includes(wateringAdvice.priority));
+    assert.match(wateringAdvice.explanation, /останній догляд «Полив» виконано/);
+    assert.match(wateringAdvice.explanation, /8 дн\. тому.*інтервал за правилом виду — 7 дн\./);
+    assert.match(wateringAdvice.explanation, /Локація: «Тестова погодна локація»/);
+    assert.match(wateringAdvice.explanation, /Середовище: надворі/);
     const monsteraPlant = await request("/plants", "POST", {
       speciesId: template.id, personalName: null, location: "Тест умови", environmentType: "INDOOR", photoUrl: "",
     }, 201);

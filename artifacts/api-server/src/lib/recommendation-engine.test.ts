@@ -22,6 +22,75 @@ test("species-specific threshold replaces the general fallback", () => {
   assert.match(result.explanation, /порогу 5 мм/);
   assert.equal(result.suggestedDate, date(1));
 });
+test("indoor decorative plant keeps condition-based care and filters harvest and sowing tasks", () => {
+  const monstera = {
+    ...species,
+    name: "Монстера",
+    category: "INDOOR_DECORATIVE",
+    wateringRecommendations: "Перевіряйте вологість субстрату перед поливом.",
+    wateringCheckIntervalDays: 3,
+  } as PlantSpecies;
+  const result = generateRules(
+    monstera,
+    [task({ type: "HARVEST" }), task({ id: 2, type: "SOWING" })],
+    forecast,
+    "Київ",
+    "INDOOR",
+    date(-8),
+    [rule({ triggerDescription: "верхній шар ґрунту підсох", recommendedAction: "полити після перевірки" })],
+  )[0];
+  assert.equal(result.type, "GENERAL");
+  assert.match(result.text, /Перевірте умову поливу/);
+  assert.match(result.explanation, /верхній шар ґрунту підсох/);
+  assert.match(result.explanation, /це не частота поливу/);
+  assert.match(result.explanation, /автоматичне прострочення за фіксованою частотою не застосовано/);
+  assert.doesNotMatch(`${result.text} ${result.explanation}`, /HARVEST|SOWING|Збір врожаю|Посів/);
+  assert.equal(result.suggestedDate, null);
+});
+test("outdoor decorative plant uses rain and wind forecast only for its outdoor task", () => {
+  const rose = { ...species, name: "Троянда", category: "OUTDOOR_DECORATIVE" } as PlantSpecies;
+  const input = task();
+  const before = JSON.stringify(input);
+  const result = generateRules(rose, [input], forecast, "Одеса", "OUTDOOR", null, [rule({ rainThresholdMm: "5" })])[0];
+  assert.equal(result.type, "WEATHER_RESCHEDULE");
+  assert.equal(result.suggestedDate, date(1));
+  assert.match(result.explanation, /Локація: «Одеса»/);
+  assert.match(result.explanation, /опади 10 мм ≥ порогу 5 мм/);
+  assert.match(result.explanation, /Дату буде змінено лише після вашого підтвердження/);
+  assert.equal(JSON.stringify(input), before);
+});
+test("berry fertilizing urgency uses the latest completed action for that task type", () => {
+  const blackcurrant = {
+    ...species,
+    id: 2,
+    name: "Смородина чорна",
+    category: "BERRY_SHRUB",
+    wateringFrequencyDays: null,
+    fertilizingFrequencyDays: null,
+  } as PlantSpecies;
+  const fertilizingRule = rule({
+    careType: "FERTILIZING",
+    intervalDaysMin: 7,
+    intervalDaysMax: 7,
+    recommendedAction: "Підживити за потреби",
+  });
+  const dryWeather = [{ ...forecast[0], precipitation: 0 }, forecast[1]];
+  const result = generateRules(
+    blackcurrant,
+    [task({ type: "FERTILIZING", priority: "LOW" })],
+    dryWeather,
+    "Львів",
+    "OUTDOOR",
+    null,
+    [fertilizingRule],
+    { FERTILIZING: date(-8) },
+  )[0];
+  assert.equal(result.type, "PRIORITY");
+  assert.equal(result.priority, "HIGH");
+  assert.match(result.explanation, /останній догляд «Підживлення»/);
+  assert.match(result.explanation, /8 дн\. тому.*інтервал за правилом виду — 7 дн\./);
+  assert.equal(result.suggestedDate, null);
+});
 test("structured wind and temperature thresholds use the same suitability check", () => {
   assert.equal(isWeatherSuitable("WATERING", species, forecast[1], "OUTDOOR", [rule({ maxWindSpeedMps: "1" })]), false);
   assert.equal(isWeatherSuitable("WATERING", species, forecast[1], "OUTDOOR", [rule({ maxTemperature: "20" })]), false);
@@ -29,6 +98,25 @@ test("structured wind and temperature thresholds use the same suitability check"
 test("latest completed watering date changes priority without affecting indoor rain", () => {
   assert.equal(generateRules(species, [task()], forecast, "Львів", "INDOOR", date(-20))[0].priority, "URGENT");
   assert.equal(generateRules(species, [task()], forecast, "Львів", "INDOOR", date())[0].type, "GENERAL");
+});
+test("a verified knowledge-base interval raises watering urgency from history without creating a task", () => {
+  const knowledgeSpecies = { ...species, wateringFrequencyDays: null } as PlantSpecies;
+  const result = generateRules(
+    knowledgeSpecies,
+    [],
+    forecast,
+    "Львів",
+    "INDOOR",
+    date(-8),
+    [rule({ intervalDaysMin: 7, intervalDaysMax: 7 })],
+    { WATERING: date(-8) },
+  )[0];
+  assert.equal(result.type, "GENERAL");
+  assert.equal(result.priority, "HIGH");
+  assert.equal(result.relatedTaskId, null);
+  assert.equal(result.suggestedDate, null);
+  assert.match(result.explanation, /інтервал за правилом виду — 7 дн\./);
+  assert.match(result.explanation, /Завдання не створено, дати не змінено/);
 });
 test("postponed tasks are active and overdue status raises priority", () => {
   const result = generateRules(species, [task({ status: "POSTPONED", scheduledDate: date(-6) })], forecast, "Львів", "INDOOR", null)[0];

@@ -1,0 +1,74 @@
+Please update the existing FloraWise RecommendationEngine so that it fully uses the new knowledge-base structure.
+
+This is now the highest-priority core task.
+
+RecommendationEngine must combine:
+
+- Plant
+- PlantCategory
+- PlantSpecies, when available
+- SpeciesCareRule
+- PlantPlace.environmentType
+- CareTask
+- CareLog / latest completed care actions
+- SavedLocation
+- weather forecast
+- task priority and overdue state
+
+Logic priority:
+
+1. PlantCategory determines which care activities are relevant.
+2. PlantSpecies provides species-specific care knowledge.
+3. SpeciesCareRule provides structured care conditions where available.
+4. CareLog provides the actual last completed care activity.
+5. PlantPlace.environmentType determines whether outdoor weather is relevant.
+6. Weather modifies timing and priority of care tasks.
+7. If species-specific data is missing, fall back to category/global rules without inventing values.
+
+Important requirements:
+
+- Do not generate irrelevant recommendations.
+  Example:
+  Monstera must not receive HARVEST or SOWING recommendations.
+
+- For custom plants without PlantSpecies:
+  use category-level rules only.
+
+- Do not require fixed care intervals for all species.
+  Condition-based knowledge such as "за потреби", soil dryness, dry weather, or insufficient rainfall must remain valid.
+
+- Use the latest completed CareLog for the relevant task type when calculating care urgency.
+
+Example:
+if the last watering was completed 8 days ago and a verified species interval is 7 days, increase watering priority.
+
+- For OUTDOOR plants:
+  precipitation and wind may affect recommendations.
+
+- For INDOOR plants:
+  outdoor rain must not automatically postpone watering.
+
+- Every recommendation must be explainable.
+
+Example:
+
+"Полив рекомендовано перенести, оскільки рослина вирощується надворі, а на заплановану дату прогнозуються значні опади."
+
+or:
+
+"Полив має високий пріоритет, оскільки останній полив було виконано 8 днів тому, а рекомендований інтервал становить 7 днів."
+
+- Do not invent missing species values.
+- Do not silently change CareTask dates.
+- RecommendationEngine may suggest a change, but the user must confirm it.
+
+Preserve the current database, imported knowledge base and working UI.
+
+After implementation verify at least:
+
+1. one indoor decorative plant;
+2. one outdoor decorative plant;
+3. one vegetable or berry plant;
+4. one custom plant without PlantSpecies.
+
+Keep all user-facing text in Ukrainian.
