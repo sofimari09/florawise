@@ -465,6 +465,17 @@ export const UpdateCurrentUserResponse = zod.object({
 /**
  * @summary Get dashboard overview
  */
+export const getDashboardResponseWeatherCurrentPrecipitationProbabilityMin = 0;
+export const getDashboardResponseWeatherCurrentPrecipitationProbabilityMax = 100;
+
+export const getDashboardResponseWeatherForecastItemPrecipitationProbabilityMin = 0;
+export const getDashboardResponseWeatherForecastItemPrecipitationProbabilityMax = 100;
+
+export const getDashboardResponseLatestRecommendationsItemWeatherPrecipitationProbabilityMin = 0;
+export const getDashboardResponseLatestRecommendationsItemWeatherPrecipitationProbabilityMax = 100;
+
+
+
 export const GetDashboardResponse = zod.object({
   "plantsCount": zod.number().int(),
   "todayTasks": zod.number().int(),
@@ -481,6 +492,7 @@ export const GetDashboardResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(getDashboardResponseWeatherCurrentPrecipitationProbabilityMin).max(getDashboardResponseWeatherCurrentPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -491,6 +503,7 @@ export const GetDashboardResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(getDashboardResponseWeatherForecastItemPrecipitationProbabilityMin).max(getDashboardResponseWeatherForecastItemPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -530,6 +543,7 @@ export const GetDashboardResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(getDashboardResponseLatestRecommendationsItemWeatherPrecipitationProbabilityMin).max(getDashboardResponseLatestRecommendationsItemWeatherPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -954,6 +968,11 @@ export const GetPlantParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const getPlantResponseTwoRecommendationsItemWeatherPrecipitationProbabilityMin = 0;
+export const getPlantResponseTwoRecommendationsItemWeatherPrecipitationProbabilityMax = 100;
+
+
+
 export const GetPlantResponse = zod.object({
   "id": zod.number().int(),
   "userId": zod.number().int(),
@@ -1059,6 +1078,7 @@ export const GetPlantResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(getPlantResponseTwoRecommendationsItemWeatherPrecipitationProbabilityMin).max(getPlantResponseTwoRecommendationsItemWeatherPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -1305,6 +1325,14 @@ export const UpdateReminderResponse = zod.object({
 /**
  * @summary Get seven day forecast
  */
+export const getWeatherResponseCurrentPrecipitationProbabilityMin = 0;
+export const getWeatherResponseCurrentPrecipitationProbabilityMax = 100;
+
+export const getWeatherResponseForecastItemPrecipitationProbabilityMin = 0;
+export const getWeatherResponseForecastItemPrecipitationProbabilityMax = 100;
+
+
+
 export const GetWeatherResponse = zod.object({
   "location": zod.string(),
   "isMock": zod.boolean(),
@@ -1315,6 +1343,7 @@ export const GetWeatherResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(getWeatherResponseCurrentPrecipitationProbabilityMin).max(getWeatherResponseCurrentPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -1325,6 +1354,7 @@ export const GetWeatherResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(getWeatherResponseForecastItemPrecipitationProbabilityMin).max(getWeatherResponseForecastItemPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -1340,6 +1370,11 @@ export const ListRecommendationsQueryParams = zod.object({
   "plantId": zod.coerce.number().int().nullish(),
   "priority": zod.coerce.string().nullish()
 })
+
+export const listRecommendationsResponseWeatherPrecipitationProbabilityMin = 0;
+export const listRecommendationsResponseWeatherPrecipitationProbabilityMax = 100;
+
+
 
 export const ListRecommendationsResponseItem = zod.object({
   "id": zod.number().int(),
@@ -1361,6 +1396,7 @@ export const ListRecommendationsResponseItem = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(listRecommendationsResponseWeatherPrecipitationProbabilityMin).max(listRecommendationsResponseWeatherPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -1376,6 +1412,17 @@ export const ListRecommendationsResponse = zod.array(ListRecommendationsResponse
 export const GenerateRecommendationBody = zod.object({
   "plantId": zod.number().int()
 })
+
+export const generateRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMin = 0;
+export const generateRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMax = 100;
+
+export const generateRecommendationResponseWeatherCurrentPrecipitationProbabilityMin = 0;
+export const generateRecommendationResponseWeatherCurrentPrecipitationProbabilityMax = 100;
+
+export const generateRecommendationResponseWeatherForecastItemPrecipitationProbabilityMin = 0;
+export const generateRecommendationResponseWeatherForecastItemPrecipitationProbabilityMax = 100;
+
+
 
 export const GenerateRecommendationResponse = zod.object({
   "recommendations": zod.array(zod.object({
@@ -1398,6 +1445,7 @@ export const GenerateRecommendationResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(generateRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMin).max(generateRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -1414,6 +1462,7 @@ export const GenerateRecommendationResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(generateRecommendationResponseWeatherCurrentPrecipitationProbabilityMin).max(generateRecommendationResponseWeatherCurrentPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -1424,6 +1473,7 @@ export const GenerateRecommendationResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(generateRecommendationResponseWeatherForecastItemPrecipitationProbabilityMin).max(generateRecommendationResponseWeatherForecastItemPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),

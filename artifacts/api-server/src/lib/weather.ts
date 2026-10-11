@@ -5,6 +5,7 @@ export type WeatherDay = {
   dateTime: string;
   temperature: number;
   precipitation: number;
+  precipitationProbability?: number | null;
   humidity: number;
   windSpeed: number;
   condition: string;
@@ -49,11 +50,12 @@ const conditionForCode = (code: number): string => {
   return "Невідомі погодні умови";
 };
 
-const toWeatherDay = (dateTime: string, temperature: number, precipitation: number, humidity: number, windSpeed: number, conditionCode: number): WeatherDay => ({
+const toWeatherDay = (dateTime: string, temperature: number, precipitation: number, humidity: number, windSpeed: number, conditionCode: number, precipitationProbability?: number | null): WeatherDay => ({
   date: datePart(dateTime),
   dateTime,
   temperature,
   precipitation,
+  ...(precipitationProbability === undefined ? {} : { precipitationProbability }),
   humidity,
   windSpeed,
   condition: conditionForCode(conditionCode),
@@ -80,7 +82,7 @@ export class RealWeatherService implements WeatherServiceClient {
     url.searchParams.set("latitude", String(location.latitude));
     url.searchParams.set("longitude", String(location.longitude));
     url.searchParams.set("current", "temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m");
-    url.searchParams.set("daily", "weather_code,temperature_2m_mean,precipitation_sum,relative_humidity_2m_mean,wind_speed_10m_mean");
+    url.searchParams.set("daily", "weather_code,temperature_2m_mean,precipitation_sum,precipitation_probability_max,relative_humidity_2m_mean,wind_speed_10m_mean");
     url.searchParams.set("forecast_days", "7");
     url.searchParams.set("timezone", "auto");
     url.searchParams.set("temperature_unit", "celsius");
@@ -115,6 +117,7 @@ export class RealWeatherService implements WeatherServiceClient {
     const dates = asArray(daily.time);
     const temperatures = asArray(daily.temperature_2m_mean);
     const precipitations = asArray(daily.precipitation_sum);
+    const precipitationProbabilities = asArray(daily.precipitation_probability_max);
     const humidities = asArray(daily.relative_humidity_2m_mean);
     const winds = asArray(daily.wind_speed_10m_mean);
     const codes = asArray(daily.weather_code);
@@ -123,14 +126,16 @@ export class RealWeatherService implements WeatherServiceClient {
       const date = dates[index];
       const temperature = temperatures[index];
       const precipitation = precipitations[index];
+      const precipitationProbability = precipitationProbabilities[index];
       const humidity = humidities[index];
       const wind = winds[index];
       const code = codes[index];
       if (typeof date !== "string" || !finite(temperature) || !finite(precipitation) ||
+        (precipitationProbability !== null && !finite(precipitationProbability)) ||
         !finite(humidity) || !finite(wind) || !finite(code)) {
         throw new Error(`Open-Meteo forecast contains incomplete data for day ${index}`);
       }
-      forecast.push(toWeatherDay(date, temperature, precipitation, humidity, wind, code));
+      forecast.push(toWeatherDay(date, temperature, precipitation, humidity, wind, code, precipitationProbability));
     }
     if (!forecast.length) throw new Error("Open-Meteo returned an empty forecast");
 
@@ -154,13 +159,13 @@ const addDays = (date: Date, days: number) => {
 export class MockWeatherService implements WeatherServiceClient {
   async getForecast(location: WeatherLocation): Promise<WeatherResponse> {
     const templates = [
-      { temperature: 20, precipitation: 0.4, humidity: 57, windSpeed: 3, condition: "Ясно", conditionCode: 0 },
-      { temperature: 18, precipitation: 13, humidity: 86, windSpeed: 4, condition: "Значні опади", conditionCode: 65 },
-      { temperature: 29, precipitation: 0.2, humidity: 38, windSpeed: 2, condition: "Спекотно й сухо", conditionCode: 0 },
-      { temperature: 21, precipitation: 0.8, humidity: 61, windSpeed: 12, condition: "Хмарно з вітром", conditionCode: 3 },
-      { temperature: 22, precipitation: 1.2, humidity: 65, windSpeed: 4, condition: "Хмарно з проясненнями", conditionCode: 2 },
-      { temperature: 19, precipitation: 0, humidity: 54, windSpeed: 3, condition: "Комфортно", conditionCode: 1 },
-      { temperature: 23, precipitation: 2, humidity: 60, windSpeed: 5, condition: "Мінлива хмарність", conditionCode: 2 },
+      { temperature: 20, precipitation: 0.4, precipitationProbability: 10, humidity: 57, windSpeed: 3, condition: "Ясно", conditionCode: 0 },
+      { temperature: 18, precipitation: 13, precipitationProbability: 95, humidity: 86, windSpeed: 4, condition: "Значні опади", conditionCode: 65 },
+      { temperature: 29, precipitation: 0.2, precipitationProbability: 0, humidity: 38, windSpeed: 2, condition: "Спекотно й сухо", conditionCode: 0 },
+      { temperature: 21, precipitation: 0.8, precipitationProbability: 20, humidity: 61, windSpeed: 12, condition: "Хмарно з вітром", conditionCode: 3 },
+      { temperature: 22, precipitation: 1.2, precipitationProbability: 35, humidity: 65, windSpeed: 4, condition: "Хмарно з проясненнями", conditionCode: 2 },
+      { temperature: 19, precipitation: 0, precipitationProbability: 5, humidity: 54, windSpeed: 3, condition: "Комфортно", conditionCode: 1 },
+      { temperature: 23, precipitation: 2, precipitationProbability: 60, humidity: 60, windSpeed: 5, condition: "Мінлива хмарність", conditionCode: 2 },
     ];
     const identity = `${location.name}|${location.latitude ?? ""}|${location.longitude ?? ""}`;
     const hash = [...identity].reduce((value, char) => (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0, 0);

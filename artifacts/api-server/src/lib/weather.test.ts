@@ -20,6 +20,7 @@ const openMeteoFixture = {
     time: ["2026-10-11", "2026-10-12"],
     temperature_2m_mean: [16.5, 14.2],
     precipitation_sum: [1.3, 7.8],
+    precipitation_probability_max: [70, 90],
     relative_humidity_2m_mean: [68, 75],
     wind_speed_10m_mean: [2.8, 4.2],
     weather_code: [3, 61],
@@ -37,6 +38,7 @@ test("Open-Meteo uses the saved coordinates and returns current plus daily weath
   assert.equal(requestedUrl?.searchParams.get("latitude"), "50.4");
   assert.equal(requestedUrl?.searchParams.get("longitude"), "24.1");
   assert.equal(requestedUrl?.searchParams.get("wind_speed_unit"), "ms");
+  assert.match(requestedUrl?.searchParams.get("daily") ?? "", /precipitation_probability_max/);
   assert.equal(forecast.location, "Забужжя");
   assert.equal(forecast.isMock, false);
   assert.equal(forecast.current.temperature, 17.4);
@@ -45,7 +47,10 @@ test("Open-Meteo uses the saved coordinates and returns current plus daily weath
   assert.equal(forecast.current.condition, "Мінлива хмарність");
   assert.equal(forecast.current.conditionCode, 2);
   assert.equal(forecast.current.dateTime, "2026-10-11T14:30");
+  assert.equal(forecast.forecast[0].precipitation, 1.3);
+  assert.equal(forecast.forecast[0].precipitationProbability, 70);
   assert.equal(forecast.forecast[1].precipitation, 7.8);
+  assert.equal(forecast.forecast[1].precipitationProbability, 90);
   assert.equal(forecast.forecast[1].date, "2026-10-12");
 });
 
@@ -57,6 +62,7 @@ test("mock weather is clearly marked when real weather is unavailable", async ()
   assert.equal(forecast.location, "Забужжя");
   assert.equal(forecast.isMock, true);
   assert.equal(forecast.current.conditionCode >= 0, true);
+  assert.equal(typeof forecast.forecast[0].precipitationProbability, "number");
   assert.equal(forecast.forecast.length, 7);
 });
 

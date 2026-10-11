@@ -11,6 +11,12 @@ export interface WeatherForecast {
   dateTime: string;
   temperature: number;
   precipitation: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  precipitationProbability?: number | null;
   humidity: number;
   windSpeed: number;
   condition: string;

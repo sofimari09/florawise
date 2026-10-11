@@ -1067,6 +1067,7 @@ components:
         dateTime: { type: string }
         temperature: { type: number }
         precipitation: { type: number }
+        precipitationProbability: { type: [integer, "null"], minimum: 0, maximum: 100 }
         humidity: { type: number }
         windSpeed: { type: number }
         condition: { type: string }
