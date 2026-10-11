@@ -14,5 +14,6 @@ export interface WeatherResponse {
   latitude: number | null;
   /** @nullable */
   longitude: number | null;
+  current: WeatherForecast;
   forecast: WeatherForecast[];
 }

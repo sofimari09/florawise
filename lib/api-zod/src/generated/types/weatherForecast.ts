@@ -8,9 +8,11 @@
 
 export interface WeatherForecast {
   date: string;
+  dateTime: string;
   temperature: number;
   precipitation: number;
   humidity: number;
   windSpeed: number;
   condition: string;
+  conditionCode: number;
 }

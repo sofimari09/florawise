@@ -84,7 +84,7 @@ test("full legacy task payload can be retained or closed, never rescheduled or r
 test("inapplicable tasks and rules contribute neither risk nor active counts", () => {
   const day = new Date().toISOString().slice(0, 10);
   const rule = { careType: "HARVEST", maxWindSpeedMps: "0", rainThresholdMm: "0", minTemperature: null, maxTemperature: null } as SpeciesCareRule;
-  const result = generateRules(species, [task], [{ date: day, windSpeed: 20, precipitation: 20, temperature: 20, humidity: 60, condition: "Дощ" }], "Сад", "OUTDOOR", null, [rule]);
+  const result = generateRules(species, [task], [{ date: day, dateTime: `${day}T12:00`, windSpeed: 20, precipitation: 20, temperature: 20, humidity: 60, condition: "Дощ", conditionCode: 61 }], "Сад", "OUTDOOR", null, [rule]);
   assert.equal(result.length, 1);
   assert.equal(result[0].type, "GENERAL");
   assert.equal(result[0].priority, "LOW");

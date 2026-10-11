@@ -1064,12 +1064,14 @@ components:
       type: object
       properties:
         date: { type: string }
+        dateTime: { type: string }
         temperature: { type: number }
         precipitation: { type: number }
         humidity: { type: number }
         windSpeed: { type: number }
         condition: { type: string }
-      required: [date, temperature, precipitation, humidity, windSpeed, condition]
+        conditionCode: { type: integer }
+      required: [date, dateTime, temperature, precipitation, humidity, windSpeed, condition, conditionCode]
     WeatherResponse:
       type: object
       properties:
@@ -1077,11 +1079,13 @@ components:
         isMock: { type: boolean }
         latitude: { type: [number, "null"] }
         longitude: { type: [number, "null"] }
+        current:
+          $ref: "#/components/schemas/WeatherForecast"
         forecast:
           type: array
           items:
             $ref: "#/components/schemas/WeatherForecast"
-      required: [location, isMock, latitude, longitude, forecast]
+      required: [location, isMock, latitude, longitude, current, forecast]
     Recommendation:
       type: object
       properties:

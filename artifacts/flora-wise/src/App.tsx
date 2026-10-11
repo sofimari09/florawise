@@ -416,7 +416,7 @@ function ProfilePage() {
 }
 
 function DashboardPage() {
-  const q = useQueryClient(); const dash = useGetDashboard({ query: { queryKey: getGetDashboardQueryKey() } }); const plants = useListPlants(); const weather = { data: dash.data?.weather ?? { location: "Ваш регіон", forecast: [] } }; const complete = useCompleteTask(); const reminders = useListReminders(); const updateReminder = useUpdateReminder();
+  const q = useQueryClient(); const dash = useGetDashboard({ query: { queryKey: getGetDashboardQueryKey() } }); const plants = useListPlants(); const weather = { data: dash.data?.weather ? { ...dash.data.weather, location: `${dash.data.weather.location} · ${dash.data.weather.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані"}`, forecast: [{ ...dash.data.weather.current, windSpeed: `${dash.data.weather.current.windSpeed} м/с` }, ...dash.data.weather.forecast.slice(1)] } : { location: "Оновлюємо дані", forecast: [] } }; const complete = useCompleteTask(); const reminders = useListReminders(); const updateReminder = useUpdateReminder();
   const { displayName } = useFloraIdentity();
   const d = dash.data; const plantCount = d?.plantsCount ?? plants.data?.length ?? 0;
   const completeTask = (id: number) => complete.mutate({ id, data: { comment: "Виконано з FloraWise" } }, { onSuccess: () => { q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }); q.invalidateQueries({ queryKey: getListTasksQueryKey() }); } });

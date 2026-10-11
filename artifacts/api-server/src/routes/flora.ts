@@ -809,10 +809,10 @@ router.post("/recommendations", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Умови або план змінилися під час підготовки. Створіть нову пораду" }); return;
   }
   const saved = await Promise.all(drafts.map(async (draft) => {
-    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: `${draft.explanation}${forecast.isMock ? " Використано демонстраційний прогноз, а не поточні метеодані." : ""}`, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0, eligibilityVersion: snapshot, careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
+    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: `${draft.explanation} Джерело погодних даних: ${forecast.isMock ? "демонстраційні погодні дані" : "актуальні погодні дані"}.`, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0, eligibilityVersion: snapshot, careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
     return mapRecommendation(created);
   }));
-  res.status(201).json({ recommendations: await Promise.all(saved), weather: forecast, warning: forecast.isMock ? "Використано демонстраційний прогноз, а не поточні метеодані" : null });
+  res.status(201).json({ recommendations: await Promise.all(saved), weather: forecast, warning: forecast.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані" });
 });
 
 router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {

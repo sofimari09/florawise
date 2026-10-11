@@ -503,11 +503,13 @@ export interface CareHistory {
 
 export interface WeatherForecast {
   date: string;
+  dateTime: string;
   temperature: number;
   precipitation: number;
   humidity: number;
   windSpeed: number;
   condition: string;
+  conditionCode: number;
 }
 
 export interface Recommendation {
@@ -610,6 +612,7 @@ export interface WeatherResponse {
   latitude: number | null;
   /** @nullable */
   longitude: number | null;
+  current: WeatherForecast;
   forecast: WeatherForecast[];
 }
 

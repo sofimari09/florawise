@@ -45,12 +45,12 @@ export async function resolveSavedWeatherLocation(user: User, plant?: Plant | nu
     const [location] = await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.id, plant.weatherLocationId), eq(savedLocationsTable.userId, user.id)));
     if (location) return { name: location.displayName, latitude: Number(location.latitude), longitude: Number(location.longitude), source: "plant" };
   }
-  // A preserved legacy per-plant coordinate override outranks the profile default.
+  const [location] = await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.userId, user.id), eq(savedLocationsTable.isDefault, true)));
+  if (location) return { name: location.displayName, latitude: Number(location.latitude), longitude: Number(location.longitude), source: "profile" };
+  // Keep pre-SavedLocation plant coordinates as a compatibility fallback, below the user's saved default.
   if (plant?.weatherLocationName && plant.weatherLatitude !== null && plant.weatherLongitude !== null) {
     return resolveWeatherLocation(user, plant);
   }
-  const [location] = await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.userId, user.id), eq(savedLocationsTable.isDefault, true)));
-  if (location) return { name: location.displayName, latitude: Number(location.latitude), longitude: Number(location.longitude), source: "profile" };
   return resolveWeatherLocation(user, plant);
 }
 

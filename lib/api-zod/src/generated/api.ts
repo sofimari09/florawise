@@ -476,13 +476,25 @@ export const GetDashboardResponse = zod.object({
   "isMock": zod.boolean(),
   "latitude": zod.number().nullable(),
   "longitude": zod.number().nullable(),
-  "forecast": zod.array(zod.object({
+  "current": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
+}),
+  "forecast": zod.array(zod.object({
+  "date": zod.string(),
+  "dateTime": zod.string(),
+  "temperature": zod.number(),
+  "precipitation": zod.number(),
+  "humidity": zod.number(),
+  "windSpeed": zod.number(),
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 }))
 }),
   "upcomingTasks": zod.array(zod.object({
@@ -515,11 +527,13 @@ export const GetDashboardResponse = zod.object({
   "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 })
 })),
   "reminders": zod.array(zod.object({
@@ -1042,11 +1056,13 @@ export const GetPlantResponse = zod.object({
   "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 })
 })).optional(),
   "stats": zod.object({
@@ -1294,13 +1310,25 @@ export const GetWeatherResponse = zod.object({
   "isMock": zod.boolean(),
   "latitude": zod.number().nullable(),
   "longitude": zod.number().nullable(),
-  "forecast": zod.array(zod.object({
+  "current": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
+}),
+  "forecast": zod.array(zod.object({
+  "date": zod.string(),
+  "dateTime": zod.string(),
+  "temperature": zod.number(),
+  "precipitation": zod.number(),
+  "humidity": zod.number(),
+  "windSpeed": zod.number(),
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 }))
 })
 
@@ -1330,11 +1358,13 @@ export const ListRecommendationsResponseItem = zod.object({
   "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 })
 })
 export const ListRecommendationsResponse = zod.array(ListRecommendationsResponseItem)
@@ -1365,11 +1395,13 @@ export const GenerateRecommendationResponse = zod.object({
   "staleReason": zod.string().nullish(),
   "weather": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 })
 })),
   "weather": zod.object({
@@ -1377,13 +1409,25 @@ export const GenerateRecommendationResponse = zod.object({
   "isMock": zod.boolean(),
   "latitude": zod.number().nullable(),
   "longitude": zod.number().nullable(),
-  "forecast": zod.array(zod.object({
+  "current": zod.object({
   "date": zod.string(),
+  "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
-  "condition": zod.string()
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
+}),
+  "forecast": zod.array(zod.object({
+  "date": zod.string(),
+  "dateTime": zod.string(),
+  "temperature": zod.number(),
+  "precipitation": zod.number(),
+  "humidity": zod.number(),
+  "windSpeed": zod.number(),
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
 }))
 }),
   "warning": zod.string().nullable()
