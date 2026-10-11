@@ -1,7 +1,7 @@
-import { eq, sql, type SQLWrapper } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import knowledgeBase from "../data/florawise-knowledge-base.json" with { type: "json" };
 import {
-  db, floraKnowledgeImportsTable, knowledgeSourcesTable, speciesCareRulesTable,
+  db, floraSchemaMigrationsTable, knowledgeSourcesTable, speciesCareRulesTable,
   speciesCareRuleSourcesTable, speciesKnowledgeSourcesTable, speciesTable,
 } from "@workspace/db";
 import { CATEGORY_DEFAULTS, CATEGORY_LABELS, CATEGORY_NOTES, isCategory } from "@workspace/plant-care";
@@ -23,8 +23,6 @@ const auditedLegacyRows: Record<string, { id: number; name: string }> = {
   HYDRANGEA_MACROPHYLLA: { id: 10, name: "Гортензія" },
 };
 
-const coalesce = (column: SQLWrapper) =>
-  sql`COALESCE(EXCLUDED.${column}, ${column})`;
 const dbNumeric = (value: number | null) => value === null ? null : String(value);
 
 export async function seedKnowledgeBase() {
@@ -39,9 +37,9 @@ export async function seedKnowledgeBase() {
   }
 
   await db.transaction(async tx => {
-    const [completed] = await tx.select({ version: floraKnowledgeImportsTable.version })
-      .from(floraKnowledgeImportsTable)
-      .where(eq(floraKnowledgeImportsTable.version, importVersion))
+    const [completed] = await tx.select({ version: floraSchemaMigrationsTable.version })
+      .from(floraSchemaMigrationsTable)
+      .where(eq(floraSchemaMigrationsTable.version, importVersion))
       .limit(1);
     if (completed) return;
 
@@ -77,6 +75,12 @@ export async function seedKnowledgeBase() {
           scientificName: row.scientificName,
           category: row.category,
         };
+        const usesConditionBasedWatering = knowledgeBase.careRules.some(rule =>
+          rule.speciesCode === row.code && rule.careType === "WATERING" && Boolean(rule.triggerDescription));
+        if (usesConditionBasedWatering) {
+          // A source-backed moisture trigger supersedes any older fixed-calendar interval.
+          changes.wateringFrequencyDays = null;
+        }
         const setIfKnown = <K extends keyof typeof changes>(key: K, value: typeof changes[K] | null) => {
           if (value !== null && value !== undefined && value !== "") changes[key] = value;
         };
@@ -157,12 +161,12 @@ export async function seedKnowledgeBase() {
           target: knowledgeSourcesTable.sourceCode,
           set: {
             sourceName: values.sourceName,
-            organization: coalesce(knowledgeSourcesTable.organization),
-            subject: coalesce(knowledgeSourcesTable.subject),
-            sourceUrl: coalesce(knowledgeSourcesTable.sourceUrl),
-            retrievedAt: coalesce(knowledgeSourcesTable.retrievedAt),
-            notes: coalesce(knowledgeSourcesTable.notes),
-            citation: coalesce(knowledgeSourcesTable.citation),
+          organization: values.organization,
+          subject: values.subject,
+          sourceUrl: values.sourceUrl,
+          retrievedAt: values.retrievedAt,
+          notes: values.notes,
+          citation: values.citation,
           },
         })
         .returning({ id: knowledgeSourcesTable.id });
@@ -203,13 +207,18 @@ export async function seedKnowledgeBase() {
       }).onConflictDoUpdate({
         target: [speciesCareRulesTable.speciesId, speciesCareRulesTable.careType],
         set: {
-          ruleCode: coalesce(speciesCareRulesTable.ruleCode),
-          triggerDescription: coalesce(speciesCareRulesTable.triggerDescription),
-          recommendedAction: coalesce(speciesCareRulesTable.recommendedAction),
-          intervalDaysMin: sql`COALESCE(EXCLUDED.interval_days_min, ${speciesCareRulesTable.intervalDaysMin})`,
-          intervalDaysMax: sql`COALESCE(EXCLUDED.interval_days_max, ${speciesCareRulesTable.intervalDaysMax})`,
-          targetWaterMmWeekMin: coalesce(speciesCareRulesTable.targetWaterMmWeekMin),
-          targetWaterMmWeekMax: coalesce(speciesCareRulesTable.targetWaterMmWeekMax),
+          ruleCode: rule.ruleCode,
+          triggerDescription: rule.triggerDescription,
+          recommendedAction: rule.recommendedAction,
+          intervalDaysMin: rule.intervalDaysMin,
+          intervalDaysMax: rule.intervalDaysMax,
+          targetWaterMmWeekMin: dbNumeric(rule.targetWaterMmWeekMin),
+          targetWaterMmWeekMax: dbNumeric(rule.targetWaterMmWeekMax),
+          rainThresholdMm: null,
+          maxWindSpeedMps: null,
+          minTemperature: null,
+          maxTemperature: null,
+          notes: null,
         },
       }).returning({ id: speciesCareRulesTable.id });
 
@@ -223,6 +232,6 @@ export async function seedKnowledgeBase() {
         .onConflictDoNothing();
     }
 
-    await tx.insert(floraKnowledgeImportsTable).values({ version: importVersion }).onConflictDoNothing();
+    await tx.insert(floraSchemaMigrationsTable).values({ version: importVersion }).onConflictDoNothing();
   });
 }

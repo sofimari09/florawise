@@ -9,6 +9,33 @@ import type { CareType } from './careType';
 
 export interface SpeciesCareRule {
   careType: CareType;
+  /** @nullable */
+  ruleCode: string | null;
+  /** @nullable */
+  triggerDescription: string | null;
+  /** @nullable */
+  recommendedAction: string | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  intervalDaysMin: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  intervalDaysMax: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  targetWaterMmWeekMin: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  targetWaterMmWeekMax: number | null;
+  sourceCodes: string[];
   /**
      * @minimum 0
      * @nullable

@@ -116,17 +116,17 @@ export const speciesKnowledgeSourcesTable = pgTable("flora_species_knowledge_sou
   speciesId: integer("species_id").notNull().references(() => speciesTable.id, { onDelete: "cascade" }),
   sourceId: integer("source_id").notNull().references(() => knowledgeSourcesTable.id, { onDelete: "cascade" }),
 }, (table) => ({
-  speciesSourceIdx: uniqueIndex("flora_species_knowledge_sources_species_source_idx").on(table.speciesId, table.sourceId),
+  speciesSourceIdx: uniqueIndex("flora_species_source_links_species_source_idx").on(table.speciesId, table.sourceId),
 }));
 
 export const speciesCareRuleSourcesTable = pgTable("flora_species_care_rule_sources", {
   careRuleId: integer("care_rule_id").notNull().references(() => speciesCareRulesTable.id, { onDelete: "cascade" }),
   sourceId: integer("source_id").notNull().references(() => knowledgeSourcesTable.id, { onDelete: "cascade" }),
 }, (table) => ({
-  careRuleSourceIdx: uniqueIndex("flora_species_care_rule_sources_rule_source_idx").on(table.careRuleId, table.sourceId),
+  careRuleSourceIdx: uniqueIndex("flora_care_rule_source_links_rule_source_idx").on(table.careRuleId, table.sourceId),
 }));
 
-export const floraKnowledgeImportsTable = pgTable("flora_knowledge_imports", {
+export const floraSchemaMigrationsTable = pgTable("flora_schema_migrations", {
   version: text("version").primaryKey(),
   appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
 });

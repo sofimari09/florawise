@@ -7,12 +7,20 @@
  */
 
 export interface KnowledgeSource {
+  /** @nullable */
+  sourceCode: string | null;
   /** @minLength 1 */
   sourceName: string;
+  /** @nullable */
+  organization: string | null;
+  /** @nullable */
+  subject: string | null;
   /** @nullable */
   sourceUrl: string | null;
   /** @nullable */
   retrievedAt: string | null;
   /** @nullable */
   notes: string | null;
+  /** @nullable */
+  citation: string | null;
 }

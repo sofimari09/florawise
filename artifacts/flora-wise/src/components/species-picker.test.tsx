@@ -48,7 +48,7 @@ test("keyboard selection stores the actual ID, previews missing metadata, and En
   fireEvent.keyDown(input, { key: "Enter" });
   expect(screen.getByTestId("selected-id").textContent).toBe("31");
   expect(screen.getByTestId("preview-selected-species").textContent).toContain("Малина");
-  expect(screen.getByText("Категорія: Ягідний кущ")).toBeTruthy();
+  expect(screen.getByText("Категорія: Ягідна культура")).toBeTruthy();
   expect(mock.refetch).not.toHaveBeenCalled();
   fireEvent.keyDown(input, { key: "Enter" });
   expect(mock.refetch).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ test("mouse/touch click selection and broken image fallback", async () => {
   fireEvent.pointerDown(option, { pointerType: "touch" });
   fireEvent.click(option);
   expect(screen.getByTestId("selected-id").textContent).toBe("45");
-  expect(screen.getByText("Категорія: Ягідний кущ")).toBeTruthy();
+  expect(screen.getByText("Категорія: Ягідна культура")).toBeTruthy();
   fireEvent.error(screen.getByRole("img"));
   expect(screen.getByLabelText("Фото виду відсутнє")).toBeTruthy();
 });

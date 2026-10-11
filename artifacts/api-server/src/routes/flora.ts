@@ -99,6 +99,11 @@ const speciesInput = z.object({
   category: z.enum(PLANT_CATEGORIES),
   applicableCareTypes: z.array(z.enum(CARE_TYPES)).nullable().optional(),
   suitableEnvironmentTypes: z.array(z.enum(environmentTypes)).nullable().optional(),
+  lifeCycle: z.string().nullable().optional(),
+  wateringCheckIntervalDays: z.number().int().positive().nullable().optional(),
+  targetWaterMmWeekMin: z.number().min(0).nullable().optional(),
+  targetWaterMmWeekMax: z.number().min(0).nullable().optional(),
+  sowingPlantingRecommendations: z.string().nullable().optional(),
   humidityMin: z.number().int().min(0).max(100).nullable().optional(),
   humidityMax: z.number().int().min(0).max(100).nullable().optional(),
   fertilizingFrequencyDays: z.number().int().positive().nullable().optional(),
@@ -106,7 +111,7 @@ const speciesInput = z.object({
   transplantingFrequencyMonths: z.number().int().positive().nullable().optional(),
   harvestingRecommendations: z.string().nullable().optional(),
   generalCareRecommendations: z.string().nullable().optional(),
-});
+}).refine(data => data.targetWaterMmWeekMin == null || data.targetWaterMmWeekMax == null || data.targetWaterMmWeekMin <= data.targetWaterMmWeekMax);
 
 export async function currentUser(req: Request) {
   const auth = getAuth(req);
@@ -272,6 +277,8 @@ router.post("/species", async (req, res): Promise<void> => {
       optimalTempMax: dbCoordinate(data.optimalTempMax),
       optimalHumidity: data.optimalHumidity,
       wateringFrequencyDays: data.wateringFrequencyDays,
+      targetWaterMmWeekMin: dbCoordinate(data.targetWaterMmWeekMin),
+      targetWaterMmWeekMax: dbCoordinate(data.targetWaterMmWeekMax),
     }).returning();
     if (knowledge) await writeSpeciesKnowledge(tx, created.id, knowledge);
     return created;
@@ -289,7 +296,13 @@ router.patch("/species/:id", async (req, res): Promise<void> => {
   const merged = { ...existing, ...parsed.data };
   if (merged.optimalTempMin != null && merged.optimalTempMax != null && Number(merged.optimalTempMin) > Number(merged.optimalTempMax) || merged.humidityMin != null && merged.humidityMax != null && merged.humidityMin > merged.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
   const { knowledge, ...data } = parsed.data;
-  const values = { ...data, ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: dbCoordinate(parsed.data.optimalTempMin) }), ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: dbCoordinate(parsed.data.optimalTempMax) }) } as Partial<typeof speciesTable.$inferInsert>;
+  const values = {
+    ...data,
+    ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: dbCoordinate(parsed.data.optimalTempMin) }),
+    ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: dbCoordinate(parsed.data.optimalTempMax) }),
+    ...(parsed.data.targetWaterMmWeekMin === undefined ? {} : { targetWaterMmWeekMin: dbCoordinate(parsed.data.targetWaterMmWeekMin) }),
+    ...(parsed.data.targetWaterMmWeekMax === undefined ? {} : { targetWaterMmWeekMax: dbCoordinate(parsed.data.targetWaterMmWeekMax) }),
+  } as Partial<typeof speciesTable.$inferInsert>;
   const updated = await db.transaction(async tx => {
     const [current] = await tx.select().from(speciesTable).where(eq(speciesTable.id, idFrom(req))).for("update");
     if (!current) throw new CareEligibilityError("Вид більше не існує. Оновіть довідник");

@@ -43,6 +43,13 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     const catalog = await request("/species");
     assert.ok(catalog.every(species => species.category && species.categoryLabel && Array.isArray(species.allowedCareTypes)));
     const template = catalog.find(species => species.name === "Монстера");
+    const knowledge = await request(`/species/${template.id}/knowledge`);
+    const wateringRule = knowledge.careRules.find(rule => rule.careType === "WATERING");
+    assert.equal(wateringRule.ruleCode, "SOIL_DRYNESS");
+    assert.match(wateringRule.triggerDescription, /підсохла/);
+    assert.deepEqual(wateringRule.sourceCodes, ["S01"]);
+    assert.equal(knowledge.sources[0].sourceCode, "S01");
+    assert.ok(knowledge.sources[0].organization && knowledge.sources[0].citation && knowledge.sources[0].sourceUrl);
     const { id: _id, category: _category, ...withoutCategory } = template;
     await request("/species", "POST", { ...withoutCategory, name: "Без категорії" }, 400);
     await request("/species", "POST", { ...template, category: "Не категорія" }, 400);
@@ -51,7 +58,7 @@ test("category API enforces current eligibility, safe history, stale previews/ad
       INDOOR_DECORATIVE: ["WATERING", "FERTILIZING", "PRUNING", "TRANSPLANTING", "TREATMENT"],
       OUTDOOR_DECORATIVE: ["WATERING", "FERTILIZING", "PRUNING", "TRANSPLANTING", "TREATMENT"],
       FRUIT_TREE: ["WATERING", "FERTILIZING", "PRUNING", "TREATMENT", "HARVEST"],
-      BERRY_SHRUB: ["WATERING", "FERTILIZING", "PRUNING", "TREATMENT", "HARVEST"],
+      BERRY_SHRUB: ["WATERING", "FERTILIZING", "PRUNING", "TREATMENT", "HARVEST", "PLANTING"],
       VEGETABLE: ["SOWING", "PLANTING", "WATERING", "FERTILIZING", "TREATMENT", "HARVEST"],
       HERB: ["SOWING", "PLANTING", "WATERING", "FERTILIZING", "HARVEST"],
     };

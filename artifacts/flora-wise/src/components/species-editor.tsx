@@ -8,20 +8,22 @@ import type { KnowledgeSource, PlantSpecies, SpeciesCareRule } from "@workspace/
 import { Alert, Btn, Modal, careTypeLabel, environmentOptions, errMsg, inputCls, toDateInput } from "./fw-ui";
 import { PLANT_CATEGORIES, CATEGORY_LABELS, CATEGORY_DEFAULTS, allowedCareTypes, isCategory, type PlantCategory, type CareType } from "@workspace/plant-care";
 
-type Txt = "name" | "scientificName" | "pruningSeason" | "description" | "careRecommendations" | "lightRequirements" | "soilRecommendations" | "wateringRecommendations" | "fertilizingRecommendations" | "pruningRecommendations" | "transplantingRecommendations" | "harvestingRecommendations" | "generalCareRecommendations" | "imageUrl";
-type Num = "optimalTempMin" | "optimalTempMax" | "optimalHumidity" | "wateringFrequencyDays" | "humidityMin" | "humidityMax" | "fertilizingFrequencyDays" | "transplantingFrequencyMonths";
+type Txt = "name" | "scientificName" | "lifeCycle" | "pruningSeason" | "description" | "careRecommendations" | "lightRequirements" | "soilRecommendations" | "wateringRecommendations" | "fertilizingRecommendations" | "pruningRecommendations" | "transplantingRecommendations" | "sowingPlantingRecommendations" | "harvestingRecommendations" | "generalCareRecommendations" | "imageUrl";
+type Num = "optimalTempMin" | "optimalTempMax" | "optimalHumidity" | "wateringFrequencyDays" | "wateringCheckIntervalDays" | "humidityMin" | "humidityMax" | "fertilizingFrequencyDays" | "transplantingFrequencyMonths";
 const textFields: Array<[Txt, string, boolean]> = [
-  ["name", "Назва виду", false], ["scientificName", "Наукова назва", false], ["pruningSeason", "Сезон обрізки", false], ["imageUrl", "Посилання на зображення", false],
+  ["name", "Назва виду", false], ["scientificName", "Наукова назва", false], ["lifeCycle", "Життєвий цикл", false], ["pruningSeason", "Сезон обрізки", false], ["imageUrl", "Посилання на зображення", false],
   ["description", "Опис", true], ["lightRequirements", "Вимоги до освітлення", true], ["careRecommendations", "Загальний догляд (коротко)", true], ["generalCareRecommendations", "Розширені поради з догляду", true],
   ["soilRecommendations", "Ґрунт", true], ["wateringRecommendations", "Полив", true], ["fertilizingRecommendations", "Підживлення", true], ["pruningRecommendations", "Обрізка", true],
-  ["transplantingRecommendations", "Пересадка", true], ["harvestingRecommendations", "Збір урожаю", true],
+  ["transplantingRecommendations", "Пересадка", true], ["sowingPlantingRecommendations", "Посів / висаджування", true], ["harvestingRecommendations", "Збір урожаю", true],
 ];
 const numFields: Array<[Num, string, boolean]> = [
-  ["optimalTempMin", "Мін. температура, °C", true], ["optimalTempMax", "Макс. температура, °C", true], ["optimalHumidity", "Оптимальна вологість, %", true], ["wateringFrequencyDays", "Полив, днів між", true],
+  ["optimalTempMin", "Мін. температура, °C", false], ["optimalTempMax", "Макс. температура, °C", false], ["optimalHumidity", "Оптимальна вологість, %", false], ["wateringFrequencyDays", "Фіксований інтервал поливу, днів", false], ["wateringCheckIntervalDays", "Інтервал перевірки поливу, днів", false],
   ["humidityMin", "Вологість від, %", false], ["humidityMax", "Вологість до, %", false], ["fertilizingFrequencyDays", "Підживлення, днів між", false], ["transplantingFrequencyMonths", "Пересадка, місяців між", false],
 ];
-type RuleRow = { careType: SpeciesCareRule["careType"]; rain: string; wind: string; min: string; max: string; notes: string };
-type SrcRow = { sourceName: string; sourceUrl: string; retrievedAt: string; notes: string };
+type RuleRow = Omit<SpeciesCareRule, "rainThresholdMm" | "maxWindSpeedMps" | "minTemperature" | "maxTemperature" | "intervalDaysMin" | "intervalDaysMax" | "targetWaterMmWeekMin" | "targetWaterMmWeekMax"> & {
+  rain: string; wind: string; min: string; max: string; intervalMin: string; intervalMax: string; waterMin: string; waterMax: string;
+};
+type SrcRow = Omit<KnowledgeSource, "retrievedAt" | "sourceUrl"> & { retrievedAt: string; sourceUrl: string };
 const n2s = (v: number | null | undefined) => v == null ? "" : String(v);
 const s2n = (v: string) => v.trim() === "" ? null : Number(v);
 
@@ -32,7 +34,7 @@ export function SpeciesEditor({ species, onClose }: { species?: PlantSpecies | n
   const editId = species?.id ?? null;
   const knowledge = useGetSpeciesKnowledge(editId ?? 0, { query: { queryKey: getGetSpeciesKnowledgeQueryKey(editId ?? 0), enabled: editId !== null, retry: false } });
   const [txt, setTxt] = useState<Record<Txt, string>>(() => Object.fromEntries(textFields.map(([k]) => [k, (species?.[k] as string | null | undefined) ?? ""])) as Record<Txt, string>);
-  const [num, setNum] = useState<Record<Num, string>>(() => Object.fromEntries(numFields.map(([k, , req]) => [k, species ? n2s(species[k] as number | null | undefined) : req ? ({ optimalTempMin: "18", optimalTempMax: "28", optimalHumidity: "55", wateringFrequencyDays: "7" } as Record<string, string>)[k] ?? "" : ""])) as Record<Num, string>);
+  const [num, setNum] = useState<Record<Num, string>>(() => Object.fromEntries(numFields.map(([k]) => [k, n2s(species?.[k] as number | null | undefined)])) as Record<Num, string>);
   const [envs, setEnvs] = useState<string[]>(species?.suitableEnvironmentTypes ?? []);
   const [category, setCategory] = useState<PlantCategory | "">(species?.category ?? "");
   const [refinement, setRefinement] = useState<CareType[] | null>(species?.applicableCareTypes ?? null);
@@ -44,8 +46,8 @@ export function SpeciesEditor({ species, onClose }: { species?: PlantSpecies | n
   useEffect(() => {
     if (knowledge.data && !seeded.current) {
       seeded.current = true;
-      setRules(knowledge.data.careRules.map(r => ({ careType: r.careType, rain: n2s(r.rainThresholdMm), wind: n2s(r.maxWindSpeedMps), min: n2s(r.minTemperature), max: n2s(r.maxTemperature), notes: r.notes ?? "" })));
-      setSources(knowledge.data.sources.map(s => ({ sourceName: s.sourceName, sourceUrl: s.sourceUrl ?? "", retrievedAt: toDateInput(s.retrievedAt), notes: s.notes ?? "" })));
+      setRules(knowledge.data.careRules.map(r => ({ ...r, rain: n2s(r.rainThresholdMm), wind: n2s(r.maxWindSpeedMps), min: n2s(r.minTemperature), max: n2s(r.maxTemperature), intervalMin: n2s(r.intervalDaysMin), intervalMax: n2s(r.intervalDaysMax), waterMin: n2s(r.targetWaterMmWeekMin), waterMax: n2s(r.targetWaterMmWeekMax) })));
+      setSources(knowledge.data.sources.map(s => ({ ...s, sourceUrl: s.sourceUrl ?? "", retrievedAt: toDateInput(s.retrievedAt) })));
     }
   }, [knowledge.data]);
   const pending = create.isPending || update.isPending;
@@ -58,7 +60,6 @@ export function SpeciesEditor({ species, onClose }: { species?: PlantSpecies | n
     if (!txt.name.trim()) { setError("Вкажіть назву виду."); return; }
     if (!isCategory(category)) { setError("Оберіть категорію виду."); return; }
     if (rules.some(rule => !careTypes.includes(rule.careType))) { setError("Приберіть або змініть правила для виключених дій догляду."); return; }
-    for (const [k, label, req] of numFields) if (req && num[k].trim() === "") { setError(`Заповніть поле «${label}».`); return; }
     for (const [k, label] of numFields) if (num[k].trim() !== "" && !Number.isFinite(Number(num[k]))) { setError(`Поле «${label}» має бути числом.`); return; }
     if (sources.some(s => !s.sourceName.trim())) { setError("Вкажіть назву для кожного джерела."); return; }
     for (const s of sources) if (s.sourceUrl.trim() && !/^https?:\/\//i.test(s.sourceUrl.trim())) { setError("Посилання на джерело має починатися з http:// або https://."); return; }
@@ -68,15 +69,20 @@ export function SpeciesEditor({ species, onClose }: { species?: PlantSpecies | n
       ...(species ?? {}),
       name: txt.name.trim(), description: txt.description, careRecommendations: txt.careRecommendations, lightRequirements: txt.lightRequirements, soilRecommendations: txt.soilRecommendations,
       wateringRecommendations: txt.wateringRecommendations, fertilizingRecommendations: txt.fertilizingRecommendations, pruningRecommendations: txt.pruningRecommendations,
-      transplantingRecommendations: txt.transplantingRecommendations, imageUrl: txt.imageUrl,
-      scientificName: nullable(txt.scientificName), category, applicableCareTypes: refinement, pruningSeason: nullable(txt.pruningSeason),
-      harvestingRecommendations: nullable(txt.harvestingRecommendations), generalCareRecommendations: nullable(txt.generalCareRecommendations),
+      transplantingRecommendations: txt.transplantingRecommendations, sowingPlantingRecommendations: nullable(txt.sowingPlantingRecommendations), imageUrl: nullable(txt.imageUrl),
+      speciesCode: species?.speciesCode ?? null, scientificName: nullable(txt.scientificName), category, applicableCareTypes: refinement, pruningSeason: nullable(txt.pruningSeason),
+      lifeCycle: nullable(txt.lifeCycle), harvestingRecommendations: nullable(txt.harvestingRecommendations), generalCareRecommendations: nullable(txt.generalCareRecommendations),
       suitableEnvironmentTypes: envs.length ? envs : null,
-      optimalTempMin: Number(num.optimalTempMin), optimalTempMax: Number(num.optimalTempMax), optimalHumidity: Number(num.optimalHumidity), wateringFrequencyDays: Number(num.wateringFrequencyDays),
+      optimalTempMin: s2n(num.optimalTempMin), optimalTempMax: s2n(num.optimalTempMax), optimalHumidity: s2n(num.optimalHumidity), wateringFrequencyDays: s2n(num.wateringFrequencyDays), wateringCheckIntervalDays: s2n(num.wateringCheckIntervalDays),
+      targetWaterMmWeekMin: species?.targetWaterMmWeekMin ?? null, targetWaterMmWeekMax: species?.targetWaterMmWeekMax ?? null,
       humidityMin: s2n(num.humidityMin), humidityMax: s2n(num.humidityMax), fertilizingFrequencyDays: s2n(num.fertilizingFrequencyDays), transplantingFrequencyMonths: s2n(num.transplantingFrequencyMonths),
     };
-    const careRules: SpeciesCareRule[] = rules.map(r => ({ careType: r.careType, rainThresholdMm: s2n(r.rain), maxWindSpeedMps: s2n(r.wind), minTemperature: s2n(r.min), maxTemperature: s2n(r.max), notes: nullable(r.notes) }));
-    const srcs: KnowledgeSource[] = sources.map(s => ({ sourceName: s.sourceName.trim(), sourceUrl: nullable(s.sourceUrl), retrievedAt: s.retrievedAt || null, notes: nullable(s.notes) }));
+    const careRules: SpeciesCareRule[] = rules.map(r => ({
+      careType: r.careType, ruleCode: r.ruleCode, triggerDescription: r.triggerDescription, recommendedAction: r.recommendedAction,
+      intervalDaysMin: s2n(r.intervalMin), intervalDaysMax: s2n(r.intervalMax), targetWaterMmWeekMin: s2n(r.waterMin), targetWaterMmWeekMax: s2n(r.waterMax),
+      sourceCodes: r.sourceCodes, rainThresholdMm: s2n(r.rain), maxWindSpeedMps: s2n(r.wind), minTemperature: s2n(r.min), maxTemperature: s2n(r.max), notes: r.notes,
+    }));
+    const srcs: KnowledgeSource[] = sources.map(s => ({ ...s, sourceName: s.sourceName.trim(), sourceUrl: nullable(s.sourceUrl), retrievedAt: s.retrievedAt || null }));
     const finish = () => { q.invalidateQueries(); onClose(); };
     const fail = (err: unknown) => setError(errMsg(err, "Не вдалося зберегти вид."));
     const knowledgeData = { careRules, sources: srcs };
@@ -101,7 +107,7 @@ export function SpeciesEditor({ species, onClose }: { species?: PlantSpecies | n
       <div><p className={sec}>Підходящі середовища</p><div className="mt-2 flex flex-wrap gap-3">{environmentOptions.map(o => <label key={o.value} className="flex items-center gap-2 text-sm"><input type="checkbox" data-testid={`checkbox-species-env-${o.value}`} checked={envs.includes(o.value)} onChange={e => setEnvs(v => e.target.checked ? [...v, o.value] : v.filter(x => x !== o.value))} className="accent-primary" />{o.label}</label>)}</div></div>
       <div className="grid gap-3 sm:grid-cols-2">{textFields.filter(([, , area]) => area).map(([k, label]) => <label key={k} className="text-sm font-semibold">{label}<textarea data-testid={`input-species-${k}`} rows={2} value={txt[k]} onChange={e => setTxt({ ...txt, [k]: e.target.value })} className={inputCls} /></label>)}</div>
 
-      <div className="border-t border-border pt-5"><div className="flex items-center justify-between"><p className={sec}>Правила догляду за погодою</p><Btn variant="soft" disabled={!careTypes.length || rules.length >= 8} onClick={() => setRules(r => [...r, { careType: careTypes.find(type => !r.some(rule => rule.careType === type)) ?? careTypes[0], rain: "", wind: "", min: "", max: "", notes: "" }])} testId="button-add-rule"><Plus size={14} /> Правило</Btn></div>
+      <div className="border-t border-border pt-5"><div className="flex items-center justify-between"><p className={sec}>Правила догляду</p><Btn variant="soft" disabled={!careTypes.length || rules.length >= 8} onClick={() => setRules(r => [...r, { careType: careTypes.find(type => !r.some(rule => rule.careType === type)) ?? careTypes[0], ruleCode: null, triggerDescription: null, recommendedAction: null, intervalDaysMin: null, intervalDaysMax: null, targetWaterMmWeekMin: null, targetWaterMmWeekMax: null, sourceCodes: [], rainThresholdMm: null, maxWindSpeedMps: null, minTemperature: null, maxTemperature: null, notes: null, rain: "", wind: "", min: "", max: "", intervalMin: "", intervalMax: "", waterMin: "", waterMax: "" }])} testId="button-add-rule"><Plus size={14} /> Правило</Btn></div>
         {editId !== null && knowledge.isLoading && <div className="fw-skeleton mt-3 h-14 rounded-xl" />}
         {editId !== null && knowledge.error && <div className="mt-3"><Alert>Не вдалося завантажити поточні правила. Збереження вимкнено, щоб не стерти їх. <button type="button" className="font-semibold underline" onClick={() => knowledge.refetch()}>Повторити</button></Alert></div>}
         <div className="mt-3 space-y-3">{rules.map((r, i) => <div key={i} data-testid={`row-rule-${i}`} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-5">
@@ -110,17 +116,26 @@ export function SpeciesEditor({ species, onClose }: { species?: PlantSpecies | n
           <label className="text-xs font-semibold">Вітер, м/с<input type="number" min="0" step="any" value={r.wind} onChange={e => patchRule(i, { wind: e.target.value })} className={inputCls} /></label>
           <label className="text-xs font-semibold">Темп. від<input type="number" step="any" value={r.min} onChange={e => patchRule(i, { min: e.target.value })} className={inputCls} /></label>
           <label className="text-xs font-semibold">Темп. до<input type="number" step="any" value={r.max} onChange={e => patchRule(i, { max: e.target.value })} className={inputCls} /></label>
-          <label className="text-xs font-semibold sm:col-span-4">Нотатки<input value={r.notes} onChange={e => patchRule(i, { notes: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold sm:col-span-2">Умова<textarea value={r.triggerDescription ?? ""} onChange={e => patchRule(i, { triggerDescription: e.target.value || null })} className={inputCls} /></label>
+          <label className="text-xs font-semibold sm:col-span-2">Рекомендована дія<textarea value={r.recommendedAction ?? ""} onChange={e => patchRule(i, { recommendedAction: e.target.value || null })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Інтервал від, днів<input type="number" min="1" value={r.intervalMin} onChange={e => patchRule(i, { intervalMin: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Інтервал до, днів<input type="number" min="1" value={r.intervalMax} onChange={e => patchRule(i, { intervalMax: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Вода від, мм/тиждень<input type="number" min="0" step="any" value={r.waterMin} onChange={e => patchRule(i, { waterMin: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Вода до, мм/тиждень<input type="number" min="0" step="any" value={r.waterMax} onChange={e => patchRule(i, { waterMax: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold sm:col-span-4">Нотатки<input value={r.notes ?? ""} onChange={e => patchRule(i, { notes: e.target.value || null })} className={inputCls} /></label>
           <div className="flex items-end justify-end"><Btn variant="danger" onClick={() => setRules(x => x.filter((_, k) => k !== i))}><Trash2 size={14} /></Btn></div>
         </div>)}</div>
       </div>
 
-      <div className="border-t border-border pt-5"><div className="flex items-center justify-between"><p className={sec}>Джерела</p><Btn variant="soft" onClick={() => setSources(r => [...r, { sourceName: "", sourceUrl: "", retrievedAt: "", notes: "" }])} testId="button-add-source"><Plus size={14} /> Джерело</Btn></div>
+      <div className="border-t border-border pt-5"><div className="flex items-center justify-between"><p className={sec}>Джерела</p><Btn variant="soft" onClick={() => setSources(r => [...r, { sourceCode: null, sourceName: "", organization: null, subject: null, sourceUrl: "", retrievedAt: "", notes: null, citation: null }])} testId="button-add-source"><Plus size={14} /> Джерело</Btn></div>
         <div className="mt-3 space-y-3">{sources.map((s, i) => <div key={i} data-testid={`row-source-${i}`} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-2">
           <label className="text-xs font-semibold">Назва джерела<input value={s.sourceName} onChange={e => patchSrc(i, { sourceName: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Організація<input value={s.organization ?? ""} onChange={e => patchSrc(i, { organization: e.target.value || null })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Тема<input value={s.subject ?? ""} onChange={e => patchSrc(i, { subject: e.target.value || null })} className={inputCls} /></label>
           <label className="text-xs font-semibold">Посилання (необов’язково)<input value={s.sourceUrl} onChange={e => patchSrc(i, { sourceUrl: e.target.value })} placeholder="https://…" className={inputCls} /></label>
           <label className="text-xs font-semibold">Дата отримання<input type="date" value={s.retrievedAt} onChange={e => patchSrc(i, { retrievedAt: e.target.value })} className={inputCls} /></label>
-          <label className="text-xs font-semibold">Нотатки<input value={s.notes} onChange={e => patchSrc(i, { notes: e.target.value })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Цитування<input value={s.citation ?? ""} onChange={e => patchSrc(i, { citation: e.target.value || null })} className={inputCls} /></label>
+          <label className="text-xs font-semibold">Нотатки<input value={s.notes ?? ""} onChange={e => patchSrc(i, { notes: e.target.value || null })} className={inputCls} /></label>
           <div className="flex justify-end sm:col-span-2"><Btn variant="danger" onClick={() => setSources(x => x.filter((_, k) => k !== i))}><Trash2 size={14} /> Прибрати</Btn></div>
         </div>)}</div>
       </div>

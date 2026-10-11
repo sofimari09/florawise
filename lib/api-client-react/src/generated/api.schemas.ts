@@ -85,6 +85,33 @@ export const CareType = {
 
 export interface SpeciesCareRule {
   careType: CareType;
+  /** @nullable */
+  ruleCode: string | null;
+  /** @nullable */
+  triggerDescription: string | null;
+  /** @nullable */
+  recommendedAction: string | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  intervalDaysMin: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  intervalDaysMax: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  targetWaterMmWeekMin: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  targetWaterMmWeekMax: number | null;
+  sourceCodes: string[];
   /**
      * @minimum 0
      * @nullable
@@ -104,14 +131,22 @@ export interface SpeciesCareRule {
 }
 
 export interface KnowledgeSource {
+  /** @nullable */
+  sourceCode: string | null;
   /** @minLength 1 */
   sourceName: string;
+  /** @nullable */
+  organization: string | null;
+  /** @nullable */
+  subject: string | null;
   /** @nullable */
   sourceUrl: string | null;
   /** @nullable */
   retrievedAt: string | null;
   /** @nullable */
   notes: string | null;
+  /** @nullable */
+  citation: string | null;
 }
 
 export interface SpeciesKnowledgeInput {
@@ -176,46 +211,63 @@ export interface ProfileWeatherLocationInput {
 
 export interface PlantSpecies {
   id: number;
+  /** @nullable */
+  speciesCode: string | null;
   name: string;
   /** @nullable */
-  scientificName?: string | null;
+  scientificName: string | null;
+  /** @nullable */
+  lifeCycle: string | null;
   category: PlantCategory;
   /**
      * Null inherits category defaults; an explicit empty array disables all activities.
      * @nullable
      */
-  applicableCareTypes?: CareType[] | null;
-  readonly allowedCareTypes?: readonly CareType[];
-  readonly categoryLabel?: string;
+  applicableCareTypes: CareType[] | null;
+  readonly allowedCareTypes: readonly CareType[];
+  readonly categoryLabel: string;
   /** @nullable */
-  suitableEnvironmentTypes?: string[] | null;
+  suitableEnvironmentTypes: string[] | null;
   /** @nullable */
-  humidityMin?: number | null;
+  wateringCheckIntervalDays: number | null;
   /** @nullable */
-  humidityMax?: number | null;
+  targetWaterMmWeekMin: number | null;
   /** @nullable */
-  fertilizingFrequencyDays?: number | null;
+  targetWaterMmWeekMax: number | null;
   /** @nullable */
-  pruningSeason?: string | null;
+  sowingPlantingRecommendations: string | null;
   /** @nullable */
-  transplantingFrequencyMonths?: number | null;
+  humidityMin: number | null;
   /** @nullable */
-  harvestingRecommendations?: string | null;
+  humidityMax: number | null;
   /** @nullable */
-  generalCareRecommendations?: string | null;
+  fertilizingFrequencyDays: number | null;
+  /** @nullable */
+  pruningSeason: string | null;
+  /** @nullable */
+  transplantingFrequencyMonths: number | null;
+  /** @nullable */
+  harvestingRecommendations: string | null;
+  /** @nullable */
+  generalCareRecommendations: string | null;
   description: string;
   careRecommendations: string;
-  optimalTempMin: number;
-  optimalTempMax: number;
-  optimalHumidity: number;
-  wateringFrequencyDays: number;
+  /** @nullable */
+  optimalTempMin: number | null;
+  /** @nullable */
+  optimalTempMax: number | null;
+  /** @nullable */
+  optimalHumidity: number | null;
+  /** @nullable */
+  wateringFrequencyDays: number | null;
   lightRequirements: string;
   soilRecommendations: string;
   wateringRecommendations: string;
   fertilizingRecommendations: string;
   pruningRecommendations: string;
   transplantingRecommendations: string;
-  imageUrl: string;
+  /** @nullable */
+  imageUrl: string | null;
 }
 
 export type SpeciesInput = PlantSpecies & {

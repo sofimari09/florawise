@@ -10,7 +10,7 @@ const date = (offset = 0) => new Date(Date.now() + offset * 86400000).toISOStrin
 const species = { id: 1, name: "Тестовий вид", category: "INDOOR_DECORATIVE", applicableCareTypes: null, careRevision: 0, optimalTempMin: "18", optimalTempMax: "28", wateringFrequencyDays: 7, careRecommendations: "Перевірте ґрунт.", generalCareRecommendations: null } as PlantSpecies;
 const task = (overrides: Partial<CareTask> = {}): CareTask => ({ id: 1, plantId: 1, type: "WATERING", scheduledDate: date(), status: "PLANNED", priority: "MEDIUM", notes: "", createdAt: new Date(), postponementCount: 0, ...overrides });
 const forecast = [{ date: date(), temperature: 22, precipitation: 10, humidity: 60, windSpeed: 3, condition: "Дощ" }, { date: date(1), temperature: 22, precipitation: 0, humidity: 55, windSpeed: 2, condition: "Ясно" }];
-const rule = (overrides: Partial<SpeciesCareRule>): SpeciesCareRule => ({ id: 1, speciesId: 1, careType: "WATERING", rainThresholdMm: null, maxWindSpeedMps: null, minTemperature: null, maxTemperature: null, notes: null, ...overrides });
+const rule = (overrides: Partial<SpeciesCareRule>): SpeciesCareRule => ({ id: 1, speciesId: 1, careType: "WATERING", rainThresholdMm: null, maxWindSpeedMps: null, minTemperature: null, maxTemperature: null, notes: null, ruleCode: null, triggerDescription: null, recommendedAction: null, intervalDaysMin: null, intervalDaysMax: null, targetWaterMmWeekMin: null, targetWaterMmWeekMax: null, ...overrides });
 
 test("outdoor rain proposes a date; indoor and greenhouse rain do not", () => {
   assert.equal(generateRules(species, [task()], forecast, "Львів", "OUTDOOR", null)[0].type, "WEATHER_RESCHEDULE");
@@ -58,6 +58,14 @@ test("species thresholds are explained and affect advice even without planned ta
   const indoor = generateRules(species, [], forecast, "Львів", "INDOOR", null, [rule({ rainThresholdMm: "0.5" })])[0];
   assert.equal(indoor.priority, "LOW");
   assert.match(indoor.explanation, /Зовнішній прогноз не використано/);
+});
+test("condition-based watering does not turn an old fixed interval into overdue advice", () => {
+  const conditionRule = rule({ triggerDescription: "Верхній шар ґрунту підсох", recommendedAction: "Перевірити вологість перед поливом" });
+  const result = generateRules(species, [], forecast, "Львів", "INDOOR", date(-30), [conditionRule])[0];
+  assert.equal(result.priority, "LOW");
+  assert.match(result.explanation, /Умова виду: Верхній шар ґрунту підсох/);
+  assert.match(result.explanation, /автоматичне прострочення за фіксованою частотою не застосовано/);
+  assert.doesNotMatch(result.explanation, /інтервал виду — 7 дн/);
 });
 test("mock weather is deterministic and location-aware", async () => {
   const service = new MockWeatherService();

@@ -71,10 +71,10 @@ export async function seedData(): Promise<void> {
     role: "ADMIN",
   });
   const plants = await db.insert(plantsTable).values([
-    { userId: user.id, speciesId: insertedSpecies[0].id, name: "Монстера біля вікна", personalName: "Монстера біля вікна", location: "Балкон", photoUrl: insertedSpecies[0].imageUrl },
-    { userId: user.id, speciesId: insertedSpecies[3].id, name: "Біла орхідея", personalName: "Біла орхідея", location: "Вітальня", photoUrl: insertedSpecies[3].imageUrl },
-    { userId: user.id, speciesId: insertedSpecies[4].id, name: "Томати на грядці", personalName: "Томати на грядці", location: "Сад", photoUrl: insertedSpecies[4].imageUrl },
-    { userId: user.id, speciesId: insertedSpecies[8].id, name: "Базилік для кухні", personalName: "Базилік для кухні", location: "Підвіконня", photoUrl: insertedSpecies[8].imageUrl },
+    { userId: user.id, speciesId: insertedSpecies[0].id, name: "Монстера біля вікна", personalName: "Монстера біля вікна", location: "Балкон", photoUrl: insertedSpecies[0].imageUrl ?? "" },
+    { userId: user.id, speciesId: insertedSpecies[3].id, name: "Біла орхідея", personalName: "Біла орхідея", location: "Вітальня", photoUrl: insertedSpecies[3].imageUrl ?? "" },
+    { userId: user.id, speciesId: insertedSpecies[4].id, name: "Томати на грядці", personalName: "Томати на грядці", location: "Сад", photoUrl: insertedSpecies[4].imageUrl ?? "" },
+    { userId: user.id, speciesId: insertedSpecies[8].id, name: "Базилік для кухні", personalName: "Базилік для кухні", location: "Підвіконня", photoUrl: insertedSpecies[8].imageUrl ?? "" },
   ]).returning();
   const tasks = await db.insert(tasksTable).values([
     { plantId: plants[0].id, type: "WATERING", scheduledDate: date(1), priority: "HIGH", notes: "Перевірити верхній шар ґрунту" },
