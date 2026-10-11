@@ -763,20 +763,32 @@ components:
       type: object
       properties:
         careType: { $ref: "#/components/schemas/CareType" }
+        ruleCode: { type: [string, "null"] }
+        triggerDescription: { type: [string, "null"] }
+        recommendedAction: { type: [string, "null"] }
+        intervalDaysMin: { type: [integer, "null"], minimum: 1 }
+        intervalDaysMax: { type: [integer, "null"], minimum: 1 }
+        targetWaterMmWeekMin: { type: [number, "null"], minimum: 0 }
+        targetWaterMmWeekMax: { type: [number, "null"], minimum: 0 }
+        sourceCodes: { type: array, items: { type: string } }
         rainThresholdMm: { type: [number, "null"], minimum: 0 }
         maxWindSpeedMps: { type: [number, "null"], minimum: 0 }
         minTemperature: { type: [number, "null"] }
         maxTemperature: { type: [number, "null"] }
         notes: { type: [string, "null"] }
-      required: [careType, rainThresholdMm, maxWindSpeedMps, minTemperature, maxTemperature, notes]
+      required: [careType, ruleCode, triggerDescription, recommendedAction, intervalDaysMin, intervalDaysMax, targetWaterMmWeekMin, targetWaterMmWeekMax, sourceCodes, rainThresholdMm, maxWindSpeedMps, minTemperature, maxTemperature, notes]
     KnowledgeSource:
       type: object
       properties:
+        sourceCode: { type: [string, "null"] }
         sourceName: { type: string, minLength: 1 }
+        organization: { type: [string, "null"] }
+        subject: { type: [string, "null"] }
         sourceUrl: { type: [string, "null"] }
         retrievedAt: { type: [string, "null"] }
         notes: { type: [string, "null"] }
-      required: [sourceName, sourceUrl, retrievedAt, notes]
+        citation: { type: [string, "null"] }
+      required: [sourceCode, sourceName, organization, subject, sourceUrl, retrievedAt, notes, citation]
     SpeciesKnowledgeInput:
       type: object
       properties:
@@ -827,8 +839,10 @@ components:
       type: object
       properties:
         id: { type: integer }
+        speciesCode: { type: [string, "null"] }
         name: { type: string }
         scientificName: { type: [string, "null"] }
+        lifeCycle: { type: [string, "null"] }
         category: { $ref: "#/components/schemas/PlantCategory" }
         applicableCareTypes:
           type: [array, "null"]
@@ -841,6 +855,10 @@ components:
           items: { $ref: "#/components/schemas/CareType" }
         categoryLabel: { type: string, readOnly: true }
         suitableEnvironmentTypes: { type: [array, "null"], items: { type: string } }
+        wateringCheckIntervalDays: { type: [integer, "null"] }
+        targetWaterMmWeekMin: { type: [number, "null"] }
+        targetWaterMmWeekMax: { type: [number, "null"] }
+        sowingPlantingRecommendations: { type: [string, "null"] }
         humidityMin: { type: [integer, "null"] }
         humidityMax: { type: [integer, "null"] }
         fertilizingFrequencyDays: { type: [integer, "null"] }
@@ -850,18 +868,18 @@ components:
         generalCareRecommendations: { type: [string, "null"] }
         description: { type: string }
         careRecommendations: { type: string }
-        optimalTempMin: { type: number }
-        optimalTempMax: { type: number }
-        optimalHumidity: { type: number }
-        wateringFrequencyDays: { type: integer }
+        optimalTempMin: { type: [number, "null"] }
+        optimalTempMax: { type: [number, "null"] }
+        optimalHumidity: { type: [number, "null"] }
+        wateringFrequencyDays: { type: [integer, "null"] }
         lightRequirements: { type: string }
         soilRecommendations: { type: string }
         wateringRecommendations: { type: string }
         fertilizingRecommendations: { type: string }
         pruningRecommendations: { type: string }
         transplantingRecommendations: { type: string }
-        imageUrl: { type: string }
-      required: [id, name, category, description, careRecommendations, optimalTempMin, optimalTempMax, optimalHumidity, wateringFrequencyDays, lightRequirements, soilRecommendations, wateringRecommendations, fertilizingRecommendations, pruningRecommendations, transplantingRecommendations, imageUrl]
+        imageUrl: { type: [string, "null"] }
+      required: [id, speciesCode, name, scientificName, lifeCycle, category, applicableCareTypes, allowedCareTypes, categoryLabel, suitableEnvironmentTypes, wateringCheckIntervalDays, targetWaterMmWeekMin, targetWaterMmWeekMax, sowingPlantingRecommendations, humidityMin, humidityMax, fertilizingFrequencyDays, pruningSeason, transplantingFrequencyMonths, harvestingRecommendations, generalCareRecommendations, description, careRecommendations, optimalTempMin, optimalTempMax, optimalHumidity, wateringFrequencyDays, lightRequirements, soilRecommendations, wateringRecommendations, fertilizingRecommendations, pruningRecommendations, transplantingRecommendations, imageUrl]
     SpeciesInput:
       allOf:
         - $ref: "#/components/schemas/PlantSpecies"

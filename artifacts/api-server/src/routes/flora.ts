@@ -16,6 +16,8 @@ import {
   plantPlacesTable,
   savedLocationsTable,
   speciesCareRulesTable,
+  speciesCareRuleSourcesTable,
+  speciesKnowledgeSourcesTable,
   knowledgeSourcesTable,
   type PlantSpecies,
   type CareTask,
@@ -77,21 +79,22 @@ const hasValidWeatherOverride = (value: {
 };
 const dbCoordinate = (value: number | null | undefined) =>
   value === undefined ? undefined : value === null ? null : String(value);
+const optionalNumber = z.preprocess(value => value === "" || value === undefined ? null : value, z.coerce.number().nullable());
 const speciesInput = z.object({
   name: z.string().trim().min(1),
   description: z.string(),
   careRecommendations: z.string(),
-  optimalTempMin: z.coerce.number(),
-  optimalTempMax: z.coerce.number(),
-  optimalHumidity: z.coerce.number().min(0).max(100),
-  wateringFrequencyDays: z.coerce.number().int().positive(),
+  optimalTempMin: optionalNumber,
+  optimalTempMax: optionalNumber,
+  optimalHumidity: z.preprocess(value => value === "" || value === undefined || value === null ? null : value, z.coerce.number().min(0).max(100).nullable()),
+  wateringFrequencyDays: z.preprocess(value => value === "" || value === undefined || value === null ? null : value, z.coerce.number().int().positive().nullable()),
   lightRequirements: z.string(),
   soilRecommendations: z.string(),
   wateringRecommendations: z.string(),
   fertilizingRecommendations: z.string(),
   pruningRecommendations: z.string(),
   transplantingRecommendations: z.string(),
-  imageUrl: z.string().url().or(z.literal("")),
+  imageUrl: z.preprocess(value => value === "" || value === undefined ? null : value, z.string().url().nullable()),
   scientificName: z.string().trim().nullable().optional(),
   category: z.enum(PLANT_CATEGORIES),
   applicableCareTypes: z.array(z.enum(CARE_TYPES)).nullable().optional(),
@@ -141,8 +144,10 @@ async function mapSpecies(species: PlantSpecies) {
     ...species,
     allowedCareTypes: allowedCareTypes(species),
     categoryLabel: isCategory(species.category) ? CATEGORY_LABELS[species.category] : "Потрібна класифікація",
-    optimalTempMin: Number(species.optimalTempMin),
-    optimalTempMax: Number(species.optimalTempMax),
+    optimalTempMin: species.optimalTempMin === null ? null : Number(species.optimalTempMin),
+    optimalTempMax: species.optimalTempMax === null ? null : Number(species.optimalTempMax),
+    targetWaterMmWeekMin: species.targetWaterMmWeekMin === null ? null : Number(species.targetWaterMmWeekMin),
+    targetWaterMmWeekMax: species.targetWaterMmWeekMax === null ? null : Number(species.targetWaterMmWeekMax),
   };
 }
 
@@ -252,7 +257,7 @@ router.post("/species", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: "Перевірте параметри виду рослини" }); return; }
   const user = await currentUser(req);
   if (!user || user.role !== "ADMIN") { res.status(403).json({ error: "Недостатньо прав" }); return; }
-  if (parsed.data.optimalTempMin > parsed.data.optimalTempMax || parsed.data.humidityMin != null && parsed.data.humidityMax != null && parsed.data.humidityMin > parsed.data.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
+  if (parsed.data.optimalTempMin != null && parsed.data.optimalTempMax != null && parsed.data.optimalTempMin > parsed.data.optimalTempMax || parsed.data.humidityMin != null && parsed.data.humidityMax != null && parsed.data.humidityMin > parsed.data.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
   const error = applicabilityError(parsed.data);
   if (error) { res.status(400).json({ error }); return; }
   const { knowledge, ...data } = parsed.data;
@@ -261,7 +266,13 @@ router.post("/species", async (req, res): Promise<void> => {
       const error = eligibilityError(data, rule.careType);
       if (error) throw new CareEligibilityError(error);
     }
-    const [created] = await tx.insert(speciesTable).values({ ...data, optimalTempMin: String(data.optimalTempMin), optimalTempMax: String(data.optimalTempMax) }).returning();
+    const [created] = await tx.insert(speciesTable).values({
+      ...data,
+      optimalTempMin: dbCoordinate(data.optimalTempMin),
+      optimalTempMax: dbCoordinate(data.optimalTempMax),
+      optimalHumidity: data.optimalHumidity,
+      wateringFrequencyDays: data.wateringFrequencyDays,
+    }).returning();
     if (knowledge) await writeSpeciesKnowledge(tx, created.id, knowledge);
     return created;
   });
@@ -276,9 +287,9 @@ router.patch("/species/:id", async (req, res): Promise<void> => {
   const [existing] = await db.select().from(speciesTable).where(eq(speciesTable.id, idFrom(req)));
   if (!existing) { res.status(404).json({ error: "Вид не знайдено" }); return; }
   const merged = { ...existing, ...parsed.data };
-  if (Number(merged.optimalTempMin) > Number(merged.optimalTempMax) || merged.humidityMin != null && merged.humidityMax != null && merged.humidityMin > merged.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
+  if (merged.optimalTempMin != null && merged.optimalTempMax != null && Number(merged.optimalTempMin) > Number(merged.optimalTempMax) || merged.humidityMin != null && merged.humidityMax != null && merged.humidityMin > merged.humidityMax) { res.status(400).json({ error: "Мінімальне значення не може перевищувати максимальне" }); return; }
   const { knowledge, ...data } = parsed.data;
-  const values = { ...data, ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: String(parsed.data.optimalTempMin) }), ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: String(parsed.data.optimalTempMax) }) } as Partial<typeof speciesTable.$inferInsert>;
+  const values = { ...data, ...(parsed.data.optimalTempMin === undefined ? {} : { optimalTempMin: dbCoordinate(parsed.data.optimalTempMin) }), ...(parsed.data.optimalTempMax === undefined ? {} : { optimalTempMax: dbCoordinate(parsed.data.optimalTempMax) }) } as Partial<typeof speciesTable.$inferInsert>;
   const updated = await db.transaction(async tx => {
     const [current] = await tx.select().from(speciesTable).where(eq(speciesTable.id, idFrom(req))).for("update");
     if (!current) throw new CareEligibilityError("Вид більше не існує. Оновіть довідник");
@@ -375,31 +386,115 @@ async function careSnapshot(plant: typeof plantsTable.$inferSelect, context: Car
 const knowledgeInput = z.object({
   careRules: z.array(z.object({
     careType: z.enum(CARE_TYPES),
+    ruleCode: z.string().nullable().optional(),
+    triggerDescription: z.string().nullable().optional(),
+    recommendedAction: z.string().nullable().optional(),
+    intervalDaysMin: z.number().int().positive().nullable().optional(),
+    intervalDaysMax: z.number().int().positive().nullable().optional(),
+    targetWaterMmWeekMin: z.number().min(0).nullable().optional(),
+    targetWaterMmWeekMax: z.number().min(0).nullable().optional(),
+    sourceCodes: z.array(z.string().min(1)).default([]),
     rainThresholdMm: z.number().min(0).nullable(),
     maxWindSpeedMps: z.number().min(0).nullable(),
     minTemperature: z.number().nullable(),
     maxTemperature: z.number().nullable(),
     notes: z.string().nullable(),
-  }).refine(rule => rule.minTemperature === null || rule.maxTemperature === null || rule.minTemperature <= rule.maxTemperature)).max(8),
+  }).refine(rule => rule.minTemperature === null || rule.maxTemperature === null || rule.minTemperature <= rule.maxTemperature)
+    .refine(rule => rule.intervalDaysMin == null || rule.intervalDaysMax == null || rule.intervalDaysMin <= rule.intervalDaysMax)
+    .refine(rule => rule.targetWaterMmWeekMin == null || rule.targetWaterMmWeekMax == null || rule.targetWaterMmWeekMin <= rule.targetWaterMmWeekMax)).max(8),
   sources: z.array(z.object({
+    sourceCode: z.string().nullable().optional(),
     sourceName: z.string().trim().min(1), sourceUrl: z.string().url().refine(url => /^https?:\/\//.test(url)).nullable(),
+    organization: z.string().nullable().optional(), subject: z.string().nullable().optional(), citation: z.string().nullable().optional(),
     retrievedAt: z.union([z.iso.datetime({ offset: true }), dates.refine(date => !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date)]).nullable(), notes: z.string().nullable(),
-  })).max(20),
-}).refine(value => new Set(value.careRules.map(rule => rule.careType)).size === value.careRules.length);
+  }).refine(value => value.sourceCode == null || value.sourceCode.length > 0)).max(100),
+}).refine(value => new Set(value.careRules.map(rule => rule.careType)).size === value.careRules.length)
+  .refine(value => {
+    const codes = value.sources.flatMap(source => source.sourceCode ? [source.sourceCode] : []);
+    return new Set(codes).size === codes.length;
+  });
 
 type FloraTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function writeSpeciesKnowledge(tx: FloraTransaction, speciesId: number, data: z.infer<typeof knowledgeInput>) {
   await tx.delete(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, speciesId));
-  if (data.careRules.length) await tx.insert(speciesCareRulesTable).values(data.careRules.map(rule => ({ ...rule, speciesId, rainThresholdMm: dbCoordinate(rule.rainThresholdMm), maxWindSpeedMps: dbCoordinate(rule.maxWindSpeedMps), minTemperature: dbCoordinate(rule.minTemperature), maxTemperature: dbCoordinate(rule.maxTemperature) })));
-  await tx.delete(knowledgeSourcesTable).where(eq(knowledgeSourcesTable.speciesId, speciesId));
-  if (data.sources.length) await tx.insert(knowledgeSourcesTable).values(data.sources.map(source => ({ ...source, speciesId, retrievedAt: source.retrievedAt ? new Date(source.retrievedAt) : null })));
+  await tx.delete(speciesKnowledgeSourcesTable).where(eq(speciesKnowledgeSourcesTable.speciesId, speciesId));
+  const savedSources = [];
+  for (const source of data.sources) {
+    const sourceValues = {
+      ...source, speciesId: null, retrievedAt: source.retrievedAt ? new Date(source.retrievedAt) : null,
+    };
+    const [savedSource] = source.sourceCode
+      ? await tx.insert(knowledgeSourcesTable).values(sourceValues).onConflictDoUpdate({
+        target: knowledgeSourcesTable.sourceCode,
+        set: {
+          sourceName: source.sourceName,
+          organization: source.organization ?? null,
+          subject: source.subject ?? null,
+          sourceUrl: source.sourceUrl,
+          retrievedAt: sourceValues.retrievedAt,
+          notes: source.notes,
+          citation: source.citation ?? null,
+        },
+      }).returning({ id: knowledgeSourcesTable.id, sourceCode: knowledgeSourcesTable.sourceCode })
+      : await tx.insert(knowledgeSourcesTable).values(sourceValues).returning({ id: knowledgeSourcesTable.id, sourceCode: knowledgeSourcesTable.sourceCode });
+    savedSources.push(savedSource);
+  }
+  if (savedSources.length) await tx.insert(speciesKnowledgeSourcesTable).values(savedSources.map(source => ({ speciesId, sourceId: source.id })));
+  const sourcesByCode = new Map(savedSources.flatMap(source => source.sourceCode ? [[source.sourceCode, source.id] as const] : []));
+  for (const rule of data.careRules) {
+    const [savedRule] = await tx.insert(speciesCareRulesTable).values({
+      ...rule, speciesId,
+      rainThresholdMm: dbCoordinate(rule.rainThresholdMm),
+      maxWindSpeedMps: dbCoordinate(rule.maxWindSpeedMps),
+      minTemperature: dbCoordinate(rule.minTemperature),
+      maxTemperature: dbCoordinate(rule.maxTemperature),
+      targetWaterMmWeekMin: dbCoordinate(rule.targetWaterMmWeekMin),
+      targetWaterMmWeekMax: dbCoordinate(rule.targetWaterMmWeekMax),
+    }).returning({ id: speciesCareRulesTable.id });
+    const sourceIds = rule.sourceCodes.flatMap(code => {
+      const id = sourcesByCode.get(code);
+      if (id === undefined) throw new Error(`Джерело ${code} не прив'язане до виду ${speciesId}`);
+      return [id];
+    });
+    if (sourceIds.length) await tx.insert(speciesCareRuleSourcesTable).values(sourceIds.map(sourceId => ({ careRuleId: savedRule.id, sourceId })));
+  }
 }
 
 async function speciesKnowledge(speciesId: number) {
   const rules = await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, speciesId)).orderBy(speciesCareRulesTable.careType);
-  const sources = await db.select().from(knowledgeSourcesTable).where(eq(knowledgeSourcesTable.speciesId, speciesId)).orderBy(knowledgeSourcesTable.id);
+  const sources = await db.select({
+    id: knowledgeSourcesTable.id,
+    sourceCode: knowledgeSourcesTable.sourceCode,
+    sourceName: knowledgeSourcesTable.sourceName,
+    organization: knowledgeSourcesTable.organization,
+    subject: knowledgeSourcesTable.subject,
+    sourceUrl: knowledgeSourcesTable.sourceUrl,
+    retrievedAt: knowledgeSourcesTable.retrievedAt,
+    notes: knowledgeSourcesTable.notes,
+    citation: knowledgeSourcesTable.citation,
+  }).from(speciesKnowledgeSourcesTable)
+    .innerJoin(knowledgeSourcesTable, eq(knowledgeSourcesTable.id, speciesKnowledgeSourcesTable.sourceId))
+    .where(eq(speciesKnowledgeSourcesTable.speciesId, speciesId))
+    .orderBy(knowledgeSourcesTable.id);
+  const ruleSources = rules.length ? await db.select({
+    careRuleId: speciesCareRuleSourcesTable.careRuleId,
+    sourceCode: knowledgeSourcesTable.sourceCode,
+  }).from(speciesCareRuleSourcesTable)
+    .innerJoin(knowledgeSourcesTable, eq(knowledgeSourcesTable.id, speciesCareRuleSourcesTable.sourceId))
+    .where(inArray(speciesCareRuleSourcesTable.careRuleId, rules.map(rule => rule.id))) : [];
+  const sourceCodesByRule = new Map<number, string[]>();
+  for (const link of ruleSources) if (link.sourceCode) sourceCodesByRule.set(link.careRuleId, [...(sourceCodesByRule.get(link.careRuleId) ?? []), link.sourceCode]);
   return {
-    careRules: rules.map(rule => ({ ...rule, rainThresholdMm: rule.rainThresholdMm === null ? null : Number(rule.rainThresholdMm), maxWindSpeedMps: rule.maxWindSpeedMps === null ? null : Number(rule.maxWindSpeedMps), minTemperature: rule.minTemperature === null ? null : Number(rule.minTemperature), maxTemperature: rule.maxTemperature === null ? null : Number(rule.maxTemperature) })),
+    careRules: rules.map(rule => ({
+      ...rule,
+      rainThresholdMm: rule.rainThresholdMm === null ? null : Number(rule.rainThresholdMm),
+      maxWindSpeedMps: rule.maxWindSpeedMps === null ? null : Number(rule.maxWindSpeedMps),
+      minTemperature: rule.minTemperature === null ? null : Number(rule.minTemperature),
+      maxTemperature: rule.maxTemperature === null ? null : Number(rule.maxTemperature),
+      targetWaterMmWeekMin: rule.targetWaterMmWeekMin === null ? null : Number(rule.targetWaterMmWeekMin),
+      targetWaterMmWeekMax: rule.targetWaterMmWeekMax === null ? null : Number(rule.targetWaterMmWeekMax),
+      sourceCodes: sourceCodesByRule.get(rule.id) ?? [],
+    })),
     sources: sources.map(source => ({ ...source, retrievedAt: source.retrievedAt?.toISOString() ?? null })),
   };
 }

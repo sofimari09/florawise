@@ -4,8 +4,16 @@ export const PLANT_CATEGORIES = ["INDOOR_DECORATIVE", "OUTDOOR_DECORATIVE", "FRU
 export type PlantCategory = typeof PLANT_CATEGORIES[number];
 export const CATEGORY_LABELS: Record<PlantCategory, string> = {
   INDOOR_DECORATIVE: "Кімнатна декоративна", OUTDOOR_DECORATIVE: "Садова декоративна",
-  FRUIT_TREE: "Плодове дерево", BERRY_SHRUB: "Ягідний кущ",
+  FRUIT_TREE: "Плодове дерево", BERRY_SHRUB: "Ягідна культура",
   VEGETABLE: "Овочева культура", HERB: "Зелень / пряна культура",
+};
+export const CATEGORY_NOTES: Record<PlantCategory, string> = {
+  INDOOR_DECORATIVE: "Кімнатні декоративні рослини. Зовнішні опади не повинні автоматично впливати на полив.",
+  OUTDOOR_DECORATIVE: "Садові декоративні рослини; погодні умови можуть впливати на полив, обрізку та обробку.",
+  FRUIT_TREE: "Плодові дерева; збір урожаю та обрізка є релевантними видами робіт.",
+  BERRY_SHRUB: "Прикладна категорія FloraWise для ягідних культур; не є ботанічною класифікацією.",
+  VEGETABLE: "Овочеві культури з посівом/висаджуванням і збором урожаю.",
+  HERB: "Пряні та листові культури, для яких основні роботи — посів, полив, підживлення і збір.",
 };
 export const CARE_LABELS: Record<CareType, string> = {
   WATERING: "Полив", FERTILIZING: "Підживлення", PRUNING: "Обрізка", TRANSPLANTING: "Пересадка",
@@ -15,7 +23,7 @@ export const CATEGORY_DEFAULTS: Record<PlantCategory, readonly CareType[]> = {
   INDOOR_DECORATIVE: ["WATERING", "FERTILIZING", "PRUNING", "TRANSPLANTING", "TREATMENT"],
   OUTDOOR_DECORATIVE: ["WATERING", "FERTILIZING", "PRUNING", "TRANSPLANTING", "TREATMENT"],
   FRUIT_TREE: ["WATERING", "FERTILIZING", "PRUNING", "TREATMENT", "HARVEST"],
-  BERRY_SHRUB: ["WATERING", "FERTILIZING", "PRUNING", "TREATMENT", "HARVEST"],
+  BERRY_SHRUB: ["WATERING", "FERTILIZING", "PRUNING", "TREATMENT", "HARVEST", "PLANTING"],
   VEGETABLE: ["SOWING", "PLANTING", "WATERING", "FERTILIZING", "TREATMENT", "HARVEST"],
   HERB: ["SOWING", "PLANTING", "WATERING", "FERTILIZING", "HARVEST"],
 };

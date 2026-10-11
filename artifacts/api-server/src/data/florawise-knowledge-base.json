@@ -1,0 +1,1223 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "code": "INDOOR_DECORATIVE",
+      "name": "Кімнатна декоративна",
+      "allowedCareTypes": [
+        "WATERING",
+        "FERTILIZING",
+        "PRUNING",
+        "TRANSPLANTING",
+        "TREATMENT"
+      ],
+      "notes": "Кімнатні декоративні рослини. Зовнішні опади не повинні автоматично впливати на полив."
+    },
+    {
+      "code": "OUTDOOR_DECORATIVE",
+      "name": "Садова декоративна",
+      "allowedCareTypes": [
+        "WATERING",
+        "FERTILIZING",
+        "PRUNING",
+        "TRANSPLANTING",
+        "TREATMENT"
+      ],
+      "notes": "Садові декоративні рослини; погодні умови можуть впливати на полив, обрізку та обробку."
+    },
+    {
+      "code": "FRUIT_TREE",
+      "name": "Плодове дерево",
+      "allowedCareTypes": [
+        "WATERING",
+        "FERTILIZING",
+        "PRUNING",
+        "TREATMENT",
+        "HARVEST"
+      ],
+      "notes": "Плодові дерева; збір урожаю та обрізка є релевантними видами робіт."
+    },
+    {
+      "code": "BERRY_SHRUB",
+      "name": "Ягідна культура",
+      "allowedCareTypes": [
+        "WATERING",
+        "FERTILIZING",
+        "PRUNING",
+        "TREATMENT",
+        "HARVEST",
+        "PLANTING"
+      ],
+      "notes": "Прикладна категорія FloraWise для ягідних культур; не є ботанічною класифікацією."
+    },
+    {
+      "code": "VEGETABLE",
+      "name": "Овочева культура",
+      "allowedCareTypes": [
+        "SOWING",
+        "PLANTING",
+        "WATERING",
+        "FERTILIZING",
+        "TREATMENT",
+        "HARVEST"
+      ],
+      "notes": "Овочеві культури з посівом/висаджуванням і збором урожаю."
+    },
+    {
+      "code": "HERB",
+      "name": "Зелень / пряна культура",
+      "allowedCareTypes": [
+        "SOWING",
+        "PLANTING",
+        "WATERING",
+        "FERTILIZING",
+        "HARVEST"
+      ],
+      "notes": "Пряні та листові культури, для яких основні роботи — посів, полив, підживлення і збір."
+    }
+  ],
+  "species": [
+    {
+      "code": "MONSTERA",
+      "name": "Монстера",
+      "scientificName": "Monstera deliciosa",
+      "category": "INDOOR_DECORATIVE",
+      "environment": "INDOOR",
+      "lifeCycle": "Багаторічна",
+      "lightRequirements": "Яскраве/помірне розсіяне світло, без прямого сонця",
+      "optimalTempMin": 16,
+      "optimalTempMax": 29,
+      "soilRecommendations": "Добре дренований субстрат для кімнатних рослин",
+      "wateringRecommendations": "Полити рясно, потім дати верхній 1/4–1/3 частині субстрату підсохнути; підтримувати високу вологість повітря",
+      "wateringCheckIntervalDays": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "У джерелі точний інтервал не заданий",
+      "pruningRecommendations": "Обрізати або пересаджувати за потреби навесні",
+      "sowingPlantingRecommendations": null,
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S01"
+      ],
+      "notes": "Для FloraWise краще використовувати тригер вологості, а не фіксований календар поливу."
+    },
+    {
+      "code": "FICUS_ELASTICA",
+      "name": "Фікус каучуконосний",
+      "scientificName": "Ficus elastica",
+      "category": "INDOOR_DECORATIVE",
+      "environment": "INDOOR",
+      "lifeCycle": "Багаторічна",
+      "lightRequirements": "Яскраве непряме світло або напівтінь; захист від післяобіднього сонця",
+      "optimalTempMin": 13,
+      "optimalTempMax": null,
+      "soilRecommendations": "Ґрунтовий субстрат; хороший дренаж",
+      "wateringRecommendations": "Поливати регулярно, але не перезволожувати; у період спокою восени–взимку полив зменшувати",
+      "wateringCheckIntervalDays": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "Точний інтервал не заданий",
+      "pruningRecommendations": "Можна обрізати основні гілки для кущистої форми",
+      "sowingPlantingRecommendations": null,
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S02"
+      ],
+      "notes": "Уникати холодних протягів і різких падінь температури."
+    },
+    {
+      "code": "SPATHIPHYLLUM",
+      "name": "Спатифілум",
+      "scientificName": "Spathiphyllum wallisii",
+      "category": "INDOOR_DECORATIVE",
+      "environment": "INDOOR",
+      "lifeCycle": "Багаторічна",
+      "lightRequirements": "Напівтінь або глибока тінь; без прямого сонця",
+      "optimalTempMin": 20,
+      "optimalTempMax": 29,
+      "soilRecommendations": "Багатий органікою, добре дренований субстрат",
+      "wateringRecommendations": "Тримати ґрунт вологим, але не мокрим; дати частково підсохнути між поливами",
+      "wateringCheckIntervalDays": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "Точний інтервал не заданий",
+      "pruningRecommendations": "Санітарне видалення відмерлого листя/квітконосів за потреби",
+      "sowingPlantingRecommendations": null,
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S03"
+      ],
+      "notes": "Низька вологість та пересушування можуть спричиняти підсихання кінчиків листків."
+    },
+    {
+      "code": "PHALAENOPSIS",
+      "name": "Орхідея фаленопсис",
+      "scientificName": "Phalaenopsis spp.",
+      "category": "INDOOR_DECORATIVE",
+      "environment": "INDOOR",
+      "lifeCycle": "Багаторічна",
+      "lightRequirements": "Яскраве світло без сильного прямого літнього сонця",
+      "optimalTempMin": 16,
+      "optimalTempMax": 30,
+      "soilRecommendations": "Кора/спеціальний орхідейний субстрат",
+      "wateringRecommendations": "Підтримувати субстрат помірно вологим; не пересушувати повністю і не залишати перезволоженим",
+      "wateringCheckIntervalDays": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "У період активного росту — спеціальне підживлення орхідей за інструкцією",
+      "pruningRecommendations": "Після цвітіння обрізування квітконоса залежить від його стану",
+      "sowingPlantingRecommendations": null,
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S04"
+      ],
+      "notes": "RHS наводить орієнтир: 19–30°C удень і 16–19°C уночі."
+    },
+    {
+      "code": "HYDRANGEA_MACROPHYLLA",
+      "name": "Гортензія великолиста",
+      "scientificName": "Hydrangea macrophylla",
+      "category": "OUTDOOR_DECORATIVE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічний кущ",
+      "lightRequirements": "Розсіяне сонце/напівтінь; захист від спекотного післяобіднього сонця",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований ґрунт; може переносити періодично вологий ґрунт",
+      "wateringRecommendations": "Підтримувати достатню вологість ґрунту, не допускати застою води",
+      "wateringCheckIntervalDays": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "За результатами аналізу ґрунту/станом рослини",
+      "pruningRecommendations": "NC State радить завершувати обрізування до пізнього літа (у джерелі — до 1 серпня)",
+      "sowingPlantingRecommendations": "Висаджувати в добре дренований ґрунт",
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S05"
+      ],
+      "notes": "Календарну дату обрізування потрібно адаптувати до місцевого клімату."
+    },
+    {
+      "code": "ROSA",
+      "name": "Троянда садова",
+      "scientificName": "Rosa spp.",
+      "category": "OUTDOOR_DECORATIVE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічний кущ",
+      "lightRequirements": "Повне сонце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований ґрунт, бажано з органічною речовиною",
+      "wateringRecommendations": "Глибокий полив приблизно раз на тиждень; частіше під час посухи; уникати намочування листя",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "Збалансоване добриво навесні та в середині літа; припинити пізнім літом",
+      "pruningRecommendations": "Основне формувальне обрізування навесні; видаляти пошкоджені/хворі пагони",
+      "sowingPlantingRecommendations": "Висаджувати у добре підготовлений ґрунт",
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S06"
+      ],
+      "notes": "Частота догляду залежить від групи троянд і місцевої зими."
+    },
+    {
+      "code": "LAVENDER",
+      "name": "Лаванда вузьколиста",
+      "scientificName": "Lavandula angustifolia",
+      "category": "OUTDOOR_DECORATIVE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічний напівкущ",
+      "lightRequirements": "Повне сонце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Дуже добре дренований, нейтральний або лужний ґрунт; краще сухуватий",
+      "wateringRecommendations": "Не перезволожувати; надлишок вологи підвищує ризик кореневих гнилей",
+      "wateringCheckIntervalDays": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "Зазвичай невисока потреба у підживленні",
+      "pruningRecommendations": "Обрізувати після завершення ризику заморозків; видаляти відцвілі суцвіття",
+      "sowingPlantingRecommendations": "Висаджувати на сонячній добре дренованій ділянці",
+      "harvestingRecommendations": null,
+      "sourceCodes": [
+        "S07"
+      ],
+      "notes": "Не використовувати фіксований частий полив."
+    },
+    {
+      "code": "APPLE",
+      "name": "Яблуня",
+      "scientificName": "Malus domestica",
+      "category": "FRUIT_TREE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічне дерево",
+      "lightRequirements": "Відкрите сонячне місце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Родючий, добре дренований ґрунт",
+      "wateringRecommendations": "Молоді дерева поливати у сухі періоди; для укорінених дерев у ґрунті рутинний полив зазвичай не потрібен",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "У мульчованому ґрунті часто не потребує регулярного підживлення; за дефіциту — навесні",
+      "pruningRecommendations": "Щорічне обрізування підтримує здоров'я та врожайність",
+      "sowingPlantingRecommendations": "Садіння переважно у період спокою",
+      "harvestingRecommendations": "Збір восени залежно від сорту",
+      "sourceCodes": [
+        "S08",
+        "S30"
+      ],
+      "notes": "25.4 мм/тиждень — додатковий орієнтир UMN для вегетаційного періоду."
+    },
+    {
+      "code": "TART_CHERRY",
+      "name": "Вишня кисла",
+      "scientificName": "Prunus cerasus",
+      "category": "FRUIT_TREE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічне дерево",
+      "lightRequirements": "Сонце; кислі вишні також плодоносять у напівтіні",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Глибокий родючий добре дренований ґрунт; не допускати застою води",
+      "wateringRecommendations": "Молоді дерева та дерева у контейнерах поливати регулярно у сухі періоди; укорінені дерева у ґрунті зазвичай не потребують рутинного поливу",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "За ознак дефіциту/низької врожайності; контейнерні — регулярне підживлення",
+      "pruningRecommendations": "Обрізування відповідно до форми дерева; уникати зайвого стресу",
+      "sowingPlantingRecommendations": "Садити переважно у період спокою",
+      "harvestingRecommendations": "Збір улітку після достигання",
+      "sourceCodes": [
+        "S09",
+        "S29"
+      ],
+      "notes": "Кислі вишні здебільшого самоплідні; сезон залежить від сорту та клімату."
+    },
+    {
+      "code": "PLUM",
+      "name": "Слива",
+      "scientificName": "Prunus domestica",
+      "category": "FRUIT_TREE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічне дерево",
+      "lightRequirements": "Тепле сонячне захищене місце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Родючий ґрунт, що не перезволожується",
+      "wateringRecommendations": "Нові дерева регулярно поливати у сухі періоди першого сезону; укорінені дерева у ґрунті часто не потребують додаткового поливу",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "За дефіциту — гранульоване добриво навесні; контейнерні — регулярне",
+      "pruningRecommendations": "Щорічне обрізування для підтримки форми",
+      "sowingPlantingRecommendations": "Садити під час спокою або в прохолодну пору",
+      "harvestingRecommendations": "Збір улітку — на початку осені залежно від сорту",
+      "sourceCodes": [
+        "S10",
+        "S29"
+      ],
+      "notes": "Конкретні строки залежать від сорту й місцевого клімату."
+    },
+    {
+      "code": "RASPBERRY",
+      "name": "Малина",
+      "scientificName": "Rubus idaeus",
+      "category": "BERRY_SHRUB",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічна ягідна культура",
+      "lightRequirements": "Сонячне захищене місце; переносить напівтінь",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований, вологоємний ґрунт",
+      "wateringRecommendations": "Після посадки та у тривалу посуху поливати; під час плодоношення не допускати сильного пересихання",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "У добре мульчованому ґрунті часто без додаткового підживлення; контейнерні — щомісячно",
+      "pruningRecommendations": "Щорічне обрізування залежно від літньо- чи осінньоплідного типу",
+      "sowingPlantingRecommendations": "Висаджування у ґрунт/контейнери",
+      "harvestingRecommendations": "Літні сорти — влітку; осінні — наприкінці літа та восени",
+      "sourceCodes": [
+        "S11",
+        "S21"
+      ],
+      "notes": "UMN: 25.4–38.1 мм води/тиждень від цвітіння до збору."
+    },
+    {
+      "code": "STRAWBERRY",
+      "name": "Полуниця",
+      "scientificName": "Fragaria × ananassa",
+      "category": "BERRY_SHRUB",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічна ягідна культура",
+      "lightRequirements": "Сонце; деякі типи переносять легку тінь",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Родючий добре дренований ґрунт",
+      "wateringRecommendations": "Підтримувати рівномірну вологість; поливати зранку і по можливості без змочування листя",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "Контейнерні рослини потребують регулярного живлення; у ґрунті — за станом і родючістю",
+      "pruningRecommendations": "Після плодоношення/за типом насадження; видаляти зайві вуса за потреби",
+      "sowingPlantingRecommendations": "Висаджувати молоді рослини/вуса",
+      "harvestingRecommendations": "Від раннього літа до осені залежно від типу",
+      "sourceCodes": [
+        "S12",
+        "S22"
+      ],
+      "notes": "Категорія BERRY_SHRUB у FloraWise є прикладною, а не ботанічною."
+    },
+    {
+      "code": "BLACKCURRANT",
+      "name": "Смородина чорна",
+      "scientificName": "Ribes nigrum",
+      "category": "BERRY_SHRUB",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Багаторічний кущ",
+      "lightRequirements": "Сонце або легка тінь",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований, але вологоємний ґрунт",
+      "wateringRecommendations": "Нові рослини поливати у сухі періоди перші роки; укорінені кущі у ґрунті зазвичай без рутинного поливу",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "За дефіциту/низької врожайності — гранульоване добриво навесні; контейнерні — кожні 2 тижні",
+      "pruningRecommendations": "Щорічне зимове обрізування",
+      "sowingPlantingRecommendations": "Садити у відповідний для кореневої системи період",
+      "harvestingRecommendations": "Літній збір",
+      "sourceCodes": [
+        "S13"
+      ],
+      "notes": "Під час достигання не застосовувати надмірний полив — ягоди можуть розтріскуватися."
+    },
+    {
+      "code": "TOMATO",
+      "name": "Томат",
+      "scientificName": "Solanum lycopersicum",
+      "category": "VEGETABLE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Однорічна культура",
+      "lightRequirements": "Повне сонце; тепло",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Родючий добре дренований ґрунт",
+      "wateringRecommendations": "Поливати регулярно, підтримуючи рівномірну вологість; у спеку контейнерні рослини можуть потребувати щоденного поливу",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "Після початку наливу плодів контейнерні рослини — висококалійне підживлення кожні 10–14 днів; у ґрунті за потреби",
+      "pruningRecommendations": "Для індетермінантних форм — формування/видалення бічних пагонів за системою вирощування",
+      "sowingPlantingRecommendations": "Розсада; висаджування після ризику заморозків і прогрівання ґрунту",
+      "harvestingRecommendations": "Збір стиглих плодів упродовж сезону; завершити до сильних холодів",
+      "sourceCodes": [
+        "S14",
+        "S23"
+      ],
+      "notes": "Не прив'язувати строки висадки до календаря без урахування локальної температури."
+    },
+    {
+      "code": "CUCUMBER",
+      "name": "Огірок",
+      "scientificName": "Cucumis sativus",
+      "category": "VEGETABLE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Однорічна культура",
+      "lightRequirements": "Тепле сонячне місце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Родючий, вологоємний, добре дренований ґрунт",
+      "wateringRecommendations": "Постійно контролювати вологість; у контейнерах у спеку можливий щоденний полив; у ґрунті — полив у суху погоду",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "Контейнерні — кожні 10–14 днів; після цвітіння висококалійне",
+      "pruningRecommendations": "Прищипування/формування залежить від типу вирощування",
+      "sowingPlantingRecommendations": "Посів у теплі; висаджування після достатнього прогрівання",
+      "harvestingRecommendations": "Збирати регулярно після досягнення відповідного розміру",
+      "sourceCodes": [
+        "S15",
+        "S24"
+      ],
+      "notes": "Погодні правила мають особливо враховувати спеку та пересихання."
+    },
+    {
+      "code": "SWEET_PEPPER",
+      "name": "Перець солодкий",
+      "scientificName": "Capsicum annuum",
+      "category": "VEGETABLE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Однорічна культура",
+      "lightRequirements": "Максимально сонячне й тепле місце",
+      "optimalTempMin": 15,
+      "optimalTempMax": null,
+      "soilRecommendations": "Родючий, добре дренований, вологоємний ґрунт",
+      "wateringRecommendations": "Підтримувати ґрунт рівномірно вологим; у контейнерах під час спеки можливий щоденний полив",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "У контейнерах — висококалійне рідке добриво щотижня після початку цвітіння",
+      "pruningRecommendations": "Підв'язування/формування за потреби",
+      "sowingPlantingRecommendations": "Висаджувати назовні лише після стабільного тепла; RHS: нічні температури >12°C, оптимальні умови >15°C",
+      "harvestingRecommendations": "Збір із середини літа до початку осені залежно від стиглості",
+      "sourceCodes": [
+        "S16",
+        "S25"
+      ],
+      "notes": "Перець чутливий до холоду; погодні рекомендації мають враховувати нічні температури."
+    },
+    {
+      "code": "CARROT",
+      "name": "Морква",
+      "scientificName": "Daucus carota subsp. sativus",
+      "category": "VEGETABLE",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Дворічна, вирощується як однорічна",
+      "lightRequirements": "Сонце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Легкий, добре дренований ґрунт без каміння",
+      "wateringRecommendations": "Посухостійка; у тривалу посуху — рясний полив приблизно раз на 2 тижні; уникати різких коливань вологості",
+      "wateringCheckIntervalDays": 14,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "fertilizingRecommendations": "Зазвичай не потребує інтенсивного підживлення; уникати надлишку азоту",
+      "pruningRecommendations": "Не потребує формувального обрізування",
+      "sowingPlantingRecommendations": "Прямий посів у ґрунт; не рекомендується пересаджувати",
+      "harvestingRecommendations": "Молоді — через 4–6 тижнів; більші коренеплоди — приблизно через 3 місяці або за розміром",
+      "sourceCodes": [
+        "S17",
+        "S26"
+      ],
+      "notes": "Не створювати універсальну дату збору — використовувати строк сорту/фактичний розмір."
+    },
+    {
+      "code": "BASIL",
+      "name": "Базилік",
+      "scientificName": "Ocimum basilicum",
+      "category": "HERB",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Однорічна культура",
+      "lightRequirements": "Сонце, тепло",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований ґрунт/субстрат",
+      "wateringRecommendations": "Тримати рівномірно вологим; поливати у сухі періоди; уникати мокрого ґрунту вночі",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "У ґрунті часто не потрібне; контейнерні — збалансоване рідке за потреби",
+      "pruningRecommendations": "Регулярно збирати/прищипувати верхівки; видаляти квіти для продовження листового збору",
+      "sowingPlantingRecommendations": "Посів/висаджування лише після загрози заморозків",
+      "harvestingRecommendations": "Збирати молоде листя регулярно протягом сезону",
+      "sourceCodes": [
+        "S18",
+        "S27"
+      ],
+      "notes": "UMN дає орієнтир глибокого поливу кожні 7–10 днів залежно від опадів."
+    },
+    {
+      "code": "PARSLEY",
+      "name": "Петрушка",
+      "scientificName": "Petroselinum crispum",
+      "category": "HERB",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Дворічна, часто вирощується як однорічна",
+      "lightRequirements": "Сонце або напівтінь",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований, багатий органікою ґрунт",
+      "wateringRecommendations": "Підтримувати вологим, але не перезволоженим; не давати повністю пересихати",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "У ґрунті часто не потрібне; контейнерні — збалансоване рідке кожні кілька тижнів",
+      "pruningRecommendations": "Збирати зовнішні стебла біля основи, що стимулює новий ріст",
+      "sowingPlantingRecommendations": "Прямий посів; можливе вирощування розсадою/у контейнерах",
+      "harvestingRecommendations": "Збирати листя від пізньої весни до осені",
+      "sourceCodes": [
+        "S19",
+        "S28"
+      ],
+      "notes": "UMN рекомендує глибокий полив щонайменше раз на тиждень."
+    },
+    {
+      "code": "DILL",
+      "name": "Кріп",
+      "scientificName": "Anethum graveolens",
+      "category": "HERB",
+      "environment": "OUTDOOR",
+      "lifeCycle": "Однорічна культура",
+      "lightRequirements": "Сонячне захищене місце",
+      "optimalTempMin": null,
+      "optimalTempMax": null,
+      "soilRecommendations": "Добре дренований ґрунт; помірно вологий",
+      "wateringRecommendations": "Поливати у сухі періоди; контейнерні рослини перевіряти частіше, бо швидко пересихають",
+      "wateringCheckIntervalDays": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "fertilizingRecommendations": "Невисока потреба; у ґрунті — легке підживлення за потреби",
+      "pruningRecommendations": "Для листового збору видаляти квітконоси; регулярний збір стимулює кущистість",
+      "sowingPlantingRecommendations": "Прямий посів після ризику заморозків; можна повторювати невеликими партіями",
+      "harvestingRecommendations": "Листя — до/під час початку цвітіння; насіння — перед повним дозріванням",
+      "sourceCodes": [
+        "S20"
+      ],
+      "notes": "Строки повторного посіву слід адаптувати до локального сезону."
+    }
+  ],
+  "careRules": [
+    {
+      "speciesCode": "MONSTERA",
+      "careType": "WATERING",
+      "ruleCode": "SOIL_DRYNESS",
+      "triggerDescription": "Верхня 1/4–1/3 субстрату підсохла",
+      "recommendedAction": "Полити рясно, не залишати корені у застійній воді",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S01"
+      ]
+    },
+    {
+      "speciesCode": "FICUS_ELASTICA",
+      "careType": "WATERING",
+      "ruleCode": "AVOID_OVERWATERING",
+      "triggerDescription": "Субстрат підсихає / активний ріст",
+      "recommendedAction": "Полити; восени–взимку зменшити частоту",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S02"
+      ]
+    },
+    {
+      "speciesCode": "SPATHIPHYLLUM",
+      "careType": "WATERING",
+      "ruleCode": "KEEP_MOIST",
+      "triggerDescription": "Ґрунт починає підсихати",
+      "recommendedAction": "Полити так, щоб ґрунт був вологим, але не мокрим",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S03"
+      ]
+    },
+    {
+      "speciesCode": "PHALAENOPSIS",
+      "careType": "WATERING",
+      "ruleCode": "SUBSTRATE_MOISTURE",
+      "triggerDescription": "Орхідейний субстрат втрачає вологу",
+      "recommendedAction": "Підтримувати помірну вологість, уникати перезволоження",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S04"
+      ]
+    },
+    {
+      "speciesCode": "HYDRANGEA_MACROPHYLLA",
+      "careType": "PRUNING",
+      "ruleCode": "SEASONAL",
+      "triggerDescription": "Після цвітіння / до пізнього літа",
+      "recommendedAction": "Завершити основне обрізування до формування бруньок наступного сезону",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S05"
+      ]
+    },
+    {
+      "speciesCode": "ROSA",
+      "careType": "WATERING",
+      "ruleCode": "WEEKLY_OR_DRY",
+      "triggerDescription": "Сухий період або минув приблизно тиждень",
+      "recommendedAction": "Глибокий полив біля коренів, уникати змочування листя",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S06"
+      ]
+    },
+    {
+      "speciesCode": "ROSA",
+      "careType": "PRUNING",
+      "ruleCode": "SPRING",
+      "triggerDescription": "Початок весняного росту",
+      "recommendedAction": "Видалити мертві/пошкоджені пагони, провести формувальне обрізування",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S06"
+      ]
+    },
+    {
+      "speciesCode": "LAVENDER",
+      "careType": "WATERING",
+      "ruleCode": "DRY_TOLERANT",
+      "triggerDescription": "Ґрунт сухий; немає дощу",
+      "recommendedAction": "Поливати помірно; уникати перезволоження",
+      "intervalDaysMin": null,
+      "intervalDaysMax": null,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S07"
+      ]
+    },
+    {
+      "speciesCode": "APPLE",
+      "careType": "WATERING",
+      "ruleCode": "DRY_SPELL",
+      "triggerDescription": "Молоде дерево або тривалий сухий період",
+      "recommendedAction": "Полити кореневу зону; орієнтир UMN — до 25.4 мм/тиждень у сезон",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "sourceCodes": [
+        "S08",
+        "S30"
+      ]
+    },
+    {
+      "speciesCode": "TART_CHERRY",
+      "careType": "WATERING",
+      "ruleCode": "YOUNG_OR_DRY",
+      "triggerDescription": "Молоде дерево / контейнер / сухий період",
+      "recommendedAction": "Полити, підтримуючи рівномірну вологість; не перезволожувати",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S09",
+        "S29"
+      ]
+    },
+    {
+      "speciesCode": "PLUM",
+      "careType": "WATERING",
+      "ruleCode": "YOUNG_OR_DRY",
+      "triggerDescription": "Перший сезон або сухий період",
+      "recommendedAction": "Регулярно поливати; укорінене дерево в ґрунті — лише за потреби",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S10",
+        "S29"
+      ]
+    },
+    {
+      "speciesCode": "RASPBERRY",
+      "careType": "WATERING",
+      "ruleCode": "FRUITING_DRYNESS",
+      "triggerDescription": "Цвітіння/плодоношення та дефіцит опадів",
+      "recommendedAction": "Підтримувати вологість; UMN: 25.4–38.1 мм/тиждень",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 38.1,
+      "sourceCodes": [
+        "S11",
+        "S21"
+      ]
+    },
+    {
+      "speciesCode": "STRAWBERRY",
+      "careType": "WATERING",
+      "ruleCode": "WEEKLY_WATER_TARGET",
+      "triggerDescription": "Опадів менше приблизно 25.4 мм/тиждень",
+      "recommendedAction": "Дополити до еквівалента ~25.4 мм/тиждень; краще крапельно/зранку",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "sourceCodes": [
+        "S12",
+        "S22"
+      ]
+    },
+    {
+      "speciesCode": "BLACKCURRANT",
+      "careType": "WATERING",
+      "ruleCode": "NEW_OR_CONTAINER",
+      "triggerDescription": "Нова рослина, контейнер або тривала посуха",
+      "recommendedAction": "Поливати до рівномірної вологості; не перезволожувати під час достигання",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S13"
+      ]
+    },
+    {
+      "speciesCode": "TOMATO",
+      "careType": "WATERING",
+      "ruleCode": "EVEN_MOISTURE",
+      "triggerDescription": "Ґрунт/субстрат підсихає; нестача опадів",
+      "recommendedAction": "Підтримувати рівномірну вологість; орієнтир UMN — ~25.4 мм/тиждень",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "sourceCodes": [
+        "S14",
+        "S23"
+      ]
+    },
+    {
+      "speciesCode": "TOMATO",
+      "careType": "FERTILIZING",
+      "ruleCode": "FRUIT_SWELLING",
+      "triggerDescription": "Початок наливу плодів",
+      "recommendedAction": "Для контейнерів — висококалійне підживлення кожні 10–14 днів",
+      "intervalDaysMin": 10,
+      "intervalDaysMax": 14,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S14"
+      ]
+    },
+    {
+      "speciesCode": "CUCUMBER",
+      "careType": "WATERING",
+      "ruleCode": "EVEN_MOISTURE",
+      "triggerDescription": "Ґрунт підсихає; спекотний період",
+      "recommendedAction": "Підтримувати рівномірну вологість; контейнерні в спеку можуть потребувати щоденного поливу",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "sourceCodes": [
+        "S15",
+        "S24"
+      ]
+    },
+    {
+      "speciesCode": "CUCUMBER",
+      "careType": "FERTILIZING",
+      "ruleCode": "CONTAINER",
+      "triggerDescription": "Вирощування у контейнері",
+      "recommendedAction": "Загальне рідке добриво кожні 10–14 днів; після цвітіння — висококалійне",
+      "intervalDaysMin": 10,
+      "intervalDaysMax": 14,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S15"
+      ]
+    },
+    {
+      "speciesCode": "SWEET_PEPPER",
+      "careType": "WATERING",
+      "ruleCode": "EVEN_MOISTURE",
+      "triggerDescription": "Ґрунт підсихає / спека",
+      "recommendedAction": "Підтримувати рівномірну вологість; у контейнерах у спеку перевіряти щодня",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": 25.4,
+      "targetWaterMmWeekMax": 25.4,
+      "sourceCodes": [
+        "S16",
+        "S25"
+      ]
+    },
+    {
+      "speciesCode": "SWEET_PEPPER",
+      "careType": "FERTILIZING",
+      "ruleCode": "FLOWERING",
+      "triggerDescription": "Початок цвітіння",
+      "recommendedAction": "Для контейнерів — висококалійне рідке добриво щотижня",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S16"
+      ]
+    },
+    {
+      "speciesCode": "CARROT",
+      "careType": "WATERING",
+      "ruleCode": "LONG_DRY_SPELL",
+      "triggerDescription": "Тривала посуха",
+      "recommendedAction": "Рясний полив приблизно раз на 2 тижні; уникати різких коливань вологості",
+      "intervalDaysMin": 14,
+      "intervalDaysMax": 14,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S17",
+        "S26"
+      ]
+    },
+    {
+      "speciesCode": "BASIL",
+      "careType": "WATERING",
+      "ruleCode": "DRY_SPELL",
+      "triggerDescription": "Сухий період / субстрат підсихає",
+      "recommendedAction": "Поливати до рівномірної вологості; UMN: глибоко кожні 7–10 днів залежно від опадів",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 10,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S18",
+        "S27"
+      ]
+    },
+    {
+      "speciesCode": "PARSLEY",
+      "careType": "WATERING",
+      "ruleCode": "KEEP_MOIST",
+      "triggerDescription": "Ґрунт починає підсихати",
+      "recommendedAction": "Не давати повністю пересихати; UMN — глибокий полив щонайменше раз на тиждень",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S19",
+        "S28"
+      ]
+    },
+    {
+      "speciesCode": "DILL",
+      "careType": "WATERING",
+      "ruleCode": "DRY_SPELL",
+      "triggerDescription": "Спекотна суха погода",
+      "recommendedAction": "Поливати додатково; контейнерні рослини контролювати частіше",
+      "intervalDaysMin": 7,
+      "intervalDaysMax": 7,
+      "targetWaterMmWeekMin": null,
+      "targetWaterMmWeekMax": null,
+      "sourceCodes": [
+        "S20"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "code": "S01",
+      "organization": "North Carolina State University Extension",
+      "title": "Monstera deliciosa",
+      "url": "https://plants.ces.ncsu.edu/plants/monstera-deliciosa/",
+      "retrievedAt": "2026-10-11",
+      "subject": "Monstera deliciosa",
+      "notes": "NC State Extension Plant Toolbox",
+      "citation": "North Carolina State University Extension. Monstera deliciosa. URL: https://plants.ces.ncsu.edu/plants/monstera-deliciosa/ (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S02",
+      "organization": "North Carolina State University Extension",
+      "title": "Ficus elastica",
+      "url": "https://plants.ces.ncsu.edu/plants/ficus-elastica/",
+      "retrievedAt": "2026-10-11",
+      "subject": "Ficus elastica",
+      "notes": "NC State Extension Plant Toolbox",
+      "citation": "North Carolina State University Extension. Ficus elastica. URL: https://plants.ces.ncsu.edu/plants/ficus-elastica/ (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S03",
+      "organization": "North Carolina State University Extension",
+      "title": "Spathiphyllum",
+      "url": "https://plants.ces.ncsu.edu/plants/spathiphyllum/",
+      "retrievedAt": "2026-10-11",
+      "subject": "Spathiphyllum wallisii / peace lily",
+      "notes": "NC State Extension Plant Toolbox",
+      "citation": "North Carolina State University Extension. Spathiphyllum. URL: https://plants.ces.ncsu.edu/plants/spathiphyllum/ (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S04",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow Phalaenopsis (moth orchids)",
+      "url": "https://www.rhs.org.uk/plants/phalaenopsis/growing-guide",
+      "retrievedAt": "2026-10-11",
+      "subject": "Phalaenopsis",
+      "notes": "RHS Growing Guide",
+      "citation": "Royal Horticultural Society. How to grow Phalaenopsis (moth orchids). URL: https://www.rhs.org.uk/plants/phalaenopsis/growing-guide (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S05",
+      "organization": "North Carolina State University Extension",
+      "title": "Hydrangea macrophylla",
+      "url": "https://plants.ces.ncsu.edu/plants/hydrangea-macrophylla/",
+      "retrievedAt": "2026-10-11",
+      "subject": "Hydrangea macrophylla",
+      "notes": "NC State Extension Plant Toolbox",
+      "citation": "North Carolina State University Extension. Hydrangea macrophylla. URL: https://plants.ces.ncsu.edu/plants/hydrangea-macrophylla/ (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S06",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing hardy roses in Minnesota: beauty that endures the cold",
+      "url": "https://extension.umn.edu/news/growing-hardy-roses-minnesota-beauty-endures-cold",
+      "retrievedAt": "2026-10-11",
+      "subject": "Rosa spp.",
+      "notes": "UMN Extension",
+      "citation": "University of Minnesota Extension. Growing hardy roses in Minnesota: beauty that endures the cold. URL: https://extension.umn.edu/news/growing-hardy-roses-minnesota-beauty-endures-cold (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S07",
+      "organization": "North Carolina State University Extension",
+      "title": "English Lavender — Lavandula angustifolia",
+      "url": "https://plants.ces.ncsu.edu/plants/lavandula-angustifolia/common-name/english-lavender/",
+      "retrievedAt": "2026-10-11",
+      "subject": "Lavandula angustifolia",
+      "notes": "NC State Extension Plant Toolbox",
+      "citation": "North Carolina State University Extension. English Lavender — Lavandula angustifolia. URL: https://plants.ces.ncsu.edu/plants/lavandula-angustifolia/common-name/english-lavender/ (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S08",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow apples",
+      "url": "https://www.rhs.org.uk/fruit/apples/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Malus domestica",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow apples. URL: https://www.rhs.org.uk/fruit/apples/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S09",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow cherries",
+      "url": "https://www.rhs.org.uk/fruit/cherries/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Prunus cerasus",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow cherries. URL: https://www.rhs.org.uk/fruit/cherries/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S10",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow plums",
+      "url": "https://www.rhs.org.uk/fruit/plums/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Prunus domestica",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow plums. URL: https://www.rhs.org.uk/fruit/plums/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S11",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow raspberries",
+      "url": "https://www.rhs.org.uk/fruit/raspberries/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Rubus idaeus",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow raspberries. URL: https://www.rhs.org.uk/fruit/raspberries/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S12",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow strawberries",
+      "url": "https://www.rhs.org.uk/fruit/strawberries/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Fragaria × ananassa",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow strawberries. URL: https://www.rhs.org.uk/fruit/strawberries/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S13",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow blackcurrants",
+      "url": "https://www.rhs.org.uk/fruit/blackcurrants/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Ribes nigrum",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow blackcurrants. URL: https://www.rhs.org.uk/fruit/blackcurrants/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S14",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow tomatoes",
+      "url": "https://www.rhs.org.uk/vegetables/tomatoes/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Solanum lycopersicum",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow tomatoes. URL: https://www.rhs.org.uk/vegetables/tomatoes/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S15",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow cucumbers",
+      "url": "https://www.rhs.org.uk/vegetables/cucumbers/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Cucumis sativus",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow cucumbers. URL: https://www.rhs.org.uk/vegetables/cucumbers/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S16",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow sweet peppers",
+      "url": "https://www.rhs.org.uk/vegetables/peppers/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Capsicum annuum",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow sweet peppers. URL: https://www.rhs.org.uk/vegetables/peppers/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S17",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow carrots",
+      "url": "https://www.rhs.org.uk/vegetables/carrots/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Daucus carota subsp. sativus",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow carrots. URL: https://www.rhs.org.uk/vegetables/carrots/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S18",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow basil",
+      "url": "https://www.rhs.org.uk/herbs/basil/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Ocimum basilicum",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow basil. URL: https://www.rhs.org.uk/herbs/basil/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S19",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow parsley",
+      "url": "https://www.rhs.org.uk/herbs/parsley/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Petroselinum crispum",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow parsley. URL: https://www.rhs.org.uk/herbs/parsley/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S20",
+      "organization": "Royal Horticultural Society",
+      "title": "How to grow dill",
+      "url": "https://www.rhs.org.uk/herbs/dill/grow-your-own",
+      "retrievedAt": "2026-10-11",
+      "subject": "Anethum graveolens",
+      "notes": "RHS Grow Your Own Guide",
+      "citation": "Royal Horticultural Society. How to grow dill. URL: https://www.rhs.org.uk/herbs/dill/grow-your-own (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S21",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing raspberries in the home garden",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-raspberries-in-the-home-garden",
+      "retrievedAt": "2026-10-11",
+      "subject": "Rubus idaeus",
+      "notes": "Додаткове джерело для потреби у воді",
+      "citation": "University of Minnesota Extension. Growing raspberries in the home garden. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-raspberries-in-the-home-garden (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S22",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing strawberries in the home garden",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-strawberries-in-the-home-garden",
+      "retrievedAt": "2026-10-11",
+      "subject": "Fragaria × ananassa",
+      "notes": "Додаткове джерело для поливу",
+      "citation": "University of Minnesota Extension. Growing strawberries in the home garden. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-strawberries-in-the-home-garden (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S23",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing tomatoes in home gardens",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-tomatoes",
+      "retrievedAt": "2026-10-11",
+      "subject": "Solanum lycopersicum",
+      "notes": "Додаткове джерело для тижневої потреби у воді",
+      "citation": "University of Minnesota Extension. Growing tomatoes in home gardens. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-tomatoes (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S24",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing cucumbers in home gardens",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-cucumbers",
+      "retrievedAt": "2026-10-11",
+      "subject": "Cucumis sativus",
+      "notes": "Додаткове джерело для тижневої потреби у воді",
+      "citation": "University of Minnesota Extension. Growing cucumbers in home gardens. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-cucumbers (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S25",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing peppers",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-peppers",
+      "retrievedAt": "2026-10-11",
+      "subject": "Capsicum annuum",
+      "notes": "Додаткове джерело для поливу",
+      "citation": "University of Minnesota Extension. Growing peppers. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-peppers (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S26",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing carrots and parsnips in home gardens",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-carrots-and-parsnips",
+      "retrievedAt": "2026-10-11",
+      "subject": "Daucus carota subsp. sativus",
+      "notes": "Додаткове джерело для поливу",
+      "citation": "University of Minnesota Extension. Growing carrots and parsnips in home gardens. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-carrots-and-parsnips (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S27",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing basil in home gardens",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/yard-and-garden-problems/growing-basil",
+      "retrievedAt": "2026-10-11",
+      "subject": "Ocimum basilicum",
+      "notes": "Додаткове джерело з інтервалом поливу 7–10 днів",
+      "citation": "University of Minnesota Extension. Growing basil in home gardens. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/yard-and-garden-problems/growing-basil (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S28",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing parsley in home gardens",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-parsley",
+      "retrievedAt": "2026-10-11",
+      "subject": "Petroselinum crispum",
+      "notes": "Додаткове джерело з мінімум щотижневим поливом",
+      "citation": "University of Minnesota Extension. Growing parsley in home gardens. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-parsley (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S29",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing stone fruits in the home garden",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-stone-fruits-in-the-home-garden",
+      "retrievedAt": "2026-10-11",
+      "subject": "Prunus cerasus / Prunus domestica",
+      "notes": "Додаткове джерело для поливу молодих дерев",
+      "citation": "University of Minnesota Extension. Growing stone fruits in the home garden. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-stone-fruits-in-the-home-garden (дата звернення: 11.10.2026)."
+    },
+    {
+      "code": "S30",
+      "organization": "University of Minnesota Extension",
+      "title": "Growing apples in the home garden",
+      "url": "https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-apples",
+      "retrievedAt": "2026-10-11",
+      "subject": "Malus domestica",
+      "notes": "Додаткове джерело для тижневої потреби у воді",
+      "citation": "University of Minnesota Extension. Growing apples in the home garden. URL: https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/growing-apples (дата звернення: 11.10.2026)."
+    }
+  ]
+}

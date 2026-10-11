@@ -40,8 +40,8 @@ export async function migrateCategories(client: Pick<PoolClient, "query">, revie
       if (isCategory(row.category)) continue;
       const localized = PLANT_CATEGORIES.find(code => ({
         INDOOR_DECORATIVE: "Кімнатна декоративна", OUTDOOR_DECORATIVE: "Садова декоративна",
-        FRUIT_TREE: "Плодове дерево", BERRY_SHRUB: "Ягідний кущ", VEGETABLE: "Овочева культура", HERB: "Зелень / пряна культура",
-      })[code] === row.category);
+        FRUIT_TREE: "Плодове дерево", BERRY_SHRUB: "Ягідна культура", VEGETABLE: "Овочева культура", HERB: "Зелень / пряна культура",
+      })[code] === row.category || code === "BERRY_SHRUB" && row.category === "Ягідний кущ");
       const audited = reviewed.find(record => record.id === row.id && record.name === row.name);
       const category = localized ?? (row.category == null || row.category === "" ? audited?.category : undefined);
       if (category) await client.query("UPDATE flora_species SET category = $1 WHERE id = $2", [category, row.id]);

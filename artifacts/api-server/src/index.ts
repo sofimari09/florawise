@@ -5,6 +5,7 @@ import { pool } from "@workspace/db";
 import { migratePlantNames } from "./lib/plant-name-migration";
 import { migrateCategories } from "./lib/category-migration";
 import { migrateCustomPlants } from "./lib/custom-plant-migration";
+import { seedKnowledgeBase } from "./lib/seed-knowledge-base";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,7 @@ const migrationClient = await pool.connect();
 try { await migratePlantNames(migrationClient); await migrateCategories(migrationClient); await migrateCustomPlants(migrationClient); }
 finally { migrationClient.release(); }
 await seedData();
+await seedKnowledgeBase();
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");

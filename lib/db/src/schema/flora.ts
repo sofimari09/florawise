@@ -40,20 +40,25 @@ export const savedLocationsTable = pgTable("flora_saved_locations", {
 
 export const speciesTable = pgTable("flora_species", {
   id: serial("id").primaryKey(),
+  speciesCode: text("species_code"),
   name: text("name").notNull(),
   scientificName: text("scientific_name"),
+  lifeCycle: text("life_cycle"),
   category: text("category").notNull(),
   applicableCareTypes: text("applicable_care_types").array(),
   careRevision: integer("care_revision").notNull().default(0),
   suitableEnvironmentTypes: text("suitable_environment_types").array(),
   description: text("description").notNull(),
   careRecommendations: text("care_recommendations").notNull(),
-  optimalTempMin: numeric("optimal_temp_min").notNull(),
-  optimalTempMax: numeric("optimal_temp_max").notNull(),
-  optimalHumidity: integer("optimal_humidity").notNull(),
+  optimalTempMin: numeric("optimal_temp_min"),
+  optimalTempMax: numeric("optimal_temp_max"),
+  optimalHumidity: integer("optimal_humidity"),
   humidityMin: integer("humidity_min"),
   humidityMax: integer("humidity_max"),
-  wateringFrequencyDays: integer("watering_frequency_days").notNull(),
+  wateringFrequencyDays: integer("watering_frequency_days"),
+  wateringCheckIntervalDays: integer("watering_check_interval_days"),
+  targetWaterMmWeekMin: numeric("target_water_mm_week_min"),
+  targetWaterMmWeekMax: numeric("target_water_mm_week_max"),
   lightRequirements: text("light_requirements").notNull(),
   soilRecommendations: text("soil_recommendations").notNull(),
   wateringRecommendations: text("watering_recommendations").notNull(),
@@ -64,10 +69,12 @@ export const speciesTable = pgTable("flora_species", {
   transplantingRecommendations: text("transplanting_recommendations").notNull(),
   transplantingFrequencyMonths: integer("transplanting_frequency_months"),
   harvestingRecommendations: text("harvesting_recommendations"),
+  sowingPlantingRecommendations: text("sowing_planting_recommendations"),
   generalCareRecommendations: text("general_care_recommendations"),
-  imageUrl: text("image_url").notNull(),
+  imageUrl: text("image_url"),
 }, (table) => ({
   categoryValid: check("flora_species_category_valid", sql`${table.category} IN ('INDOOR_DECORATIVE', 'OUTDOOR_DECORATIVE', 'FRUIT_TREE', 'BERRY_SHRUB', 'VEGETABLE', 'HERB')`),
+  speciesCodeUnique: uniqueIndex("flora_species_code_idx").on(table.speciesCode),
 }));
 
 export const speciesCareRulesTable = pgTable("flora_species_care_rules", {
@@ -79,17 +86,49 @@ export const speciesCareRulesTable = pgTable("flora_species_care_rules", {
   minTemperature: numeric("min_temperature"),
   maxTemperature: numeric("max_temperature"),
   notes: text("notes"),
+  ruleCode: text("rule_code"),
+  triggerDescription: text("trigger_description"),
+  recommendedAction: text("recommended_action"),
+  intervalDaysMin: integer("interval_days_min"),
+  intervalDaysMax: integer("interval_days_max"),
+  targetWaterMmWeekMin: numeric("target_water_mm_week_min"),
+  targetWaterMmWeekMax: numeric("target_water_mm_week_max"),
 }, (table) => ({
   speciesCareTypeIdx: uniqueIndex("flora_species_care_rules_species_type_idx").on(table.speciesId, table.careType),
 }));
 
 export const knowledgeSourcesTable = pgTable("flora_knowledge_sources", {
   id: serial("id").primaryKey(),
-  speciesId: integer("species_id").notNull().references(() => speciesTable.id, { onDelete: "cascade" }),
+  speciesId: integer("species_id").references(() => speciesTable.id, { onDelete: "cascade" }),
+  sourceCode: text("source_code"),
   sourceName: text("source_name").notNull(),
+  organization: text("organization"),
+  subject: text("subject"),
   sourceUrl: text("source_url"),
   retrievedAt: timestamp("retrieved_at", { withTimezone: true }),
   notes: text("notes"),
+  citation: text("citation"),
+}, (table) => ({
+  sourceCodeIdx: uniqueIndex("flora_knowledge_sources_source_code_idx").on(table.sourceCode),
+}));
+
+export const speciesKnowledgeSourcesTable = pgTable("flora_species_knowledge_sources", {
+  speciesId: integer("species_id").notNull().references(() => speciesTable.id, { onDelete: "cascade" }),
+  sourceId: integer("source_id").notNull().references(() => knowledgeSourcesTable.id, { onDelete: "cascade" }),
+}, (table) => ({
+  speciesSourceIdx: uniqueIndex("flora_species_knowledge_sources_species_source_idx").on(table.speciesId, table.sourceId),
+}));
+
+export const speciesCareRuleSourcesTable = pgTable("flora_species_care_rule_sources", {
+  careRuleId: integer("care_rule_id").notNull().references(() => speciesCareRulesTable.id, { onDelete: "cascade" }),
+  sourceId: integer("source_id").notNull().references(() => knowledgeSourcesTable.id, { onDelete: "cascade" }),
+}, (table) => ({
+  careRuleSourceIdx: uniqueIndex("flora_species_care_rule_sources_rule_source_idx").on(table.careRuleId, table.sourceId),
+}));
+
+export const floraKnowledgeImportsTable = pgTable("flora_knowledge_imports", {
+  version: text("version").primaryKey(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const plantsTable = pgTable("flora_plants", {
@@ -201,6 +240,7 @@ export type PlantPlace = typeof plantPlacesTable.$inferSelect;
 export type SavedLocation = typeof savedLocationsTable.$inferSelect;
 export type SpeciesCareRule = typeof speciesCareRulesTable.$inferSelect;
 export type KnowledgeSource = typeof knowledgeSourcesTable.$inferSelect;
+export type SpeciesCareRuleSource = typeof speciesCareRuleSourcesTable.$inferSelect;
 export type CareTask = typeof tasksTable.$inferSelect;
 export type CareLog = typeof careLogsTable.$inferSelect;
 export type Reminder = typeof remindersTable.$inferSelect;

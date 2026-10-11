@@ -1,0 +1,67 @@
+Import the attached FloraWise_Knowledge_Base_20_plants.xlsx into the existing FloraWise knowledge-base architecture.
+
+Use the workbook as the authoritative source for this import.
+
+Sheets:
+
+1. Categories
+Import/update plant categories and their allowed CareTask types.
+
+2. Species
+Import/update the 20 PlantSpecies records and their structured care knowledge.
+
+3. CareRules
+Import/update structured species-specific care rules used by RecommendationEngine.
+
+4. Sources
+Import source metadata into KnowledgeSource or the closest existing source model.
+
+5. README
+Use this only as import guidance. Do not store it as application data.
+
+IMPORTANT:
+
+- Preserve the existing FloraWise architecture.
+- Do not rebuild the database from scratch.
+- Preserve existing users, plants, tasks, care history and recommendations.
+- Use UPSERT behavior rather than blind INSERT.
+- Match species primarily by species_code.
+- Match categories by category code.
+- Do not create duplicate species.
+- If a species already exists, update/enrich it with the spreadsheet data.
+- Do not overwrite a valid existing value with an empty spreadsheet cell unless explicitly required.
+- Empty/null values in the spreadsheet mean that no sufficiently reliable fixed value was defined.
+- Do NOT invent missing temperature, watering interval, fertilizing frequency, seasonal dates or other care data.
+- Do NOT use an LLM to fill missing botanical knowledge.
+- Keep source_ids linked to imported KnowledgeSource records where applicable.
+
+RecommendationEngine should use:
+PlantCategory
+→ PlantSpecies knowledge
+→ SpeciesCareRule
+→ CareTask/CareLog
+→ PlantPlace/environmentType
+→ weather
+
+Species-specific rules should override generic category/global rules where available.
+
+For watering in particular, do not require every species to have a fixed interval. Some species use condition-based rules such as soil/substrate dryness instead.
+
+Images:
+
+Do not make species images a blocker for this import.
+
+Add/support a PlantSpecies imagePath/imageUrl field if needed, but allow it to remain empty for now.
+
+When no species image is available, show the existing neutral/category placeholder.
+
+Later we will provide one curated reusable image per PlantSpecies. Do not download or scrape copyrighted images automatically from the source websites listed in the workbook.
+
+After importing:
+- verify all 20 species;
+- verify all 6 categories;
+- verify care-rule links;
+- verify source links;
+- verify known species can be selected in the plant creation autocomplete;
+- verify RecommendationEngine reads the imported structured knowledge;
+- run migrations, type checking and build verification.
