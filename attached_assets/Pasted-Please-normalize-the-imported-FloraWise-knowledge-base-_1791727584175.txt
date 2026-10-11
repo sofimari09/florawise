@@ -1,0 +1,80 @@
+Please normalize the imported FloraWise knowledge base and fix handling of care data without fixed intervals.
+
+1. Treat FloraWise_Knowledge_Base_20_plants.xlsx as the authoritative source for the imported 20 species.
+
+The current import preserved some old seed values when the workbook contained an intentionally empty value.
+
+This causes unsupported legacy values to remain, for example Hydrangea still shows:
+- 14–25°C
+- 70% humidity
+- watering every 4 days
+
+although these fixed values are not present in the verified knowledge-base import.
+
+For the 20 imported species:
+- remove/clear old unsupported legacy values when the authoritative workbook intentionally provides no fixed value;
+- keep structured condition-based care rules from CareRules instead;
+- do not invent replacement values.
+
+Do not affect user plants, tasks, history or recommendations.
+
+2. Fix null rendering in the UI.
+
+Never display text such as:
+
+"кожні null дн."
+
+If wateringFrequencyDays is null:
+- do not render a numeric interval;
+- display the available condition-based watering guidance instead.
+
+Example:
+"Полив: за станом субстрату"
+
+or use the actual imported watering rule.
+
+3. Update recommended care-plan logic.
+
+Do not assume every care type has a fixed interval.
+
+There are two types of care knowledge:
+
+A. interval-based
+Example:
+watering check every 7 days
+
+B. condition-based
+Example:
+water when the upper substrate has dried
+water during prolonged dry weather
+water when weekly rainfall is insufficient
+
+Only create recurring CareTasks automatically when a verified numeric interval exists.
+
+For condition-based care:
+- do not invent a recurring interval;
+- show it as guidance / monitoring recommendation;
+- let RecommendationEngine evaluate it using weather, care history and plant conditions where possible.
+
+4. On the plant details page:
+
+If a fixed interval exists:
+"Полив: орієнтовно кожні 7 днів"
+
+If no fixed interval exists but guidance exists:
+"Полив: за потреби"
+and show the imported watering recommendation underneath.
+
+If neither exists:
+show "Дані не визначені" instead of null.
+
+5. Re-check the imported species, especially:
+- Гортензія великолиста
+- Орхідея фаленопсис
+- Смородина чорна
+- Монстера
+- Лаванда
+
+Verify that unsupported old seed values no longer appear as authoritative care data.
+
+Keep all user-facing text in Ukrainian.

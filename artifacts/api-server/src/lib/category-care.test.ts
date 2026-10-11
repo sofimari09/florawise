@@ -49,6 +49,30 @@ test("plans require supported intervals and applicability, never invent sowing/p
   assert.notEqual(eligibilityVersion(species), eligibilityVersion(species, 1));
   assert.notEqual(eligibilityVersion(species), eligibilityVersion({ ...species, applicableCareTypes: [...CATEGORY_DEFAULTS.INDOOR_DECORATIVE] }));
 });
+test("condition-only care stays guidance; source-backed numeric rule intervals can be previewed", () => {
+  const withoutLegacyCadences = {
+    ...species,
+    wateringFrequencyDays: null,
+    fertilizingFrequencyDays: null,
+    transplantingFrequencyMonths: null,
+  } as PlantSpecies;
+  const conditionOnly = {
+    careType: "WATERING", intervalDaysMin: null, intervalDaysMax: null,
+    triggerDescription: "Поливати, коли верхній шар ґрунту висох",
+    recommendedAction: "Полити лише за потреби",
+  } as SpeciesCareRule;
+  assert.deepEqual(carePlan(withoutLegacyCadences, new Date("2026-10-01T00:00:00.000Z"), 0, [conditionOnly]), []);
+
+  const sourcedInterval = {
+    ...conditionOnly, intervalDaysMin: 7, intervalDaysMax: 7,
+  } as SpeciesCareRule;
+  const plan = carePlan(withoutLegacyCadences, new Date("2026-10-01T00:00:00.000Z"), 0, [sourcedInterval]);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].type, "WATERING");
+  assert.equal(plan[0].scheduledDate, "2026-10-08");
+  assert.match(plan[0].reason, /Інтервал за джерелом — 7 днів/);
+  assert.match(plan[0].reason, /верхній шар ґрунту висох/);
+});
 test("full legacy task payload can be retained or closed, never rescheduled or reopened", () => {
   assert.doesNotThrow(() => assertTaskUpdate(task, { ...task, notes: "Залишити історію" }, species));
   for (const status of ["COMPLETED", "CANCELLED"]) assert.doesNotThrow(() => assertTaskUpdate(task, { ...task, status }, species));

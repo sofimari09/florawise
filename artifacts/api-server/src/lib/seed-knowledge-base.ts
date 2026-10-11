@@ -74,36 +74,38 @@ export async function seedKnowledgeBase() {
           name: row.name,
           scientificName: row.scientificName,
           category: row.category,
+          lifeCycle: row.lifeCycle,
+          suitableEnvironmentTypes: row.environment ? [row.environment] : null,
+          description: row.notes ?? "",
+          lightRequirements: row.lightRequirements ?? "",
+          optimalTempMin: dbNumeric(row.optimalTempMin),
+          optimalTempMax: dbNumeric(row.optimalTempMax),
+          optimalHumidity: null,
+          humidityMin: null,
+          humidityMax: null,
+          soilRecommendations: row.soilRecommendations ?? "",
+          wateringRecommendations: row.wateringRecommendations ?? "",
+          wateringFrequencyDays: null,
+          wateringCheckIntervalDays: row.wateringCheckIntervalDays,
+          targetWaterMmWeekMin: dbNumeric(row.targetWaterMmWeekMin),
+          targetWaterMmWeekMax: dbNumeric(row.targetWaterMmWeekMax),
+          fertilizingRecommendations: row.fertilizingRecommendations ?? "",
+          fertilizingFrequencyDays: null,
+          pruningRecommendations: row.pruningRecommendations ?? "",
+          pruningSeason: null,
+          transplantingRecommendations: "",
+          transplantingFrequencyMonths: null,
+          sowingPlantingRecommendations: row.sowingPlantingRecommendations ?? "",
+          harvestingRecommendations: row.harvestingRecommendations,
+          generalCareRecommendations: row.notes,
+          careRecommendations: "",
         };
-        const usesConditionBasedWatering = knowledgeBase.careRules.some(rule =>
-          rule.speciesCode === row.code && rule.careType === "WATERING" && Boolean(rule.triggerDescription));
-        if (usesConditionBasedWatering) {
-          // A source-backed moisture trigger supersedes any older fixed-calendar interval.
-          changes.wateringFrequencyDays = null;
-        }
-        const setIfKnown = <K extends keyof typeof changes>(key: K, value: typeof changes[K] | null) => {
-          if (value !== null && value !== undefined && value !== "") changes[key] = value;
-        };
-        setIfKnown("lifeCycle", row.lifeCycle);
-        setIfKnown("suitableEnvironmentTypes", row.environment ? [row.environment] : null);
-        setIfKnown("lightRequirements", row.lightRequirements);
-        setIfKnown("optimalTempMin", dbNumeric(row.optimalTempMin));
-        setIfKnown("optimalTempMax", dbNumeric(row.optimalTempMax));
-        setIfKnown("soilRecommendations", row.soilRecommendations);
-        setIfKnown("wateringRecommendations", row.wateringRecommendations);
-        setIfKnown("wateringCheckIntervalDays", row.wateringCheckIntervalDays);
-        setIfKnown("targetWaterMmWeekMin", dbNumeric(row.targetWaterMmWeekMin));
-        setIfKnown("targetWaterMmWeekMax", dbNumeric(row.targetWaterMmWeekMax));
-        setIfKnown("fertilizingRecommendations", row.fertilizingRecommendations);
-        setIfKnown("pruningRecommendations", row.pruningRecommendations);
-        setIfKnown("sowingPlantingRecommendations", row.sowingPlantingRecommendations);
-        setIfKnown("harvestingRecommendations", row.harvestingRecommendations);
-        setIfKnown("generalCareRecommendations", row.notes);
         const changed = Object.entries(changes).some(([key, value]) =>
           JSON.stringify(existing![key as keyof typeof existing]) !== JSON.stringify(value));
         if (changed) {
           const [updated] = await tx.update(speciesTable)
-            .set({ ...changes, careRevision: existing.careRevision + 1 })
+            // This catalog normalization must not invalidate or rewrite users' saved advice.
+            .set(changes)
             .where(eq(speciesTable.id, existing.id))
             .returning({ id: speciesTable.id });
           speciesIds.set(row.code, updated.id);
@@ -119,7 +121,7 @@ export async function seedKnowledgeBase() {
           category: row.category,
           applicableCareTypes: null,
           suitableEnvironmentTypes: row.environment ? [row.environment] : null,
-          description: "",
+          description: row.notes ?? "",
           careRecommendations: "",
           optimalTempMin: dbNumeric(row.optimalTempMin),
           optimalTempMax: dbNumeric(row.optimalTempMax),

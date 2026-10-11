@@ -50,6 +50,19 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     assert.deepEqual(wateringRule.sourceCodes, ["S01"]);
     assert.equal(knowledge.sources[0].sourceCode, "S01");
     assert.ok(knowledge.sources[0].organization && knowledge.sources[0].citation && knowledge.sources[0].sourceUrl);
+    const blackcurrant = catalog.find(species => species.speciesCode === "BLACKCURRANT");
+    const blackcurrantPlant = await request("/plants", "POST", {
+      speciesId: blackcurrant.id, personalName: null, location: "Тест інтервалу", environmentType: "OUTDOOR", photoUrl: "",
+    }, 201);
+    const blackcurrantPlan = await request(`/plants/${blackcurrantPlant.id}/care-plan`);
+    assert.ok(blackcurrantPlan.some(item => item.type === "WATERING"
+      && /Інтервал за джерелом — 7 днів/.test(item.reason)
+      && /Нова рослина, контейнер або тривала посуха/.test(item.reason)));
+    const monsteraPlant = await request("/plants", "POST", {
+      speciesId: template.id, personalName: null, location: "Тест умови", environmentType: "INDOOR", photoUrl: "",
+    }, 201);
+    const monsteraPlan = await request(`/plants/${monsteraPlant.id}/care-plan`);
+    assert.ok(!monsteraPlan.some(item => item.type === "WATERING"), "condition-only watering guidance must not create a scheduled watering task");
     const { id: _id, category: _category, ...withoutCategory } = template;
     await request("/species", "POST", { ...withoutCategory, name: "Без категорії" }, 400);
     await request("/species", "POST", { ...template, category: "Не категорія" }, 400);

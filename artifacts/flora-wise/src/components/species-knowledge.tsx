@@ -13,6 +13,11 @@ export function SpeciesDetails({ species: s }: { species: PlantSpecies }) {
   const waterTarget = s.targetWaterMmWeekMin != null || s.targetWaterMmWeekMax != null
     ? `${s.targetWaterMmWeekMin ?? "—"}–${s.targetWaterMmWeekMax ?? "—"} мм/тиждень`
     : null;
+  const hasWateringGuidance = Boolean(s.wateringRecommendations?.trim()
+    || k?.careRules.some(rule => rule.careType === "WATERING" && (rule.triggerDescription || rule.recommendedAction)));
+  const wateringSummary = s.wateringFrequencyDays != null
+    ? `орієнтовно кожні ${s.wateringFrequencyDays} днів`
+    : hasWateringGuidance ? "за потреби" : "Дані не визначені";
   const facts: Array<[string, string | null]> = [
     ["Наукова назва", dash(s.scientificName)],
     ["Категорія", CATEGORY_LABELS[s.category] ?? "Потрібна класифікація"],
@@ -21,6 +26,7 @@ export function SpeciesDetails({ species: s }: { species: PlantSpecies }) {
     ["Середовище", s.suitableEnvironmentTypes?.length ? s.suitableEnvironmentTypes.map(e => envLabel[e] || e).join(", ") : null],
     ["Температура", s.optimalTempMin != null || s.optimalTempMax != null ? `${s.optimalTempMin ?? "—"}–${s.optimalTempMax ?? "—"}°C` : null],
     ["Вологість повітря", s.humidityMin != null || s.humidityMax != null ? `${s.humidityMin ?? "—"}–${s.humidityMax ?? "—"}%` : null],
+    ["Полив", wateringSummary],
     ["Перевірка умов поливу", s.wateringCheckIntervalDays != null ? `кожні ${s.wateringCheckIntervalDays} дн.` : null],
     ["Ціль води", waterTarget],
     ["Підживлення", s.fertilizingFrequencyDays != null ? `кожні ${s.fertilizingFrequencyDays} дн.` : null],
@@ -29,7 +35,7 @@ export function SpeciesDetails({ species: s }: { species: PlantSpecies }) {
   ];
   const shown = facts.filter(([, v]) => v);
   const texts: Array<[string, string | null | undefined]> = [
-    ["Світло", s.lightRequirements], ["Полив", s.wateringRecommendations], ["Ґрунт", s.soilRecommendations], ["Посів / висаджування", s.sowingPlantingRecommendations], ["Підживлення", s.fertilizingRecommendations],
+    ["Світло", s.lightRequirements], ["Порада щодо поливу", s.wateringRecommendations], ["Ґрунт", s.soilRecommendations], ["Посів / висаджування", s.sowingPlantingRecommendations], ["Підживлення", s.fertilizingRecommendations],
     ["Обрізка", s.pruningRecommendations], ["Пересадка", s.transplantingRecommendations], ["Збір урожаю", s.harvestingRecommendations], ["Загальні поради", s.generalCareRecommendations || s.careRecommendations],
   ];
   return <div className="space-y-5 text-sm leading-6" data-testid={`details-species-${s.id}`}>

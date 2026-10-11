@@ -627,9 +627,10 @@ router.get("/plants/:id/care-plan", async (req, res) => {
   const { plant } = await getPlantForUser(req, idFrom(req));
   if (!plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
   const species = await effectiveCare(plant);
+  const rules = species.id === null ? [] : await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
   const active = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
   const snapshot = await careSnapshot(plant, species);
-  res.json(carePlan(species, new Date(), plant.eligibilityRevision).filter(item => !active.some(task => task.type === item.type)).map(item => ({ ...item, eligibilityVersion: snapshot })));
+  res.json(carePlan(species, new Date(), plant.eligibilityRevision, rules).filter(item => !active.some(task => task.type === item.type)).map(item => ({ ...item, eligibilityVersion: snapshot })));
 });
 router.post("/plants/:id/care-plan", async (req, res) => {
   const { plant } = await getPlantForUser(req, idFrom(req));
@@ -639,7 +640,8 @@ router.post("/plants/:id/care-plan", async (req, res) => {
   const created = await db.transaction(async tx => {
     const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
     const species = await effectiveCare(currentPlant, tx);
-    const candidates = carePlan(species, new Date(), currentPlant.eligibilityRevision);
+    const rules = species.id === null ? [] : await tx.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
+    const candidates = carePlan(species, new Date(), currentPlant.eligibilityRevision, rules);
     for (const item of parsed.data.items) {
       assertEligible(species, item.type);
       if (item.eligibilityVersion !== await careSnapshot(currentPlant, species, tx)) throw new CareEligibilityError("Умови, план або застосовність змінилися. Оновіть попередній перегляд плану");

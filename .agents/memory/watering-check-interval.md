@@ -7,4 +7,4 @@ Treat the workbook's watering-check interval as a reminder to inspect conditions
 
 **Why:** The FloraWise workbook's «Контроль_поливу_днів» field specifies a check interval, and many watering rules depend on soil moisture rather than a calendar.
 
-**How to apply:** Keep check intervals and watering frequencies in separate fields and labels. Recommendations should present the trigger and suggested action; never convert an inspection interval into a watering schedule.
+**How to apply:** Keep check intervals and watering frequencies in separate fields and labels; never turn an inspection interval into a watering task. Care-plan previews may use numeric intervals from sourced action rules and must include their condition/action. Rules with no numeric interval remain guidance and do not create recurring tasks.
