@@ -105,28 +105,48 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.equal(weatherInfo.weather.latitude, 49.84);
     assert.equal(weatherInfo.weather.longitude, 24.03);
     assert.equal(weatherInfo.warning, weatherInfo.weather.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані");
-    const rainy = weatherInfo.weather.forecast.find((day, index, days) => day.precipitation >= 8 && days.slice(index + 1).some(next => next.precipitation < 8));
-    if (rainy) {
-      const outdoorTask = await request("/tasks", "POST", { ...input("WATERING"), plantId: outside.id, scheduledDate: rainy.date }, 201);
-      const outdoorAdvice = await request("/recommendations", "POST", { plantId: outside.id }, 201);
-      const move = outdoorAdvice.recommendations.find(rec => rec.relatedTaskId === outdoorTask.id && rec.suggestedDate);
-      assert.ok(move?.actionable);
-      assert.match(move.explanation, /загальні погодні правила/);
-      assert.equal((await request(`/tasks?plantId=${outside.id}`))[0].scheduledDate, rainy.date);
-      await request(`/tasks/${outdoorTask.id}`, "PATCH", { priority: "HIGH" });
-      assert.equal((await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === move.id).actionable, false);
-      await request(`/recommendations/${move.id}/apply`, "POST", {}, 400);
-      const freshMove = (await request("/recommendations", "POST", { plantId: outside.id }, 201)).recommendations.find(rec => rec.suggestedDate);
-      const applied = await request(`/recommendations/${freshMove.id}/apply`, "POST", {});
-      assert.equal(applied.scheduledDate, freshMove.suggestedDate);
-      assert.equal((await request("/reminders")).find(rec => rec.taskId === outdoorTask.id).reminderDate, applied.scheduledDate);
-      // Reversed custom-category edits invalidate advice even when activity sets coincide.
-      await request(`/tasks/${outdoorTask.id}`, "PATCH", { scheduledDate: rainy.date });
-      const beforeCategory = (await request("/recommendations", "POST", { plantId: outside.id }, 201)).recommendations.find(rec => rec.suggestedDate);
-      await request(`/plants/${outside.id}`, "PATCH", { category: "VEGETABLE" });
-      await request(`/plants/${outside.id}`, "PATCH", { category: "HERB" });
-      await request(`/recommendations/${beforeCategory.id}/apply`, "POST", {}, 400);
-    }
+    // Deterministic development-only scenario: an outdoor watering task tomorrow sees 10.3 mm,
+    // then the next day is dry. Generation must not mutate the task; confirmation applies it.
+    const afterTomorrow = new Date(Date.parse(`${tomorrow}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+    const outdoorTask = await request("/tasks", "POST", { ...input("WATERING"), plantId: outside.id, scheduledDate: tomorrow }, 201);
+    const beforeAdviceCounts = await counts();
+    const scenario = "RAIN_TOMORROW";
+    const outdoorAdvice = await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: scenario }, 201);
+    assert.equal(outdoorAdvice.weather.isMock, true);
+    assert.equal(outdoorAdvice.warning, "Демонстраційні погодні дані");
+    assert.equal(outdoorAdvice.weather.location, "Львів тест");
+    assert.equal(outdoorAdvice.weather.latitude, 49.84);
+    assert.equal(outdoorAdvice.weather.longitude, 24.03);
+    assert.equal(outdoorAdvice.weather.forecast.find(day => day.date === tomorrow).precipitation, 10.3);
+    const move = outdoorAdvice.recommendations.find(rec => rec.relatedTaskId === outdoorTask.id && rec.type === "WEATHER_RESCHEDULE");
+    assert.ok(move?.actionable);
+    assert.equal(move.originalDate, tomorrow);
+    assert.equal(move.suggestedDate, afterTomorrow);
+    assert.equal(move.careType, "WATERING");
+    assert.equal(move.weather.precipitation, 10.3);
+    assert.match(move.explanation, /опади 10.3 мм > порогу 8 мм/);
+    assert.match(move.explanation, /демонстраційні погодні дані/);
+    assert.deepEqual(await counts(), beforeAdviceCounts);
+    assert.equal((await request(`/tasks?plantId=${outside.id}`)).find(task => task.id === outdoorTask.id).scheduledDate, tomorrow);
+    assert.equal((await request("/reminders")).find(reminder => reminder.taskId === outdoorTask.id).reminderDate, tomorrow);
+    const applied = await request(`/recommendations/${move.id}/apply`, "POST", {});
+    assert.equal(applied.scheduledDate, afterTomorrow);
+    assert.equal(applied.status, "POSTPONED");
+    assert.equal(applied.postponementCount, 1);
+    assert.equal((await request("/reminders")).find(reminder => reminder.taskId === outdoorTask.id).reminderDate, afterTomorrow);
+    assert.equal((await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === move.id).applied, true);
+    // Reversed custom-category edits invalidate saved advice even when activity sets coincide.
+    await request(`/tasks/${outdoorTask.id}`, "PATCH", { scheduledDate: tomorrow });
+    const beforeCategory = (await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: scenario }, 201)).recommendations.find(rec => rec.relatedTaskId === outdoorTask.id && rec.suggestedDate);
+    await request(`/plants/${outside.id}`, "PATCH", { category: "VEGETABLE" });
+    await request(`/plants/${outside.id}`, "PATCH", { category: "HERB" });
+    await request(`/recommendations/${beforeCategory.id}/apply`, "POST", {}, 400);
+    // The same rain does not move indoor care.
+    const inside = await request("/plants", "POST", { ...base, name: "Невідома кімнатна", environmentType: "INDOOR" }, 201);
+    const indoorTask = await request("/tasks", "POST", { ...input("WATERING"), plantId: inside.id, scheduledDate: tomorrow }, 201);
+    const indoorAdvice = await request("/recommendations", "POST", { plantId: inside.id, weatherScenario: scenario }, 201);
+    assert.ok(indoorAdvice.recommendations.every(rec => rec.type !== "WEATHER_RESCHEDULE"));
+    assert.equal((await request(`/tasks?plantId=${inside.id}`)).find(task => task.id === indoorTask.id).scheduledDate, tomorrow);
     // The resolver follows the updated default immediately; the UI invalidates this same dashboard query on change.
     await request(`/locations/${location.id}`, "PATCH", { isDefault: true });
     const changedDefaultWeather = (await request("/dashboard")).weather;

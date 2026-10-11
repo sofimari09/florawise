@@ -122,7 +122,7 @@ function weatherReasons(type: string, species: CareContext, weather: WeatherDay,
   if (!exposed(environment)) return [];
   const limits = thresholds(type, species, rules);
   const reasons: string[] = [];
-  if (weather.precipitation >= limits.rain) reasons.push(`опади ${weather.precipitation} мм ≥ порогу ${limits.rain} мм`);
+  if (weather.precipitation > limits.rain) reasons.push(`опади ${weather.precipitation} мм > порогу ${limits.rain} мм`);
   if (weather.windSpeed > limits.wind) reasons.push(`вітер ${weather.windSpeed} м/с > порогу ${limits.wind} м/с`);
   if (weather.temperature < limits.min) reasons.push(`температура ${weather.temperature}°C < мінімуму ${limits.min}°C`);
   if (weather.temperature > limits.max) reasons.push(`температура ${weather.temperature}°C > максимуму ${limits.max}°C`);
@@ -159,7 +159,7 @@ export function generateRules(
   const conditionBasedWatering = Boolean(wateringRule?.triggerDescription);
   for (const task of [...tasks].sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.id - b.id)) {
     if (!["PLANNED", "POSTPONED"].includes(task.status)) continue;
-    const weather = forecast.find(day => day.date === task.scheduledDate) ?? (task.scheduledDate < today ? forecast[0] : undefined);
+    const weather = forecast.find(day => day.date === task.scheduledDate);
     const taskRule = rules.find(rule => rule.careType === task.type);
     const limits = thresholds(task.type, species, rules);
     const reasons = weather ? weatherReasons(task.type, species, weather, environment, rules) : [];
@@ -195,7 +195,10 @@ export function generateRules(
     const context = `${species.id === null ? `Рослина поза довідником: «${species.name}».` : `Вид: «${species.name}».`} ${basis} Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}. ${limits.notes} ${taskKnowledge(species, task.type)} ${historyNote}`;
     if (weather && reasons.length) {
       const earliest = task.scheduledDate < today ? today : task.scheduledDate;
-      const alternative = forecast.find(day => day.date > earliest && isWeatherSuitable(task.type, species, day, environment, rules));
+      const alternative = [...forecast]
+        .filter(day => day.date > earliest)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .find(day => isWeatherSuitable(task.type, species, day, environment, rules));
       priority = higherPriority(priority, "HIGH");
       results.push({
         type: "WEATHER_RESCHEDULE", text: `${labels[task.type] ?? "Догляд"} рекомендовано перенести${alternative ? ` на ${alternative.date}` : ""}.`,

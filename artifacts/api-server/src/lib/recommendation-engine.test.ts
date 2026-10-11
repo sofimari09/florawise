@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CareTask, PlantSpecies, SpeciesCareRule } from "@workspace/db";
-import { generateRules, isWeatherSuitable } from "./recommendation-engine";
+import { generateRules, isWeatherSuitable, RULE_PARAMETERS } from "./recommendation-engine";
 import { MockWeatherService } from "./weather";
 import { customCareContext } from "./effective-care";
 import { carePlan } from "./care-eligibility";
@@ -55,7 +55,7 @@ test("outdoor decorative plant uses rain and wind forecast only for its outdoor 
   assert.equal(result.type, "WEATHER_RESCHEDULE");
   assert.equal(result.suggestedDate, date(1));
   assert.match(result.explanation, /Локація: «Одеса»/);
-  assert.match(result.explanation, /опади 10 мм ≥ порогу 5 мм/);
+  assert.match(result.explanation, /опади 10 мм > порогу 5 мм/);
   assert.match(result.explanation, /Дату буде змінено лише після вашого підтвердження/);
   assert.equal(JSON.stringify(input), before);
 });
@@ -126,6 +126,26 @@ test("postponed tasks are active and overdue status raises priority", () => {
 test("future tasks beyond the forecast are not rescheduled using today's rain", () => {
   assert.equal(generateRules(species, [task({ scheduledDate: date(20) })], forecast, "Львів", "OUTDOOR", null)[0].type, "GENERAL");
 });
+test("scheduled tasks use the forecast for their exact date, not today's rain", () => {
+  const result = generateRules(species, [task({ scheduledDate: forecast[1].date })], forecast, "Львів", "OUTDOOR", null);
+  assert.equal(result.some(item => item.type === "WEATHER_RESCHEDULE"), false);
+  assert.equal(result[0].type, "GENERAL");
+});
+test("nearest suitable alternative is chosen by date, not forecast array order", () => {
+  const laterDryDay = { ...forecast[1], date: date(2), dateTime: `${date(2)}T12:00` };
+  const result = generateRules(species, [task()], [laterDryDay, forecast[0], forecast[1]], "Львів", "OUTDOOR", null)[0];
+  assert.equal(result.type, "WEATHER_RESCHEDULE");
+  assert.equal(result.suggestedDate, date(1));
+});
+test("rain must exceed the applicable threshold and no alternative date is invented", () => {
+  const exactlyAtThreshold = [{ ...forecast[0], precipitation: RULE_PARAMETERS.significantRainMm }, ...forecast.slice(1)];
+  assert.equal(generateRules(species, [task()], exactlyAtThreshold, "Львів", "OUTDOOR", null)[0].type, "GENERAL");
+  const rainyForecast = forecast.map(day => ({ ...day, precipitation: 12 }));
+  const noAlternative = generateRules(species, [task()], rainyForecast, "Львів", "OUTDOOR", null)[0];
+  assert.equal(noAlternative.type, "WEATHER_RESCHEDULE");
+  assert.equal(noAlternative.suggestedDate, null);
+  assert.match(noAlternative.explanation, /Сприятливої дати в доступному прогнозі немає/);
+});
 test("rules do not mutate tasks and output is deterministic", () => {
   const input = task({ priority: "URGENT" });
   const before = JSON.stringify(input);
@@ -138,7 +158,7 @@ test("species thresholds are explained and affect advice even without planned ta
   const rainy = generateRules(species, [], forecast, "Львів", "OUTDOOR", null, [rule({ rainThresholdMm: "0.5" })])[0];
   const tolerant = generateRules(species, [], forecast, "Львів", "OUTDOOR", null, [rule({ rainThresholdMm: "20" })])[0];
   assert.match(rainy.explanation, /поріг опадів — 0.5 мм/);
-  assert.match(rainy.explanation, /опади 10 мм ≥ порогу 0.5 мм/);
+  assert.match(rainy.explanation, /опади 10 мм > порогу 0.5 мм/);
   assert.equal(rainy.priority, "MEDIUM");
   assert.equal(tolerant.priority, "LOW");
   assert.equal(rainy.relatedTaskId, null);

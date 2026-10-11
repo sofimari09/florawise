@@ -1,0 +1,82 @@
+Please complete and verify the central FloraWise weather-aware care rescheduling workflow.
+
+This is the highest-priority scenario for the system.
+
+Important:
+RecommendationEngine must evaluate weather for the CareTask.scheduledDate, not only current weather.
+
+Example:
+if watering is scheduled for October 15, use the forecast for October 15.
+
+Implement and verify the following flow:
+
+1. User has an OUTDOOR plant.
+2. The plant has a planned weather-sensitive CareTask, for example WATERING.
+3. Resolve the correct SavedLocation for the plant.
+4. Load the weather forecast for the exact scheduled task date.
+5. Compare forecast conditions with:
+   - SpeciesCareRule when available;
+   - otherwise the global fallback rule.
+
+For WATERING:
+if forecast precipitation exceeds the applicable threshold,
+recommend postponing the task.
+
+The generated recommendation must contain:
+
+- affected CareTask;
+- originalDate;
+- forecast precipitation;
+- applicable rain threshold;
+- explanation;
+- suggestedDate.
+
+Example Ukrainian explanation:
+
+"Полив заплановано на 15 жовтня, але на цю дату прогнозується 10,3 мм опадів. Порогове значення для перенесення становить 8 мм, тому полив рекомендовано перенести."
+
+6. Find the nearest suitable alternative date from the available forecast.
+
+Start with the next day and evaluate each available forecast date.
+
+If a suitable day is found:
+set suggestedDate.
+
+If none is found:
+do not invent a date and explain that no suitable date was found within the available forecast.
+
+7. Never automatically change the CareTask.
+
+Show a user action:
+
+"Застосувати зміну"
+
+The UI should clearly show:
+
+"Поточна дата: 15 жовтня"
+"Рекомендована дата: 16 жовтня"
+
+and the reason.
+
+8. Only after user confirmation:
+
+- update CareTask.scheduledDate;
+- increase postponementCount if applicable;
+- preserve the fact that the task was rescheduled;
+- update related reminders;
+- update the calendar;
+- mark/store that the recommendation was applied.
+
+9. INDOOR plants must not have watering postponed because of outdoor precipitation.
+
+10. Keep the real Open-Meteo provider as the normal weather source.
+
+For development/testing only, ensure there is a deterministic way to reproduce an unfavorable-weather case without changing production behavior.
+
+11. After implementation tell me exactly how to reproduce the scenario manually in Preview:
+- which plant to use;
+- which task type;
+- which task date;
+- what weather values should trigger the rule.
+
+Run relevant tests and verify the complete flow from recommendation generation to accepted calendar change.

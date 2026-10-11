@@ -26,5 +26,7 @@ export interface Recommendation {
   actionable?: boolean;
   /** @nullable */
   staleReason?: string | null;
+  /** @nullable */
+  careType: string | null;
   weather: WeatherForecast;
 }

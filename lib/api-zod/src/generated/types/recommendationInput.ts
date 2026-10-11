@@ -5,7 +5,10 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { RecommendationInputWeatherScenario } from './recommendationInputWeatherScenario';
 
 export interface RecommendationInput {
   plantId: number;
+  /** Development-only deterministic rain fixture; rejected outside development. */
+  weatherScenario?: RecommendationInputWeatherScenario;
 }

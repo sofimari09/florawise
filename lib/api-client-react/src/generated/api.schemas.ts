@@ -537,6 +537,8 @@ export interface Recommendation {
   actionable?: boolean;
   /** @nullable */
   staleReason?: string | null;
+  /** @nullable */
+  careType: string | null;
   weather: WeatherForecast;
 }
 
@@ -622,8 +624,20 @@ export interface WeatherResponse {
   forecast: WeatherForecast[];
 }
 
+/**
+ * Development-only deterministic rain fixture; rejected outside development.
+ */
+export type RecommendationInputWeatherScenario = typeof RecommendationInputWeatherScenario[keyof typeof RecommendationInputWeatherScenario];
+
+
+export const RecommendationInputWeatherScenario = {
+  RAIN_TOMORROW: 'RAIN_TOMORROW',
+} as const;
+
 export interface RecommendationInput {
   plantId: number;
+  /** Development-only deterministic rain fixture; rejected outside development. */
+  weatherScenario?: RecommendationInputWeatherScenario;
 }
 
 export interface RecommendationResult {

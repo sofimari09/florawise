@@ -538,6 +538,7 @@ export const GetDashboardResponse = zod.object({
   "applied": zod.boolean(),
   "actionable": zod.boolean().optional(),
   "staleReason": zod.string().nullish(),
+  "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
   "dateTime": zod.string(),
@@ -1073,6 +1074,7 @@ export const GetPlantResponse = zod.object({
   "applied": zod.boolean(),
   "actionable": zod.boolean().optional(),
   "staleReason": zod.string().nullish(),
+  "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
   "dateTime": zod.string(),
@@ -1391,6 +1393,7 @@ export const ListRecommendationsResponseItem = zod.object({
   "applied": zod.boolean(),
   "actionable": zod.boolean().optional(),
   "staleReason": zod.string().nullish(),
+  "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
   "dateTime": zod.string(),
@@ -1410,7 +1413,8 @@ export const ListRecommendationsResponse = zod.array(ListRecommendationsResponse
  * @summary Generate rule based recommendation
  */
 export const GenerateRecommendationBody = zod.object({
-  "plantId": zod.number().int()
+  "plantId": zod.number().int(),
+  "weatherScenario": zod.enum(['RAIN_TOMORROW']).optional().describe('Development-only deterministic rain fixture; rejected outside development.')
 })
 
 export const generateRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMin = 0;
@@ -1440,6 +1444,7 @@ export const GenerateRecommendationResponse = zod.object({
   "applied": zod.boolean(),
   "actionable": zod.boolean().optional(),
   "staleReason": zod.string().nullish(),
+  "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
   "dateTime": zod.string(),

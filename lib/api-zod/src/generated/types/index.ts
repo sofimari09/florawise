@@ -45,6 +45,7 @@ export * from './plantUpdateEnvironmentType';
 export * from './profileWeatherLocationInput';
 export * from './recommendation';
 export * from './recommendationInput';
+export * from './recommendationInputWeatherScenario';
 export * from './recommendationResult';
 export * from './reminder';
 export * from './reminderUpdate';

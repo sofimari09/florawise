@@ -23,6 +23,7 @@ import {
   type CareTask,
 } from "@workspace/db";
 import { weatherService } from "../lib/weather";
+import { createRainTomorrowScenario, DEV_WEATHER_SCENARIO } from "../lib/weather-test-scenario";
 import { generateRules, isWeatherSuitable } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
 import { canAttachPhoto } from "../lib/plant-photos";
@@ -205,19 +206,32 @@ async function mapTask(task: CareTask) {
   };
 }
 
+const devScenarioKey = "__floraWiseDevWeatherScenario";
+const devScenarioStartKey = "__floraWiseDevWeatherScenarioStart";
+function parseStoredRecommendationWeather(weatherJson: string) {
+  const parsed = JSON.parse(weatherJson || "{}") as Record<string, unknown>;
+  const { [devScenarioKey]: scenario, [devScenarioStartKey]: scenarioStart, ...weather } = parsed;
+  return {
+    weather,
+    scenario: typeof scenario === "string" ? scenario : null,
+    scenarioStart: typeof scenarioStart === "string" ? scenarioStart : null,
+  };
+}
+
 async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) {
   const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, rec.plantId));
   const species = plant ? await effectiveCare(plant) : null;
   const [task] = rec.relatedTaskId ? await db.select().from(tasksTable).where(eq(tasksTable.id, rec.relatedTaskId)) : [];
   const stale = !species || !plant || rec.eligibilityVersion !== await careSnapshot(plant, species) || (task && (task.plantId !== rec.plantId || task.type !== rec.careType || eligibilityError(species, task.type) !== null));
   const actionable = !stale && !rec.applied && !!task && ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today();
+  const storedWeather = parseStoredRecommendationWeather(rec.weatherJson);
   return {
     ...rec,
     plantName: plant?.name ?? "Рослина",
     applied: Boolean(rec.applied),
     actionable,
     staleReason: stale ? "Застосовність догляду змінилася. Створіть нову пораду" : null,
-    weather: JSON.parse(rec.weatherJson || "{}"),
+    weather: storedWeather.weather,
   };
 }
 
@@ -785,12 +799,19 @@ router.get("/recommendations", async (req, res): Promise<void> => {
 });
 
 router.post("/recommendations", async (req, res): Promise<void> => {
+  const requestedScenario = req.body?.weatherScenario;
+  if (requestedScenario !== undefined && (process.env.NODE_ENV !== "development" || requestedScenario !== DEV_WEATHER_SCENARIO)) {
+    res.status(400).json({ error: "Тестовий прогноз доступний лише в режимі розробки" }); return;
+  }
   const { user, plant } = await getPlantForUser(req, Number(req.body?.plantId));
   if (!user || !plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
   const species = await effectiveCare(plant);
   const snapshot = await careSnapshot(plant, species);
   const resolvedLocation = await resolveSavedWeatherLocation(user, plant);
-  const forecast = await weatherService.getForecast(resolvedLocation);
+  const isDevScenario = requestedScenario === DEV_WEATHER_SCENARIO;
+  const forecast = isDevScenario
+    ? createRainTomorrowScenario(resolvedLocation)
+    : await weatherService.getForecast(resolvedLocation);
   const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
   const completedCare = await db.select({ type: tasksTable.type, completedAt: max(careLogsTable.completedAt) })
     .from(careLogsTable)
@@ -809,7 +830,10 @@ router.post("/recommendations", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Умови або план змінилися під час підготовки. Створіть нову пораду" }); return;
   }
   const saved = await Promise.all(drafts.map(async (draft) => {
-    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: `${draft.explanation} Джерело погодних даних: ${forecast.isMock ? "демонстраційні погодні дані" : "актуальні погодні дані"}.`, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(draft.weather), applied: 0, eligibilityVersion: snapshot, careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
+    const weatherData = isDevScenario
+      ? { ...draft.weather, [devScenarioKey]: DEV_WEATHER_SCENARIO, [devScenarioStartKey]: forecast.forecast[0]?.date ?? today() }
+      : draft.weather;
+    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: `${draft.explanation} Джерело погодних даних: ${forecast.isMock ? "демонстраційні погодні дані" : "актуальні погодні дані"}.`, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(weatherData), applied: 0, eligibilityVersion: snapshot, careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
     return mapRecommendation(created);
   }));
   res.status(201).json({ recommendations: await Promise.all(saved), weather: forecast, warning: forecast.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані" });
@@ -829,7 +853,15 @@ router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
     if (currentRec.eligibilityVersion !== await careSnapshot(currentPlant, species, tx) || !current || current.type !== currentRec.careType || eligibilityError(species, current.type)) throw new CareEligibilityError("Умови, план або застосовність змінилися. Створіть нову пораду");
     if (currentRec.applied || !["PLANNED", "POSTPONED"].includes(current.status) || current.scheduledDate !== rec.originalDate || suggestedDate < today()) return null;
     const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, currentPlant.userId));
-    const forecast = await weatherService.getForecast(await resolveSavedWeatherLocation(user, currentPlant));
+    const location = await resolveSavedWeatherLocation(user, currentPlant);
+    const storedWeather = parseStoredRecommendationWeather(currentRec.weatherJson);
+    const useDevScenario = process.env.NODE_ENV === "development" && storedWeather.scenario === DEV_WEATHER_SCENARIO;
+    const scenarioStart = storedWeather.scenarioStart && /^\d{4}-\d{2}-\d{2}$/.test(storedWeather.scenarioStart)
+      ? storedWeather.scenarioStart
+      : undefined;
+    const forecast = useDevScenario
+      ? createRainTomorrowScenario(location, scenarioStart)
+      : await weatherService.getForecast(location);
     const weather = forecast.forecast.find(day => day.date === suggestedDate);
     const rules = species.id === null ? [] : await tx.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
     if (!weather || !isWeatherSuitable(current.type, species, weather, await plantEnvironment(currentPlant), rules)) {

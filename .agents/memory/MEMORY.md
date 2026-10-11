@@ -8,3 +8,4 @@
 - [Eligibility snapshots](eligibility-snapshots.md) — reversing an eligibility or linked-species change must not reactivate old previews or saved advice.
 - [Care regression fixtures](care-regression-fixtures.md) — plan tests need explicit supported cadences and deliberately unplanned activities, not assumptions about seed knowledge.
 - [Watering checks versus watering cadence](watering-check-interval.md) — a source's interval for checking soil conditions is not a fixed watering frequency.
+- [Weather-aware care rescheduling](weather-aware-care-rescheduling.md) — check outdoor tasks on their scheduled forecast date and require confirmation before changing dates.

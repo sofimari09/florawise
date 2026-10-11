@@ -1104,13 +1104,18 @@ components:
         applied: { type: boolean }
         actionable: { type: boolean }
         staleReason: { type: [string, "null"] }
+        careType: { type: [string, "null"] }
         weather:
           $ref: "#/components/schemas/WeatherForecast"
-      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, weather]
+      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, careType, weather]
     RecommendationInput:
       type: object
       properties:
         plantId: { type: integer }
+        weatherScenario:
+          type: string
+          enum: [RAIN_TOMORROW]
+          description: Development-only deterministic rain fixture; rejected outside development.
       required: [plantId]
     RecommendationResult:
       type: object
