@@ -534,6 +534,8 @@ export interface Recommendation {
   /** @nullable */
   suggestedDate: string | null;
   applied: boolean;
+  /** @nullable */
+  appliedAt: string | null;
   actionable?: boolean;
   /** @nullable */
   staleReason?: string | null;

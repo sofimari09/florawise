@@ -5,6 +5,7 @@ import { pool } from "@workspace/db";
 import { migratePlantNames } from "./lib/plant-name-migration";
 import { migrateCategories } from "./lib/category-migration";
 import { migrateCustomPlants } from "./lib/custom-plant-migration";
+import { migrateRecommendationAppliedAt } from "./lib/recommendation-applied-at-migration";
 import { seedKnowledgeBase } from "./lib/seed-knowledge-base";
 
 const rawPort = process.env["PORT"];
@@ -22,7 +23,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const migrationClient = await pool.connect();
-try { await migratePlantNames(migrationClient); await migrateCategories(migrationClient); await migrateCustomPlants(migrationClient); }
+try { await migratePlantNames(migrationClient); await migrateCategories(migrationClient); await migrateCustomPlants(migrationClient); await migrateRecommendationAppliedAt(migrationClient); }
 finally { migrationClient.release(); }
 await seedData();
 await seedKnowledgeBase();

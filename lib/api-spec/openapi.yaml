@@ -1102,12 +1102,13 @@ components:
         originalDate: { type: [string, "null"] }
         suggestedDate: { type: [string, "null"] }
         applied: { type: boolean }
+        appliedAt: { type: [string, "null"], format: date-time }
         actionable: { type: boolean }
         staleReason: { type: [string, "null"] }
         careType: { type: [string, "null"] }
         weather:
           $ref: "#/components/schemas/WeatherForecast"
-      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, careType, weather]
+      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, appliedAt, careType, weather]
     RecommendationInput:
       type: object
       properties:

@@ -61,8 +61,9 @@ test("API startup provisions fresh schema, safely upgrades legacy data, and pres
     await client.query(`SET search_path TO "${schema}"`);
     await startup(schema); // Empty-schema provisioning, migration, seed, listen, and API read.
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname=$1", [schema])).rows;
-    assert.equal(tables.length, 14); // 13 current model tables plus the migration ledger.
-    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations WHERE version IN ('plant-personal-name', 'custom-plant-identity')")).rows[0].n, 2);
+    assert.equal(tables.length, 16); // 15 current model tables plus the migration ledger.
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations WHERE version IN ('plant-personal-name', 'custom-plant-identity', 'recommendation-applied-at')")).rows[0].n, 3);
+    assert.ok((await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='flora_recommendations' AND column_name='applied_at'", [schema])).rows.length === 1);
     const before = (await client.query("SELECT to_jsonb(p) - 'personal_name' AS row FROM flora_plants p ORDER BY id")).rows;
     const tasksBefore = (await client.query("SELECT * FROM flora_tasks ORDER BY id")).rows;
     // Simulate the pre-alias schema ONLY inside this disposable test schema.

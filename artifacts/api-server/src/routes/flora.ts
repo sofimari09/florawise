@@ -229,6 +229,7 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
     ...rec,
     plantName: plant?.name ?? "Рослина",
     applied: Boolean(rec.applied),
+    appliedAt: rec.appliedAt?.toISOString() ?? null,
     actionable,
     staleReason: stale ? "Застосовність догляду змінилася. Створіть нову пораду" : null,
     weather: storedWeather.weather,
@@ -869,7 +870,7 @@ router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
     }
     const [updated] = await tx.update(tasksTable).set({ scheduledDate: suggestedDate, status: "POSTPONED", postponementCount: current.postponementCount + 1 }).where(eq(tasksTable.id, taskId)).returning();
     await tx.update(remindersTable).set({ reminderDate: suggestedDate, status: "PENDING" }).where(eq(remindersTable.taskId, taskId));
-    await tx.update(recommendationsTable).set({ applied: 1 }).where(eq(recommendationsTable.id, rec.id));
+    await tx.update(recommendationsTable).set({ applied: 1, appliedAt: new Date() }).where(eq(recommendationsTable.id, rec.id));
     return updated;
   });
   if (!task) { res.status(409).json({ error: "Рекомендація вже застосована або завдання змінилося. Створіть нову пораду" }); return; }
