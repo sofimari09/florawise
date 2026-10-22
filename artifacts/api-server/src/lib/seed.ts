@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { plantsTable, speciesTable, tasksTable, usersTable, careLogsTable, remindersTable, recommendationsTable } from "@workspace/db";
+import { plantsTable, plantPlacesTable, speciesTable, tasksTable, usersTable, careLogsTable, remindersTable } from "@workspace/db";
 import { logger } from "./logger";
-import { todayInKyiv } from "./date";
+import { dateInKyivOffset, todayInKyiv } from "./date";
 import { migrateLegacyLocations } from "./legacy-location-migration";
 import { SEED_CATEGORIES } from "./category-migration";
 
@@ -46,9 +46,23 @@ const speciesSeed = [
   ][index],
 }));
 
-const date = (offset: number) => {
-  return new Date(Date.parse(`${todayInKyiv()}T00:00:00.000Z`) + offset * 86_400_000).toISOString().slice(0, 10);
-};
+const date = (offset: number, fromDate = todayInKyiv()) => dateInKyivOffset(offset, fromDate);
+
+export const demoActiveTaskSpecs = [
+  { plantName: "Монстера біля вікна", type: "WATERING", dateOffset: 1, priority: "HIGH", notes: "Перевірити верхній шар ґрунту" },
+  { plantName: "Монстера біля вікна", type: "PRUNING", dateOffset: 2, priority: "MEDIUM", notes: "Прибрати сухе листя" },
+  { plantName: "Біла орхідея", type: "WATERING", dateOffset: 1, priority: "URGENT", notes: "Полив після просихання кори" },
+  { plantName: "Томати на грядці", type: "WATERING", dateOffset: 1, priority: "MEDIUM", notes: "Полив під корінь" },
+  { plantName: "Томати на грядці", type: "TREATMENT", dateOffset: 3, priority: "HIGH", notes: "Профілактична обробка" },
+] as const;
+
+const completedDemoTaskSpec = {
+  plantName: "Базилік для кухні",
+  type: "FERTILIZING",
+  dateOffset: -5,
+  priority: "LOW",
+  notes: "Рідке добриво",
+} as const;
 
 export async function seedData(): Promise<void> {
   const existing = await db.select({ id: speciesTable.id }).from(speciesTable).limit(1);
@@ -75,29 +89,120 @@ export async function seedData(): Promise<void> {
     { userId: user.id, speciesId: insertedSpecies[4].id, name: "Томати на грядці", personalName: "Томати на грядці", location: "Сад", environmentType: "OUTDOOR", photoUrl: insertedSpecies[4].imageUrl ?? "" },
     { userId: user.id, speciesId: insertedSpecies[8].id, name: "Базилік для кухні", personalName: "Базилік для кухні", location: "Підвіконня", photoUrl: insertedSpecies[8].imageUrl ?? "" },
   ]).returning();
+  const plantByName = new Map(plants.map((plant) => [plant.name, plant]));
   const tasks = await db.insert(tasksTable).values([
-    { plantId: plants[0].id, type: "WATERING", scheduledDate: date(1), priority: "HIGH", notes: "Перевірити верхній шар ґрунту" },
-    { plantId: plants[0].id, type: "PRUNING", scheduledDate: date(0), priority: "MEDIUM", notes: "Прибрати сухе листя" },
-    { plantId: plants[1].id, type: "WATERING", scheduledDate: date(-2), priority: "URGENT", notes: "Полив після просихання кори" },
-    { plantId: plants[2].id, type: "WATERING", scheduledDate: date(1), priority: "MEDIUM", notes: "Полив під корінь" },
-    { plantId: plants[2].id, type: "TREATMENT", scheduledDate: date(3), priority: "HIGH", notes: "Профілактична обробка" },
-    { plantId: plants[3].id, type: "FERTILIZING", scheduledDate: date(-5), priority: "LOW", notes: "Рідке добриво" },
+    ...demoActiveTaskSpecs.map((spec) => ({
+      plantId: plantByName.get(spec.plantName)!.id,
+      type: spec.type,
+      scheduledDate: date(spec.dateOffset),
+      priority: spec.priority,
+      notes: spec.notes,
+    })),
+    {
+      plantId: plantByName.get(completedDemoTaskSpec.plantName)!.id,
+      type: completedDemoTaskSpec.type,
+      scheduledDate: date(completedDemoTaskSpec.dateOffset),
+      priority: completedDemoTaskSpec.priority,
+      notes: completedDemoTaskSpec.notes,
+    },
   ]).returning();
   await db.update(tasksTable).set({ status: "COMPLETED" }).where(eq(tasksTable.id, tasks[5].id));
   await db.insert(careLogsTable).values({ taskId: tasks[5].id, comment: "Листя стало насиченішим після підживлення." });
   await db.insert(remindersTable).values(tasks.slice(0, 5).map((task) => ({ taskId: task.id, reminderDate: task.scheduledDate, status: "PENDING" })));
-  await db.insert(recommendationsTable).values({
-    plantId: plants[2].id,
-    generatedAt: new Date(),
-    type: "WEATHER_RESCHEDULE",
-    text: `Полив рекомендовано перенести з ${date(1)} через значні опади.`,
-    priority: "HIGH",
-    relatedTaskId: tasks[3].id,
-    explanation: "Демонстраційний запис показує, як FloraWise пояснює перенесення для рослини в саду.",
-    originalDate: date(1),
-    suggestedDate: date(2),
-    weatherJson: JSON.stringify({ date: date(1), temperature: 18, precipitation: 13, humidity: 86, windSpeed: 4, condition: "Значні опади" }),
-  });
   logger.info("FloraWise demo data seeded");
   await migrateLegacyLocations();
+}
+
+export async function refreshDemoData() {
+  if (process.env.NODE_ENV !== "development") {
+    throw new Error("Демо-дані можна оновлювати лише в середовищі розробки.");
+  }
+
+  const [demoUser] = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, "preview-demo-user"));
+  if (!demoUser) throw new Error("Обліковий запис preview-demo-user не знайдено.");
+
+  const today = todayInKyiv();
+  return db.transaction(async (tx) => {
+    const plants = await tx.select().from(plantsTable).where(eq(plantsTable.userId, demoUser.id));
+    const plans = [];
+
+    for (const spec of demoActiveTaskSpecs) {
+      const plant = plants.find((candidate) => candidate.name === spec.plantName);
+      if (!plant) throw new Error(`Не знайдено demo-рослину «${spec.plantName}».`);
+
+      if (spec.plantName === "Томати на грядці" && spec.type === "WATERING") {
+        const [place] = plant.placeId
+          ? await tx.select().from(plantPlacesTable).where(eq(plantPlacesTable.id, plant.placeId))
+          : [];
+        if ((place?.environmentType ?? plant.environmentType) !== "OUTDOOR") {
+          throw new Error("Полив томатів не можна підготувати для погодної демонстрації: умови мають бути «надворі».");
+        }
+      }
+
+      const matches = await tx.select().from(tasksTable).where(and(
+        eq(tasksTable.plantId, plant.id),
+        eq(tasksTable.type, spec.type),
+        eq(tasksTable.notes, spec.notes),
+      ));
+      const active = matches.filter((task) => ["PLANNED", "POSTPONED", "OVERDUE"].includes(task.status));
+      if (active.length > 1) {
+        throw new Error(`Знайдено кілька активних demo-завдань «${spec.notes}»; оновлення скасовано без змін.`);
+      }
+      plans.push({ spec, plant, task: active[0] });
+    }
+
+    const refreshedTasks: Array<{ id: number; plantName: string; type: string; scheduledDate: string; state: "updated" | "created" }> = [];
+    const refreshedReminders: Array<{ id: number; taskId: number; reminderDate: string; state: "updated" | "created" }> = [];
+
+    for (const { spec, plant, task } of plans) {
+      const scheduledDate = date(spec.dateOffset, today);
+      const [savedTask] = task
+        ? await tx.update(tasksTable)
+          .set({ scheduledDate, status: "PLANNED", priority: spec.priority })
+          .where(eq(tasksTable.id, task.id))
+          .returning()
+        : await tx.insert(tasksTable).values({
+          plantId: plant.id,
+          type: spec.type,
+          scheduledDate,
+          status: "PLANNED",
+          priority: spec.priority,
+          notes: spec.notes,
+        }).returning();
+      if (!savedTask) throw new Error(`Не вдалося зберегти demo-завдання «${spec.notes}».`);
+      refreshedTasks.push({
+        id: savedTask.id,
+        plantName: plant.name,
+        type: savedTask.type,
+        scheduledDate: savedTask.scheduledDate,
+        state: task ? "updated" : "created",
+      });
+
+      const reminders = await tx.select().from(remindersTable)
+        .where(eq(remindersTable.taskId, savedTask.id))
+        .orderBy(remindersTable.id);
+      if (reminders.length === 0) {
+        const [created] = await tx.insert(remindersTable).values({
+          taskId: savedTask.id,
+          reminderDate: scheduledDate,
+          status: "PENDING",
+        }).returning();
+        if (!created) throw new Error(`Не вдалося створити нагадування для завдання ${savedTask.id}.`);
+        refreshedReminders.push({ id: created.id, taskId: savedTask.id, reminderDate: created.reminderDate, state: "created" });
+      } else {
+        const [primary] = await tx.update(remindersTable)
+          .set({ reminderDate: scheduledDate, status: "PENDING" })
+          .where(eq(remindersTable.id, reminders[0].id))
+          .returning();
+        if (!primary) throw new Error(`Не вдалося оновити нагадування для завдання ${savedTask.id}.`);
+        refreshedReminders.push({ id: primary.id, taskId: savedTask.id, reminderDate: primary.reminderDate, state: "updated" });
+        for (const duplicate of reminders.slice(1)) {
+          await tx.update(remindersTable).set({ reminderDate: scheduledDate, status: "READ" })
+            .where(eq(remindersTable.id, duplicate.id));
+        }
+      }
+    }
+
+    return { asOf: today, tasks: refreshedTasks, reminders: refreshedReminders };
+  });
 }

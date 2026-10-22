@@ -15,7 +15,10 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: {
+      index: path.resolve(artifactDir, "src/index.ts"),
+      "refresh-demo-data": path.resolve(artifactDir, "src/lib/refresh-demo-data-cli.ts"),
+    },
     platform: "node",
     bundle: true,
     loader: { ".sql": "text" },

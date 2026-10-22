@@ -65,6 +65,13 @@ test("API startup provisions fresh schema, safely upgrades legacy data, and pres
     assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations WHERE version IN ('plant-personal-name', 'custom-plant-identity', 'recommendation-applied-at', 'recommendation-superseded-at', 'demo-tomato-outdoor-environment-v2')")).rows[0].n, 5);
     assert.ok((await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='flora_recommendations' AND column_name='applied_at'", [schema])).rows.length === 1);
     assert.ok((await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='flora_recommendations' AND column_name='superseded_at'", [schema])).rows.length === 1);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_recommendations")).rows[0].n, 0);
+    const kyivDateParts = Object.fromEntries(new Intl.DateTimeFormat("en", {
+      timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date()).map(part => [part.type, part.value]));
+    const todayInKyiv = `${kyivDateParts.year}-${kyivDateParts.month}-${kyivDateParts.day}`;
+    const activeSeedDates = (await client.query("SELECT scheduled_date::text FROM flora_tasks WHERE status IN ('PLANNED','POSTPONED')")).rows;
+    assert.ok(activeSeedDates.every(row => row.scheduled_date >= todayInKyiv));
     await client.query("UPDATE flora_plants SET environment_type='INDOOR' WHERE name='Томати на грядці' AND location='Сад'");
     await client.query(`UPDATE flora_plant_places pp SET environment_type='INDOOR'
       FROM flora_plants p WHERE p.place_id=pp.id AND p.name='Томати на грядці' AND p.location='Сад'`);

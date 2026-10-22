@@ -1223,7 +1223,16 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const tasks = (await db.select().from(tasksTable)).filter((task) => plantIds.has(task.plantId));
   const activeTasks = tasks.filter(task => ["PLANNED", "POSTPONED"].includes(task.status));
   const mappedTasks = await Promise.all(activeTasks.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)).slice(0, 8).map(mapTask));
-  const recommendations = (await db.select().from(recommendationsTable).orderBy(desc(recommendationsTable.generatedAt))).filter((item) => plantIds.has(item.plantId)).slice(0, 3);
+  const recommendationRows = (await db.select().from(recommendationsTable).orderBy(desc(recommendationsTable.generatedAt)))
+    .filter((item) => plantIds.has(item.plantId));
+  const mappedRecommendations = await Promise.all(recommendationRows.map(mapRecommendation));
+  const currentRecommendations = mappedRecommendations.filter((item) => !item.staleReason && !item.applied && !item.supersededAt);
+  const weatherProtectedTaskIds = new Set(currentRecommendations
+    .filter((item) => item.type === "WEATHER_RESCHEDULE" && item.relatedTaskId !== null)
+    .map((item) => item.relatedTaskId as number));
+  const dashboardRecommendations = currentRecommendations
+    .filter((item) => item.type === "WEATHER_RESCHEDULE" || item.relatedTaskId === null || !weatherProtectedTaskIds.has(item.relatedTaskId))
+    .slice(0, 3);
   const reminders = await db.select().from(remindersTable).where(eq(remindersTable.status, "PENDING"));
   let weather: Awaited<ReturnType<typeof weatherService.getForecast>> | null = null;
   try {
@@ -1235,7 +1244,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
     req.log.warn({ error, userId: user.id }, "Актуальний прогноз погоди тимчасово недоступний");
   }
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
-  res.json({ plantsCount: plants.length, todayTasks: activeTasks.filter((task) => task.scheduledDate === today()).length, overdueTasks: activeTasks.filter((task) => task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: activeTasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority)).length, weather, upcomingTasks: mappedTasks, latestRecommendations: await Promise.all(recommendations.map(mapRecommendation)), reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1) && ["PLANNED", "POSTPONED"].includes(taskMap.get(item.taskId)?.status ?? "")).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "OTHER", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
+  res.json({ plantsCount: plants.length, todayTasks: activeTasks.filter((task) => task.scheduledDate === today()).length, overdueTasks: activeTasks.filter((task) => task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: activeTasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority)).length, weather, upcomingTasks: mappedTasks, latestRecommendations: dashboardRecommendations, reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1) && ["PLANNED", "POSTPONED"].includes(taskMap.get(item.taskId)?.status ?? "")).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "OTHER", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
 });
 
 router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

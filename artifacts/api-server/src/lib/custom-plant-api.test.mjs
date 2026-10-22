@@ -127,6 +127,13 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.equal(move.weather.precipitation, 10.3);
     assert.match(move.explanation, /опади 10.3 мм > порогу 8 мм/);
     assert.match(move.explanation, /демонстраційні погодні дані/);
+    assert.ok(move.eligibilityVersion);
+    await client.query(`INSERT INTO flora_recommendations(plant_id,generated_at,type,text,priority,related_task_id,explanation,care_type,eligibility_version)
+      VALUES($1,NOW(),'PRIORITY','Полив має терміновий пріоритет','URGENT',$2,'Тестова звичайна терміновість','WATERING',$3)`,
+      [outside.id, outdoorTask.id, move.eligibilityVersion]);
+    const weatherDominantDashboard = await request("/dashboard?weatherScenario=RAIN_TOMORROW");
+    const dashboardAdviceForTask = weatherDominantDashboard.latestRecommendations.filter(rec => rec.relatedTaskId === outdoorTask.id);
+    assert.deepEqual(dashboardAdviceForTask.map(rec => rec.type), ["WEATHER_RESCHEDULE"]);
     assert.deepEqual(await counts(), beforeAdviceCounts);
     assert.equal((await request(`/tasks?plantId=${outside.id}`)).find(task => task.id === outdoorTask.id).scheduledDate, tomorrow);
     assert.equal((await request("/reminders")).find(reminder => reminder.taskId === outdoorTask.id).reminderDate, tomorrow);
@@ -167,6 +174,9 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.equal(staleMoveView.actionable, false);
     assert.equal(staleMoveView.refreshable, true);
     assert.match(staleMoveView.staleReason, /Завдання вже перенесено/);
+    const cleanDashboard = await request("/dashboard?weatherScenario=RAIN_TOMORROW");
+    assert.ok(cleanDashboard.latestRecommendations.every(rec => !rec.staleReason && !rec.applied && !rec.supersededAt));
+    assert.equal(cleanDashboard.latestRecommendations.some(rec => rec.id === staleMove.id), false);
     const refreshed = await request(`/recommendations/${staleMove.id}/refresh`, "POST", {}, 200);
     assert.ok(refreshed.recommendations.every(rec => rec.type !== "WEATHER_RESCHEDULE"));
     assert.equal((await request(`/tasks?plantId=${outside.id}`)).find(item => item.id === outdoorTask.id).scheduledDate, afterTomorrow);
