@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { plantsTable, speciesTable, tasksTable, usersTable, careLogsTable, remindersTable, recommendationsTable } from "@workspace/db";
 import { logger } from "./logger";
+import { todayInKyiv } from "./date";
 import { migrateLegacyLocations } from "./legacy-location-migration";
 import { SEED_CATEGORIES } from "./category-migration";
 
@@ -46,9 +47,7 @@ const speciesSeed = [
 }));
 
 const date = (offset: number) => {
-  const value = new Date();
-  value.setDate(value.getDate() + offset);
-  return value.toISOString().slice(0, 10);
+  return new Date(Date.parse(`${todayInKyiv()}T00:00:00.000Z`) + offset * 86_400_000).toISOString().slice(0, 10);
 };
 
 export async function seedData(): Promise<void> {
@@ -73,7 +72,7 @@ export async function seedData(): Promise<void> {
   const plants = await db.insert(plantsTable).values([
     { userId: user.id, speciesId: insertedSpecies[0].id, name: "Монстера біля вікна", personalName: "Монстера біля вікна", location: "Балкон", photoUrl: insertedSpecies[0].imageUrl ?? "" },
     { userId: user.id, speciesId: insertedSpecies[3].id, name: "Біла орхідея", personalName: "Біла орхідея", location: "Вітальня", photoUrl: insertedSpecies[3].imageUrl ?? "" },
-    { userId: user.id, speciesId: insertedSpecies[4].id, name: "Томати на грядці", personalName: "Томати на грядці", location: "Сад", photoUrl: insertedSpecies[4].imageUrl ?? "" },
+    { userId: user.id, speciesId: insertedSpecies[4].id, name: "Томати на грядці", personalName: "Томати на грядці", location: "Сад", environmentType: "OUTDOOR", photoUrl: insertedSpecies[4].imageUrl ?? "" },
     { userId: user.id, speciesId: insertedSpecies[8].id, name: "Базилік для кухні", personalName: "Базилік для кухні", location: "Підвіконня", photoUrl: insertedSpecies[8].imageUrl ?? "" },
   ]).returning();
   const tasks = await db.insert(tasksTable).values([

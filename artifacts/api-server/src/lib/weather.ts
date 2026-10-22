@@ -84,7 +84,7 @@ export class RealWeatherService implements WeatherServiceClient {
     url.searchParams.set("current", "temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m");
     url.searchParams.set("daily", "weather_code,temperature_2m_mean,precipitation_sum,precipitation_probability_max,relative_humidity_2m_mean,wind_speed_10m_mean");
     url.searchParams.set("forecast_days", "7");
-    url.searchParams.set("timezone", "auto");
+    url.searchParams.set("timezone", "Europe/Kyiv");
     url.searchParams.set("temperature_unit", "celsius");
     url.searchParams.set("precipitation_unit", "mm");
     url.searchParams.set("wind_speed_unit", "ms");
@@ -183,7 +183,7 @@ export class MockWeatherService implements WeatherServiceClient {
       latitude: location.latitude,
       longitude: location.longitude,
       isMock: true,
-      current: { ...forecast[0], dateTime: new Date().toISOString() },
+      current: forecast[0],
       forecast,
     };
   }

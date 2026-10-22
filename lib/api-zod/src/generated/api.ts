@@ -465,11 +465,15 @@ export const UpdateCurrentUserResponse = zod.object({
 /**
  * @summary Get dashboard overview
  */
-export const getDashboardResponseWeatherCurrentPrecipitationProbabilityMin = 0;
-export const getDashboardResponseWeatherCurrentPrecipitationProbabilityMax = 100;
+export const GetDashboardQueryParams = zod.object({
+  "weatherScenario": zod.enum(['RAIN_TOMORROW']).optional().describe('Development-only deterministic forecast fixture.')
+})
 
-export const getDashboardResponseWeatherForecastItemPrecipitationProbabilityMin = 0;
-export const getDashboardResponseWeatherForecastItemPrecipitationProbabilityMax = 100;
+export const getDashboardResponseWeatherOneCurrentPrecipitationProbabilityMin = 0;
+export const getDashboardResponseWeatherOneCurrentPrecipitationProbabilityMax = 100;
+
+export const getDashboardResponseWeatherOneForecastItemPrecipitationProbabilityMin = 0;
+export const getDashboardResponseWeatherOneForecastItemPrecipitationProbabilityMax = 100;
 
 export const getDashboardResponseLatestRecommendationsItemWeatherPrecipitationProbabilityMin = 0;
 export const getDashboardResponseLatestRecommendationsItemWeatherPrecipitationProbabilityMax = 100;
@@ -482,7 +486,7 @@ export const GetDashboardResponse = zod.object({
   "overdueTasks": zod.number().int(),
   "completedTasks": zod.number().int(),
   "highPriorityTasks": zod.number().int(),
-  "weather": zod.object({
+  "weather": zod.union([zod.object({
   "location": zod.string(),
   "isMock": zod.boolean(),
   "latitude": zod.number().nullable(),
@@ -492,7 +496,7 @@ export const GetDashboardResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
-  "precipitationProbability": zod.number().int().min(getDashboardResponseWeatherCurrentPrecipitationProbabilityMin).max(getDashboardResponseWeatherCurrentPrecipitationProbabilityMax).nullish(),
+  "precipitationProbability": zod.number().int().min(getDashboardResponseWeatherOneCurrentPrecipitationProbabilityMin).max(getDashboardResponseWeatherOneCurrentPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
@@ -503,13 +507,13 @@ export const GetDashboardResponse = zod.object({
   "dateTime": zod.string(),
   "temperature": zod.number(),
   "precipitation": zod.number(),
-  "precipitationProbability": zod.number().int().min(getDashboardResponseWeatherForecastItemPrecipitationProbabilityMin).max(getDashboardResponseWeatherForecastItemPrecipitationProbabilityMax).nullish(),
+  "precipitationProbability": zod.number().int().min(getDashboardResponseWeatherOneForecastItemPrecipitationProbabilityMin).max(getDashboardResponseWeatherOneForecastItemPrecipitationProbabilityMax).nullish(),
   "humidity": zod.number(),
   "windSpeed": zod.number(),
   "condition": zod.string(),
   "conditionCode": zod.number().int()
 }))
-}),
+}),zod.null()]),
   "upcomingTasks": zod.array(zod.object({
   "id": zod.number().int(),
   "plantId": zod.number().int(),
@@ -537,8 +541,10 @@ export const GetDashboardResponse = zod.object({
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
   "appliedAt": zod.coerce.date().nullable(),
-  "actionable": zod.boolean().optional(),
-  "staleReason": zod.string().nullish(),
+  "actionable": zod.boolean(),
+  "refreshable": zod.boolean(),
+  "staleReason": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
   "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
@@ -1074,8 +1080,10 @@ export const GetPlantResponse = zod.object({
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
   "appliedAt": zod.coerce.date().nullable(),
-  "actionable": zod.boolean().optional(),
-  "staleReason": zod.string().nullish(),
+  "actionable": zod.boolean(),
+  "refreshable": zod.boolean(),
+  "staleReason": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
   "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
@@ -1329,6 +1337,10 @@ export const UpdateReminderResponse = zod.object({
 /**
  * @summary Get seven day forecast
  */
+export const GetWeatherQueryParams = zod.object({
+  "weatherScenario": zod.enum(['RAIN_TOMORROW']).optional().describe('Development-only deterministic forecast fixture.')
+})
+
 export const getWeatherResponseCurrentPrecipitationProbabilityMin = 0;
 export const getWeatherResponseCurrentPrecipitationProbabilityMax = 100;
 
@@ -1394,8 +1406,10 @@ export const ListRecommendationsResponseItem = zod.object({
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
   "appliedAt": zod.coerce.date().nullable(),
-  "actionable": zod.boolean().optional(),
-  "staleReason": zod.string().nullish(),
+  "actionable": zod.boolean(),
+  "refreshable": zod.boolean(),
+  "staleReason": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
   "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
@@ -1446,8 +1460,10 @@ export const GenerateRecommendationResponse = zod.object({
   "suggestedDate": zod.string().nullable(),
   "applied": zod.boolean(),
   "appliedAt": zod.coerce.date().nullable(),
-  "actionable": zod.boolean().optional(),
-  "staleReason": zod.string().nullish(),
+  "actionable": zod.boolean(),
+  "refreshable": zod.boolean(),
+  "staleReason": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
   "careType": zod.string().nullable(),
   "weather": zod.object({
   "date": zod.string(),
@@ -1512,6 +1528,92 @@ export const ApplyRecommendationResponse = zod.object({
   "createdAt": zod.string(),
   "postponementCount": zod.number().int(),
   "isOverdue": zod.boolean()
+})
+
+
+/**
+ * @summary Refresh a stale weather recommendation using the current forecast
+ */
+export const RefreshRecommendationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RefreshRecommendationBody = zod.object({
+  "weatherScenario": zod.enum(['RAIN_TOMORROW']).optional().describe('Development-only deterministic rain fixture; rejected outside development.')
+})
+
+export const refreshRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMin = 0;
+export const refreshRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMax = 100;
+
+export const refreshRecommendationResponseWeatherCurrentPrecipitationProbabilityMin = 0;
+export const refreshRecommendationResponseWeatherCurrentPrecipitationProbabilityMax = 100;
+
+export const refreshRecommendationResponseWeatherForecastItemPrecipitationProbabilityMin = 0;
+export const refreshRecommendationResponseWeatherForecastItemPrecipitationProbabilityMax = 100;
+
+
+
+export const RefreshRecommendationResponse = zod.object({
+  "recommendations": zod.array(zod.object({
+  "id": zod.number().int(),
+  "plantId": zod.number().int(),
+  "plantName": zod.string(),
+  "generatedAt": zod.string(),
+  "type": zod.string(),
+  "text": zod.string(),
+  "priority": zod.string(),
+  "relatedTaskId": zod.number().int().nullable(),
+  "explanation": zod.string(),
+  "originalDate": zod.string().nullable(),
+  "suggestedDate": zod.string().nullable(),
+  "applied": zod.boolean(),
+  "appliedAt": zod.coerce.date().nullable(),
+  "actionable": zod.boolean(),
+  "refreshable": zod.boolean(),
+  "staleReason": zod.string().nullable(),
+  "supersededAt": zod.coerce.date().nullable(),
+  "careType": zod.string().nullable(),
+  "weather": zod.object({
+  "date": zod.string(),
+  "dateTime": zod.string(),
+  "temperature": zod.number(),
+  "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(refreshRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMin).max(refreshRecommendationResponseRecommendationsItemWeatherPrecipitationProbabilityMax).nullish(),
+  "humidity": zod.number(),
+  "windSpeed": zod.number(),
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
+})
+})),
+  "weather": zod.object({
+  "location": zod.string(),
+  "isMock": zod.boolean(),
+  "latitude": zod.number().nullable(),
+  "longitude": zod.number().nullable(),
+  "current": zod.object({
+  "date": zod.string(),
+  "dateTime": zod.string(),
+  "temperature": zod.number(),
+  "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(refreshRecommendationResponseWeatherCurrentPrecipitationProbabilityMin).max(refreshRecommendationResponseWeatherCurrentPrecipitationProbabilityMax).nullish(),
+  "humidity": zod.number(),
+  "windSpeed": zod.number(),
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
+}),
+  "forecast": zod.array(zod.object({
+  "date": zod.string(),
+  "dateTime": zod.string(),
+  "temperature": zod.number(),
+  "precipitation": zod.number(),
+  "precipitationProbability": zod.number().int().min(refreshRecommendationResponseWeatherForecastItemPrecipitationProbabilityMin).max(refreshRecommendationResponseWeatherForecastItemPrecipitationProbabilityMax).nullish(),
+  "humidity": zod.number(),
+  "windSpeed": zod.number(),
+  "condition": zod.string(),
+  "conditionCode": zod.number().int()
+}))
+}),
+  "warning": zod.string().nullable()
 })
 
 

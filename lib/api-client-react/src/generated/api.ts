@@ -26,7 +26,9 @@ import type {
   CareTask,
   CompletionInput,
   Dashboard,
+  GetDashboardParams,
   GetStatisticsParams,
+  GetWeatherParams,
   HealthStatus,
   ListCareHistoryParams,
   ListPlantsParams,
@@ -47,6 +49,7 @@ import type {
   ProfileWeatherLocationInput,
   Recommendation,
   RecommendationInput,
+  RecommendationRefreshInput,
   RecommendationResult,
   Reminder,
   ReminderUpdate,
@@ -1591,20 +1594,27 @@ export const useUpdateCurrentUser = <TError = ErrorType<unknown>,
       return useMutation(getUpdateCurrentUserMutationOptions(options));
     }
 
-export const getGetDashboardUrl = () => {
+export const getGetDashboardUrl = (params?: GetDashboardParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/dashboard`
+  return stringifiedParams.length > 0 ? `/api/dashboard?${stringifiedParams}` : `/api/dashboard`
 }
 
 /**
  * @summary Get dashboard overview
  */
-export const getDashboard = async ( options?: Parameters<typeof customFetch>[1]): Promise<Dashboard> => {
+export const getDashboard = async (params?: GetDashboardParams, options?: Parameters<typeof customFetch>[1]): Promise<Dashboard> => {
 
-  return customFetch<Dashboard>(getGetDashboardUrl(),
+  return customFetch<Dashboard>(getGetDashboardUrl(params),
   {
     ...options,
     method: 'GET'
@@ -1617,23 +1627,23 @@ export const getDashboard = async ( options?: Parameters<typeof customFetch>[1])
 
 
 
-export const getGetDashboardQueryKey = () => {
+export const getGetDashboardQueryKey = (params?: GetDashboardParams,) => {
     return [
-    `/api/dashboard`
+    `/api/dashboard`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getDashboard>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getDashboard>>, TError = ErrorType<unknown>>(params?: GetDashboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDashboardQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboard>>> = ({ signal }) => getDashboard({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboard>>> = ({ signal }) => getDashboard(params, { signal, ...requestOptions });
 
 
 
@@ -1651,11 +1661,11 @@ export type GetDashboardQueryError = ErrorType<unknown>
  */
 
 export function useGetDashboard<TData = Awaited<ReturnType<typeof getDashboard>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetDashboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDashboardQueryOptions(options)
+  const queryOptions = getGetDashboardQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -3005,20 +3015,27 @@ export const useUpdateReminder = <TError = ErrorType<unknown>,
       return useMutation(getUpdateReminderMutationOptions(options));
     }
 
-export const getGetWeatherUrl = () => {
+export const getGetWeatherUrl = (params?: GetWeatherParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/weather`
+  return stringifiedParams.length > 0 ? `/api/weather?${stringifiedParams}` : `/api/weather`
 }
 
 /**
  * @summary Get seven day forecast
  */
-export const getWeather = async ( options?: Parameters<typeof customFetch>[1]): Promise<WeatherResponse> => {
+export const getWeather = async (params?: GetWeatherParams, options?: Parameters<typeof customFetch>[1]): Promise<WeatherResponse> => {
 
-  return customFetch<WeatherResponse>(getGetWeatherUrl(),
+  return customFetch<WeatherResponse>(getGetWeatherUrl(params),
   {
     ...options,
     method: 'GET'
@@ -3031,23 +3048,23 @@ export const getWeather = async ( options?: Parameters<typeof customFetch>[1]): 
 
 
 
-export const getGetWeatherQueryKey = () => {
+export const getGetWeatherQueryKey = (params?: GetWeatherParams,) => {
     return [
-    `/api/weather`
+    `/api/weather`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetWeatherQueryOptions = <TData = Awaited<ReturnType<typeof getWeather>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetWeatherQueryOptions = <TData = Awaited<ReturnType<typeof getWeather>>, TError = ErrorType<unknown>>(params?: GetWeatherParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetWeatherQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetWeatherQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeather>>> = ({ signal }) => getWeather({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeather>>> = ({ signal }) => getWeather(params, { signal, ...requestOptions });
 
 
 
@@ -3065,11 +3082,11 @@ export type GetWeatherQueryError = ErrorType<unknown>
  */
 
 export function useGetWeather<TData = Awaited<ReturnType<typeof getWeather>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetWeatherParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWeather>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetWeatherQueryOptions(options)
+  const queryOptions = getGetWeatherQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -3326,6 +3343,95 @@ export const useApplyRecommendation = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getApplyRecommendationMutationOptions(options));
+    }
+
+export const getRefreshRecommendationUrl = (id: number,) => {
+
+
+
+
+  return `/api/recommendations/${id}/refresh`
+}
+
+/**
+ * @summary Refresh a stale weather recommendation using the current forecast
+ */
+export const refreshRecommendation = async (id: number,
+    recommendationRefreshInput: RecommendationRefreshInput, options?: Parameters<typeof customFetch>[1]): Promise<RecommendationResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RecommendationResult>(getRefreshRecommendationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(recommendationRefreshInput)
+  }
+);}
+
+
+
+
+
+export const getRefreshRecommendationMutationKey = () => ['refreshRecommendation'] as const;
+
+export const getRefreshRecommendationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshRecommendation>>, TError,RefreshRecommendationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshRecommendation>>, TError,RefreshRecommendationMutationVariables, TContext> => {
+
+const mutationKey = getRefreshRecommendationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshRecommendation>>, RefreshRecommendationMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  refreshRecommendation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshRecommendationMutationResult = NonNullable<Awaited<ReturnType<typeof refreshRecommendation>>>
+    export type RefreshRecommendationMutationBody = BodyType<RecommendationRefreshInput>
+    export type RefreshRecommendationMutationError = ErrorType<void>
+    export type RefreshRecommendationMutationVariables = {id: number;data: BodyType<RecommendationRefreshInput>}
+
+    /**
+ * @summary Refresh a stale weather recommendation using the current forecast
+ */
+export const useRefreshRecommendation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshRecommendation>>, TError,RefreshRecommendationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshRecommendation>>,
+        TError,
+        RefreshRecommendationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRefreshRecommendationMutationOptions(options));
     }
 
 export const getListCareHistoryUrl = (params?: ListCareHistoryParams,) => {

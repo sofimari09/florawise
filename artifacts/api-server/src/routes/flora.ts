@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, desc, eq, gte, lte, inArray, or, isNull, max } from "drizzle-orm";
+import { and, desc, eq, gte, lte, inArray, or, isNull, max, ne } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
 import { createHash } from "node:crypto";
@@ -24,8 +24,9 @@ import {
 } from "@workspace/db";
 import { weatherService } from "../lib/weather";
 import { createRainTomorrowScenario, DEV_WEATHER_SCENARIO } from "../lib/weather-test-scenario";
-import { generateRules, isWeatherSuitable } from "../lib/recommendation-engine";
+import { generateRules, isWeatherSuitable, type RecommendationDraft } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
+import { todayInKyiv } from "../lib/date";
 import { canAttachPhoto } from "../lib/plant-photos";
 import { identityInput, normalizeSearch, resolvePlantName, resolveIdentityFields } from "../lib/plant-identity";
 import { customCareContext, type CareContext } from "../lib/effective-care";
@@ -33,7 +34,22 @@ import { CARE_TYPES, CARE_LABELS, PLANT_CATEGORIES, CATEGORY_LABELS, allowedCare
 import { CareEligibilityError, assertEligible, assertTaskUpdate, carePlan } from "../lib/care-eligibility";
 
 const router: IRouter = Router();
-const today = () => new Date().toISOString().slice(0, 10);
+type FloraTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+const today = todayInKyiv;
+const isWeatherExposed = (environment: string) => ["BALCONY", "OUTDOOR"].includes(environment);
+const MAX_WEATHER_RECOMMENDATION_AGE_MS = 6 * 60 * 60 * 1000;
+const recommendationRefreshMessage = "Оновіть рекомендацію за актуальним прогнозом.";
+class WeatherUnavailableError extends Error {}
+class RecommendationConflictError extends Error {}
+
+function requestedDevScenario(value: unknown, res: Response): boolean | null {
+  if (value === undefined) return false;
+  if (process.env.NODE_ENV !== "development" || value !== DEV_WEATHER_SCENARIO) {
+    res.status(400).json({ error: "Тестовий прогноз доступний лише в режимі розробки" });
+    return null;
+  }
+  return true;
+}
 const careLabels: Record<string, string> = { ...CARE_LABELS, OTHER: "Інший догляд" };
 const idFrom = (req: Request) => Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
 const stringParam = (value: unknown) => typeof value === "string" ? value : undefined;
@@ -222,8 +238,37 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
   const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, rec.plantId));
   const species = plant ? await effectiveCare(plant) : null;
   const [task] = rec.relatedTaskId ? await db.select().from(tasksTable).where(eq(tasksTable.id, rec.relatedTaskId)) : [];
-  const stale = !species || !plant || rec.eligibilityVersion !== await careSnapshot(plant, species) || (task && (task.plantId !== rec.plantId || task.type !== rec.careType || eligibilityError(species, task.type) !== null));
-  const actionable = !stale && !rec.applied && !!task && ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today();
+  const environment = plant ? await plantEnvironment(plant) : null;
+  const isWeatherRecommendation = rec.type === "WEATHER_RESCHEDULE";
+  const activeTask = !!task && task.plantId === rec.plantId && ["PLANNED", "POSTPONED"].includes(task.status);
+  const eligibleTask = !!species && !!task && task.plantId === rec.plantId &&
+    (rec.careType === null || task.type === rec.careType) && eligibilityError(species, task.type) === null;
+  let staleReason: string | null = null;
+  if (rec.applied) staleReason = null;
+  else if (rec.supersededAt) staleReason = "Цю рекомендацію оновлено. Перегляньте актуальну пораду.";
+  else if (!plant || !species) staleReason = "Рослину або її вид більше не знайдено.";
+  else if (rec.relatedTaskId !== null && !task) staleReason = "Пов’язане завдання більше не існує.";
+  else if (task && task.plantId !== rec.plantId) staleReason = "Пов’язане завдання належить іншій рослині.";
+  else if (task?.status === "COMPLETED") staleReason = "Завдання вже виконано; цю пораду не можна застосувати.";
+  else if (task?.status === "CANCELLED") staleReason = "Завдання скасовано; цю пораду не можна застосувати.";
+  else if (task && rec.careType !== null && task.type !== rec.careType) staleReason = "Тип догляду в завданні змінився; ця порада більше не застосовна.";
+  else if (task && eligibilityError(species!, task.type)) staleReason = "Застосовність цього виду догляду змінилася.";
+  else if (isWeatherRecommendation && environment && !isWeatherExposed(environment)) staleReason = "Зовнішній прогноз не застосовується до догляду в приміщенні чи теплиці.";
+  else if (isWeatherRecommendation && task && rec.originalDate !== task.scheduledDate) {
+    staleReason = `Завдання вже перенесено з ${rec.originalDate ?? "невідомої дати"} на ${task.scheduledDate}. ${recommendationRefreshMessage}`;
+  } else if (isWeatherRecommendation && rec.suggestedDate && rec.suggestedDate < today()) {
+    staleReason = `Запропонована дата ${rec.suggestedDate} уже минула. ${recommendationRefreshMessage}`;
+  } else if (isWeatherRecommendation && rec.generatedAt.getTime() < Date.now() - MAX_WEATHER_RECOMMENDATION_AGE_MS) {
+    staleReason = `Погодні дані застаріли. ${recommendationRefreshMessage}`;
+  } else if (isWeatherRecommendation && (rec.eligibilityVersion === null || rec.careType === null)) {
+    staleReason = `Це стара порада без повного знімка плану догляду. ${recommendationRefreshMessage}`;
+  } else if (plant && species && rec.eligibilityVersion !== await careSnapshot(plant, species)) {
+    staleReason = `Умови вирощування або план догляду змінилися. ${recommendationRefreshMessage}`;
+  }
+  const actionable = isWeatherRecommendation && !staleReason && !rec.applied && activeTask &&
+    task?.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today();
+  const refreshable = isWeatherRecommendation && !rec.applied && !rec.supersededAt &&
+    activeTask && eligibleTask && !!environment && isWeatherExposed(environment) && !!staleReason;
   const storedWeather = parseStoredRecommendationWeather(rec.weatherJson);
   return {
     ...rec,
@@ -231,7 +276,9 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
     applied: Boolean(rec.applied),
     appliedAt: rec.appliedAt?.toISOString() ?? null,
     actionable,
-    staleReason: stale ? "Застосовність догляду змінилася. Створіть нову пораду" : null,
+    refreshable,
+    staleReason,
+    supersededAt: rec.supersededAt?.toISOString() ?? null,
     weather: storedWeather.weather,
   };
 }
@@ -411,6 +458,112 @@ async function careSnapshot(plant: typeof plantsTable.$inferSelect, context: Car
   ])).digest("hex");
 }
 
+async function prepareRecommendationSet(
+  user: typeof usersTable.$inferSelect,
+  plant: typeof plantsTable.$inferSelect,
+  useDevScenario: boolean,
+) {
+  const species = await effectiveCare(plant);
+  const snapshot = await careSnapshot(plant, species);
+  const location = await resolveSavedWeatherLocation(user, plant);
+  const forecast = useDevScenario
+    ? createRainTomorrowScenario(location)
+    : await weatherService.getForecast(location);
+  if (!useDevScenario && forecast.isMock) throw new WeatherUnavailableError("Демонстраційні погодні дані не можна використовувати для рекомендацій.");
+
+  const tasks = await db.select().from(tasksTable).where(and(
+    eq(tasksTable.plantId, plant.id),
+    inArray(tasksTable.status, ["PLANNED", "POSTPONED"]),
+  ));
+  const completedCare = await db.select({ type: tasksTable.type, completedAt: max(careLogsTable.completedAt) })
+    .from(careLogsTable)
+    .innerJoin(tasksTable, eq(careLogsTable.taskId, tasksTable.id))
+    .where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.status, "COMPLETED")))
+    .groupBy(tasksTable.type);
+  const lastCompletedByType: Record<string, string> = {};
+  for (const action of completedCare) {
+    if (action.completedAt) lastCompletedByType[action.type] = todayInKyiv(action.completedAt);
+  }
+  const lastWatering = lastCompletedByType.WATERING ?? null;
+  const rules = species.id === null
+    ? []
+    : await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
+  const drafts = generateRules(
+    species,
+    tasks,
+    forecast.forecast,
+    location.name,
+    await plantEnvironment(plant),
+    lastWatering,
+    rules,
+    lastCompletedByType,
+  );
+  const [latestPlant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plant.id));
+  if (!latestPlant || snapshot !== await careSnapshot(latestPlant, await effectiveCare(latestPlant))) {
+    throw new CareEligibilityError("Умови або план змінилися під час підготовки. Оновіть рекомендацію.");
+  }
+  return { species, snapshot, location, forecast, tasks, rules, drafts };
+}
+
+async function saveRecommendationDraft(
+  source: typeof db | FloraTransaction,
+  plant: typeof plantsTable.$inferSelect,
+  snapshot: string,
+  tasks: CareTask[],
+  draft: RecommendationDraft,
+  forecast: Awaited<ReturnType<typeof weatherService.getForecast>>,
+  useDevScenario: boolean,
+  excludeId?: number,
+) {
+  const relatedTaskId = draft.relatedTaskId ?? null;
+  const originalDate = draft.originalDate ?? null;
+  const suggestedDate = draft.suggestedDate ?? null;
+  const duplicateConditions = [
+    eq(recommendationsTable.plantId, plant.id),
+    eq(recommendationsTable.type, draft.type),
+    eq(recommendationsTable.eligibilityVersion, snapshot),
+    eq(recommendationsTable.applied, 0),
+    isNull(recommendationsTable.supersededAt),
+    relatedTaskId === null ? isNull(recommendationsTable.relatedTaskId) : eq(recommendationsTable.relatedTaskId, relatedTaskId),
+    originalDate === null ? isNull(recommendationsTable.originalDate) : eq(recommendationsTable.originalDate, originalDate),
+    suggestedDate === null ? isNull(recommendationsTable.suggestedDate) : eq(recommendationsTable.suggestedDate, suggestedDate),
+  ];
+  if (excludeId !== undefined) duplicateConditions.push(ne(recommendationsTable.id, excludeId));
+  const [existing] = await source.select().from(recommendationsTable)
+    .where(and(...duplicateConditions))
+    .orderBy(desc(recommendationsTable.generatedAt))
+    .limit(1);
+  const weatherData = useDevScenario
+    ? { ...draft.weather, [devScenarioKey]: DEV_WEATHER_SCENARIO, [devScenarioStartKey]: forecast.forecast[0]?.date ?? today() }
+    : draft.weather;
+  const values = {
+    generatedAt: new Date(),
+    type: draft.type,
+    text: draft.text,
+    priority: draft.priority,
+    relatedTaskId,
+    explanation: `${draft.explanation} Джерело погодних даних: ${forecast.isMock ? "демонстраційні погодні дані" : "актуальні погодні дані"}.`,
+    originalDate,
+    suggestedDate,
+    weatherJson: JSON.stringify(weatherData),
+    eligibilityVersion: snapshot,
+    careType: tasks.find(task => task.id === relatedTaskId)?.type ?? null,
+  };
+  if (existing && existing.id !== excludeId) {
+    const [updated] = await source.update(recommendationsTable).set(values)
+      .where(eq(recommendationsTable.id, existing.id)).returning();
+    return updated;
+  }
+  const [created] = await source.insert(recommendationsTable).values({
+    plantId: plant.id,
+    ...values,
+    applied: 0,
+    appliedAt: null,
+    supersededAt: null,
+  }).returning();
+  return created;
+}
+
 const knowledgeInput = z.object({
   careRules: z.array(z.object({
     careType: z.enum(CARE_TYPES),
@@ -442,7 +595,6 @@ const knowledgeInput = z.object({
     return new Set(codes).size === codes.length;
   });
 
-type FloraTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function writeSpeciesKnowledge(tx: FloraTransaction, speciesId: number, data: z.infer<typeof knowledgeInput>) {
   await tx.delete(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, speciesId));
   await tx.delete(speciesKnowledgeSourcesTable).where(eq(speciesKnowledgeSourcesTable.speciesId, speciesId));
@@ -786,7 +938,17 @@ router.patch("/reminders/:id", async (req, res): Promise<void> => {
 router.get("/weather", async (req, res): Promise<void> => {
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
-  res.json(await weatherService.getForecast(await resolveSavedWeatherLocation(user)));
+  const useDevScenario = requestedDevScenario(req.query.weatherScenario, res);
+  if (useDevScenario === null) return;
+  try {
+    const location = await resolveSavedWeatherLocation(user);
+    const forecast = useDevScenario ? createRainTomorrowScenario(location) : await weatherService.getForecast(location);
+    if (!useDevScenario && forecast.isMock) throw new WeatherUnavailableError();
+    res.json(forecast);
+  } catch (error) {
+    req.log.warn({ error }, "Актуальний прогноз погоди недоступний");
+    res.status(503).json({ error: "Актуальні погодні дані тимчасово недоступні." });
+  }
 });
 
 router.get("/recommendations", async (req, res): Promise<void> => {
@@ -800,79 +962,204 @@ router.get("/recommendations", async (req, res): Promise<void> => {
 });
 
 router.post("/recommendations", async (req, res): Promise<void> => {
-  const requestedScenario = req.body?.weatherScenario;
-  if (requestedScenario !== undefined && (process.env.NODE_ENV !== "development" || requestedScenario !== DEV_WEATHER_SCENARIO)) {
-    res.status(400).json({ error: "Тестовий прогноз доступний лише в режимі розробки" }); return;
-  }
+  const useDevScenario = requestedDevScenario(req.body?.weatherScenario, res);
+  if (useDevScenario === null) return;
   const { user, plant } = await getPlantForUser(req, Number(req.body?.plantId));
   if (!user || !plant) { res.status(404).json({ error: "Рослину не знайдено" }); return; }
-  const species = await effectiveCare(plant);
-  const snapshot = await careSnapshot(plant, species);
-  const resolvedLocation = await resolveSavedWeatherLocation(user, plant);
-  const isDevScenario = requestedScenario === DEV_WEATHER_SCENARIO;
-  const forecast = isDevScenario
-    ? createRainTomorrowScenario(resolvedLocation)
-    : await weatherService.getForecast(resolvedLocation);
-  const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"])));
-  const completedCare = await db.select({ type: tasksTable.type, completedAt: max(careLogsTable.completedAt) })
-    .from(careLogsTable)
-    .innerJoin(tasksTable, eq(careLogsTable.taskId, tasksTable.id))
-    .where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.status, "COMPLETED")))
-    .groupBy(tasksTable.type);
-  const lastCompletedByType: Record<string, string> = {};
-  for (const action of completedCare) {
-    if (action.completedAt) lastCompletedByType[action.type] = action.completedAt.toISOString().slice(0, 10);
+  let prepared: Awaited<ReturnType<typeof prepareRecommendationSet>>;
+  try {
+    prepared = await prepareRecommendationSet(user, plant, useDevScenario);
+  } catch (error) {
+    if (error instanceof CareEligibilityError) {
+      res.status(409).json({ error: error.message });
+      return;
+    }
+    req.log.warn({ error, plantId: plant.id }, "Не вдалося підготувати погодну рекомендацію");
+    res.status(503).json({ error: "Актуальний прогноз недоступний. Рекомендацію не створено." });
+    return;
   }
-  const lastWatering = lastCompletedByType.WATERING ?? null;
-  const rules = species.id === null ? [] : await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
-  const drafts = generateRules(species, tasks, forecast.forecast, resolvedLocation.name, await plantEnvironment(plant), lastWatering, rules, lastCompletedByType);
-  const [latestPlant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plant.id));
-  if (!latestPlant || snapshot !== await careSnapshot(latestPlant, await effectiveCare(latestPlant))) {
-    res.status(409).json({ error: "Умови або план змінилися під час підготовки. Створіть нову пораду" }); return;
+  const savedRows = await Promise.all(prepared.drafts.map(draft => saveRecommendationDraft(
+    db, plant, prepared.snapshot, prepared.tasks, draft, prepared.forecast, useDevScenario,
+  )));
+  res.status(201).json({
+    recommendations: await Promise.all(savedRows.map(mapRecommendation)),
+    weather: prepared.forecast,
+    warning: prepared.forecast.isMock ? "Демонстраційні погодні дані" : null,
+  });
+});
+
+router.post("/recommendations/:id/refresh", async (req, res): Promise<void> => {
+  const useDevScenario = requestedDevScenario(req.body?.weatherScenario, res);
+  if (useDevScenario === null) return;
+  const [rec] = await db.select().from(recommendationsTable).where(eq(recommendationsTable.id, idFrom(req)));
+  const { user, plant } = await getPlantForUser(req, rec?.plantId ?? -1);
+  if (!rec || !plant || !user) { res.status(404).json({ error: "Рекомендацію не знайдено" }); return; }
+  if (rec.type !== "WEATHER_RESCHEDULE" || rec.relatedTaskId === null) {
+    res.status(400).json({ error: "Оновлювати можна лише погодну рекомендацію для завдання." });
+    return;
   }
-  const saved = await Promise.all(drafts.map(async (draft) => {
-    const weatherData = isDevScenario
-      ? { ...draft.weather, [devScenarioKey]: DEV_WEATHER_SCENARIO, [devScenarioStartKey]: forecast.forecast[0]?.date ?? today() }
-      : draft.weather;
-    const [created] = await db.insert(recommendationsTable).values({ plantId: plant.id, generatedAt: new Date(), type: draft.type, text: draft.text, priority: draft.priority, relatedTaskId: draft.relatedTaskId, explanation: `${draft.explanation} Джерело погодних даних: ${forecast.isMock ? "демонстраційні погодні дані" : "актуальні погодні дані"}.`, originalDate: draft.originalDate, suggestedDate: draft.suggestedDate, weatherJson: JSON.stringify(weatherData), applied: 0, eligibilityVersion: snapshot, careType: tasks.find(task => task.id === draft.relatedTaskId)?.type ?? null }).returning();
-    return mapRecommendation(created);
-  }));
-  res.status(201).json({ recommendations: await Promise.all(saved), weather: forecast, warning: forecast.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані" });
+  if (rec.applied || rec.supersededAt) {
+    res.status(409).json({ error: rec.applied ? "Рекомендацію вже застосовано." : "Цю рекомендацію вже оновлено." });
+    return;
+  }
+  const [task] = await db.select().from(tasksTable)
+    .where(and(eq(tasksTable.id, rec.relatedTaskId), eq(tasksTable.plantId, plant.id)));
+  if (!task) { res.status(409).json({ error: "Пов’язане завдання більше не існує. Оновити рекомендацію неможливо." }); return; }
+  if (task.status === "COMPLETED") { res.status(409).json({ error: "Завдання вже виконано; рекомендацію оновити неможливо." }); return; }
+  if (task.status === "CANCELLED") { res.status(409).json({ error: "Завдання скасовано; рекомендацію оновити неможливо." }); return; }
+  if (!["PLANNED", "POSTPONED"].includes(task.status)) {
+    res.status(409).json({ error: "Статус завдання змінився. Оновити рекомендацію неможливо." }); return;
+  }
+  if (rec.careType !== null && task.type !== rec.careType) {
+    res.status(409).json({ error: "Тип догляду в завданні змінився. Ця рекомендація більше не застосовна." }); return;
+  }
+  const currentCare = await effectiveCare(plant);
+  if (eligibilityError(currentCare, task.type)) {
+    res.status(409).json({ error: "Застосовність цього виду догляду змінилася." }); return;
+  }
+  if (!isWeatherExposed(await plantEnvironment(plant))) {
+    res.status(409).json({ error: "Зовнішній прогноз не застосовується до догляду в приміщенні чи теплиці." }); return;
+  }
+
+  let prepared: Awaited<ReturnType<typeof prepareRecommendationSet>>;
+  try {
+    prepared = await prepareRecommendationSet(user, plant, useDevScenario);
+  } catch (error) {
+    if (error instanceof CareEligibilityError) {
+      res.status(409).json({ error: error.message });
+      return;
+    }
+    req.log.warn({ error, plantId: plant.id }, "Не вдалося оновити погодну рекомендацію");
+    res.status(503).json({ error: "Актуальний прогноз недоступний. Стару рекомендацію не змінено." });
+    return;
+  }
+  const taskForecast = prepared.forecast.forecast.find(day => day.date === task.scheduledDate);
+  const replacementDraft = taskForecast
+    ? prepared.drafts.find(draft => draft.relatedTaskId === task.id && draft.type === "WEATHER_RESCHEDULE")
+      ?? prepared.drafts.find(draft => draft.relatedTaskId === task.id)
+    : undefined;
+  const warning = !taskForecast
+    ? "Дата завдання не входить до доступного прогнозу. Рекомендацію про перенесення не створено."
+    : replacementDraft
+      ? null
+      : "Актуальний прогноз не підтверджує потребу в перенесенні. Нову пораду не створено.";
+
+  const result = await db.transaction(async tx => {
+    const [lockedPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
+    const [lockedRec] = await tx.select().from(recommendationsTable).where(eq(recommendationsTable.id, rec.id)).for("update");
+    const [lockedTask] = await tx.select().from(tasksTable)
+      .where(and(eq(tasksTable.id, task.id), eq(tasksTable.plantId, plant.id))).for("update");
+    if (!lockedPlant || !lockedRec || !lockedTask || lockedRec.applied || lockedRec.supersededAt ||
+      !["PLANNED", "POSTPONED"].includes(lockedTask.status) ||
+      (lockedRec.careType !== null && lockedTask.type !== lockedRec.careType)) {
+      return { conflict: "Рекомендація або завдання змінилися. Оновіть список і спробуйте ще раз." };
+    }
+    const lockedCare = await effectiveCare(lockedPlant, tx);
+    if (eligibilityError(lockedCare, lockedTask.type)) {
+      return { conflict: "Застосовність цього виду догляду змінилася." };
+    }
+    if (prepared.snapshot !== await careSnapshot(lockedPlant, lockedCare, tx)) {
+      return { conflict: "Умови або план змінилися під час оновлення. Спробуйте ще раз." };
+    }
+    const refreshed = replacementDraft
+      ? await saveRecommendationDraft(tx, lockedPlant, prepared.snapshot, prepared.tasks, replacementDraft, prepared.forecast, useDevScenario, lockedRec.id)
+      : null;
+    await tx.update(recommendationsTable).set({ supersededAt: new Date() })
+      .where(eq(recommendationsTable.id, lockedRec.id));
+    return { recommendation: refreshed };
+  });
+  if ("conflict" in result) { res.status(409).json({ error: result.conflict }); return; }
+  res.json({
+    recommendations: result.recommendation ? [await mapRecommendation(result.recommendation)] : [],
+    weather: prepared.forecast,
+    warning,
+  });
 });
 
 router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
   const [rec] = await db.select().from(recommendationsTable).where(eq(recommendationsTable.id, idFrom(req)));
-  const { plant } = await getPlantForUser(req, rec?.plantId ?? -1);
-  if (!rec || !plant || !rec.suggestedDate || !rec.relatedTaskId) { res.status(400).json({ error: "Для цієї рекомендації немає зміни дати" }); return; }
+  const { user, plant } = await getPlantForUser(req, rec?.plantId ?? -1);
+  if (!rec || !plant || !user || !rec.suggestedDate || !rec.relatedTaskId) { res.status(400).json({ error: "Для цієї рекомендації немає зміни дати" }); return; }
+  if (rec.type !== "WEATHER_RESCHEDULE") { res.status(400).json({ error: "Перенести завдання можна лише за погодною рекомендацією." }); return; }
+  if (rec.applied || rec.supersededAt) {
+    res.status(409).json({ error: rec.applied ? "Рекомендацію вже застосовано." : "Цю рекомендацію оновлено. Застосуйте актуальну пораду." });
+    return;
+  }
+  if (rec.generatedAt.getTime() < Date.now() - MAX_WEATHER_RECOMMENDATION_AGE_MS) {
+    res.status(409).json({ error: "Погодні дані застаріли. Оновіть рекомендацію перед перенесенням." });
+    return;
+  }
+  const [validationPlant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plant.id));
+  const [validationTask] = await db.select().from(tasksTable)
+    .where(and(eq(tasksTable.id, rec.relatedTaskId), eq(tasksTable.plantId, plant.id)));
+  if (!validationPlant || !validationTask || !["PLANNED", "POSTPONED"].includes(validationTask.status)) {
+    res.status(409).json({ error: "Завдання більше не можна перенести. Оновіть рекомендацію." });
+    return;
+  }
+  const validationCare = await effectiveCare(validationPlant);
+  if (validationTask.type !== rec.careType || eligibilityError(validationCare, validationTask.type) ||
+    validationTask.scheduledDate !== rec.originalDate ||
+    rec.eligibilityVersion !== await careSnapshot(validationPlant, validationCare)) {
+    res.status(409).json({ error: "Умови, завдання або застосовність змінилися. Оновіть рекомендацію." });
+    return;
+  }
+  if (!isWeatherExposed(await plantEnvironment(validationPlant))) {
+    res.status(409).json({ error: "Зовнішній прогноз не застосовується до догляду в приміщенні чи теплиці." });
+    return;
+  }
   const taskId = rec.relatedTaskId;
   const suggestedDate = rec.suggestedDate;
-  const task = await db.transaction(async tx => {
-    const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("share");
-    const species = await effectiveCare(currentPlant, tx);
-    const [currentRec] = await tx.select().from(recommendationsTable).where(eq(recommendationsTable.id, rec.id)).for("update");
-    const [current] = await tx.select().from(tasksTable).where(and(eq(tasksTable.id, taskId), eq(tasksTable.plantId, plant.id))).for("update");
-    if (currentRec.eligibilityVersion !== await careSnapshot(currentPlant, species, tx) || !current || current.type !== currentRec.careType || eligibilityError(species, current.type)) throw new CareEligibilityError("Умови, план або застосовність змінилися. Створіть нову пораду");
-    if (currentRec.applied || !["PLANNED", "POSTPONED"].includes(current.status) || current.scheduledDate !== rec.originalDate || suggestedDate < today()) return null;
-    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, currentPlant.userId));
-    const location = await resolveSavedWeatherLocation(user, currentPlant);
-    const storedWeather = parseStoredRecommendationWeather(currentRec.weatherJson);
-    const useDevScenario = process.env.NODE_ENV === "development" && storedWeather.scenario === DEV_WEATHER_SCENARIO;
-    const scenarioStart = storedWeather.scenarioStart && /^\d{4}-\d{2}-\d{2}$/.test(storedWeather.scenarioStart)
-      ? storedWeather.scenarioStart
-      : undefined;
-    const forecast = useDevScenario
+  const storedWeather = parseStoredRecommendationWeather(rec.weatherJson);
+  const useDevScenario = process.env.NODE_ENV === "development" && storedWeather.scenario === DEV_WEATHER_SCENARIO;
+  const scenarioStart = storedWeather.scenarioStart && /^\d{4}-\d{2}-\d{2}$/.test(storedWeather.scenarioStart)
+    ? storedWeather.scenarioStart
+    : undefined;
+  let forecast: Awaited<ReturnType<typeof weatherService.getForecast>>;
+  try {
+    const location = await resolveSavedWeatherLocation(user, plant);
+    forecast = useDevScenario
       ? createRainTomorrowScenario(location, scenarioStart)
       : await weatherService.getForecast(location);
-    const weather = forecast.forecast.find(day => day.date === suggestedDate);
+    if (!useDevScenario && forecast.isMock) throw new WeatherUnavailableError();
+  } catch (error) {
+    req.log.warn({ error, plantId: plant.id }, "Не вдалося перевірити погодну рекомендацію");
+    res.status(503).json({ error: "Актуальний прогноз недоступний. Завдання не змінено." });
+    return;
+  }
+  let task: CareTask | null;
+  try {
+    task = await db.transaction(async tx => {
+    const [currentPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("share");
+    const [currentRec] = await tx.select().from(recommendationsTable).where(eq(recommendationsTable.id, rec.id)).for("update");
+    const [current] = await tx.select().from(tasksTable).where(and(eq(tasksTable.id, taskId), eq(tasksTable.plantId, plant.id))).for("update");
+    if (!currentPlant || !currentRec || !current) return null;
+    const species = await effectiveCare(currentPlant, tx);
+    if (currentRec.applied || currentRec.supersededAt || !["PLANNED", "POSTPONED"].includes(current.status) ||
+      current.scheduledDate !== currentRec.originalDate || suggestedDate < today() || suggestedDate <= current.scheduledDate) return null;
+    if (currentRec.eligibilityVersion !== await careSnapshot(currentPlant, species, tx) ||
+      (currentRec.careType !== null && current.type !== currentRec.careType) || eligibilityError(species, current.type)) {
+      throw new RecommendationConflictError("Умови, план або застосовність змінилися. Оновіть рекомендацію.");
+    }
     const rules = species.id === null ? [] : await tx.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
-    if (!weather || !isWeatherSuitable(current.type, species, weather, await plantEnvironment(currentPlant), rules)) {
-      throw new CareEligibilityError("Запропонована дата більше не відповідає доступним погодним правилам. Створіть нову пораду");
+    const environment = await plantEnvironment(currentPlant);
+    const originalWeather = forecast.forecast.find(day => day.date === current.scheduledDate);
+    const suggestedWeather = forecast.forecast.find(day => day.date === suggestedDate);
+    if (!originalWeather || isWeatherSuitable(current.type, species, originalWeather, environment, rules)) {
+      throw new RecommendationConflictError("Поточний прогноз більше не підтверджує погодний ризик на початкову дату. Оновіть рекомендацію.");
+    }
+    if (!suggestedWeather || !isWeatherSuitable(current.type, species, suggestedWeather, environment, rules)) {
+      throw new RecommendationConflictError("Запропонована дата більше не відповідає погодним правилам. Оновіть рекомендацію.");
     }
     const [updated] = await tx.update(tasksTable).set({ scheduledDate: suggestedDate, status: "POSTPONED", postponementCount: current.postponementCount + 1 }).where(eq(tasksTable.id, taskId)).returning();
     await tx.update(remindersTable).set({ reminderDate: suggestedDate, status: "PENDING" }).where(eq(remindersTable.taskId, taskId));
-    await tx.update(recommendationsTable).set({ applied: 1, appliedAt: new Date() }).where(eq(recommendationsTable.id, rec.id));
+    await tx.update(recommendationsTable).set({ applied: 1, appliedAt: new Date() }).where(eq(recommendationsTable.id, currentRec.id));
     return updated;
-  });
+    });
+  } catch (error) {
+    if (error instanceof RecommendationConflictError) { res.status(409).json({ error: error.message }); return; }
+    if (error instanceof CareEligibilityError) { res.status(409).json({ error: error.message }); return; }
+    throw error;
+  }
   if (!task) { res.status(409).json({ error: "Рекомендація вже застосована або завдання змінилося. Створіть нову пораду" }); return; }
   res.json(await mapTask(task));
 });
@@ -929,6 +1216,8 @@ router.post("/reports", async (req, res): Promise<void> => {
 router.get("/dashboard", async (req, res): Promise<void> => {
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
+  const useDevScenario = requestedDevScenario(req.query.weatherScenario, res);
+  if (useDevScenario === null) return;
   const plants = await db.select().from(plantsTable).where(eq(plantsTable.userId, user.id));
   const plantIds = new Set(plants.map((plant) => plant.id));
   const tasks = (await db.select().from(tasksTable)).filter((task) => plantIds.has(task.plantId));
@@ -936,13 +1225,22 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const mappedTasks = await Promise.all(activeTasks.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)).slice(0, 8).map(mapTask));
   const recommendations = (await db.select().from(recommendationsTable).orderBy(desc(recommendationsTable.generatedAt))).filter((item) => plantIds.has(item.plantId)).slice(0, 3);
   const reminders = await db.select().from(remindersTable).where(eq(remindersTable.status, "PENDING"));
-  const weather = await weatherService.getForecast(await resolveSavedWeatherLocation(user));
+  let weather: Awaited<ReturnType<typeof weatherService.getForecast>> | null = null;
+  try {
+    const location = await resolveSavedWeatherLocation(user);
+    const forecast = useDevScenario ? createRainTomorrowScenario(location) : await weatherService.getForecast(location);
+    if (useDevScenario || !forecast.isMock) weather = forecast;
+    else req.log.warn({ location: location.name }, "Демонстраційний прогноз проігноровано для звичайного запиту");
+  } catch (error) {
+    req.log.warn({ error, userId: user.id }, "Актуальний прогноз погоди тимчасово недоступний");
+  }
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
   res.json({ plantsCount: plants.length, todayTasks: activeTasks.filter((task) => task.scheduledDate === today()).length, overdueTasks: activeTasks.filter((task) => task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: activeTasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority)).length, weather, upcomingTasks: mappedTasks, latestRecommendations: await Promise.all(recommendations.map(mapRecommendation)), reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1) && ["PLANNED", "POSTPONED"].includes(taskMap.get(item.taskId)?.status ?? "")).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "OTHER", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
 });
 
 router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
   if (error instanceof CareEligibilityError) { res.status(400).json({ error: error.message }); return; }
+  if (error instanceof RecommendationConflictError) { res.status(409).json({ error: error.message }); return; }
   next(error);
 });
 

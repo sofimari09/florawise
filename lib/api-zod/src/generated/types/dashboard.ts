@@ -16,7 +16,7 @@ export interface Dashboard {
   overdueTasks: number;
   completedTasks: number;
   highPriorityTasks: number;
-  weather: WeatherResponse;
+  weather: WeatherResponse | null;
   upcomingTasks: CareTask[];
   latestRecommendations: Recommendation[];
   reminders: Reminder[];

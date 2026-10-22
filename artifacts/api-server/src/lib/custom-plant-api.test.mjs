@@ -53,13 +53,13 @@ test("custom plants survive all collection/care flows, validate identities and o
     ]) await request("/plants", "POST", invalid, 400);
     const location = await request("/locations", "POST", { displayName: "Львів тест", latitude: 49.84, longitude: 24.03, isDefault: false }, 201);
     const defaultLocation = await request("/locations", "POST", { displayName: "Забужжя", latitude: 50.48, longitude: 24.17, isDefault: true }, 201);
-    const dashboardWeather = (await request("/dashboard")).weather;
+    const dashboardWeather = (await request("/dashboard?weatherScenario=RAIN_TOMORROW")).weather;
     assert.equal(dashboardWeather.location, "Забужжя");
     assert.equal(dashboardWeather.latitude, 50.48);
     assert.equal(dashboardWeather.longitude, 24.17);
     const defaultWeatherPlant = await request("/plants", "POST", { ...base, name: "Рослина без власної погодної локації" }, 201);
     assert.equal(defaultWeatherPlant.weatherLocationId, null);
-    const defaultWeatherAdvice = await request("/recommendations", "POST", { plantId: defaultWeatherPlant.id }, 201);
+    const defaultWeatherAdvice = await request("/recommendations", "POST", { plantId: defaultWeatherPlant.id, weatherScenario: "RAIN_TOMORROW" }, 201);
     assert.equal(defaultWeatherAdvice.weather.location, "Забужжя");
     assert.equal(defaultWeatherAdvice.weather.latitude, 50.48);
     assert.equal(defaultWeatherAdvice.weather.longitude, 24.17);
@@ -76,14 +76,15 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.deepEqual(await request(`/plants/${plantId}/care-plan`), []);
     const counts = async () => (await client.query("SELECT (SELECT count(*) FROM flora_tasks)::int AS tasks, (SELECT count(*) FROM flora_reminders)::int AS reminders")).rows[0];
     const beforeAdvice = await counts();
-    const generic = await request("/recommendations", "POST", { plantId }, 201);
-    assert.equal(generic.warning, generic.weather.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані");
+    const generic = await request("/recommendations", "POST", { plantId, weatherScenario: "RAIN_TOMORROW" }, 201);
+    assert.equal(generic.warning, "Демонстраційні погодні дані");
     assert.match(generic.recommendations[0].explanation, /Видових даних немає/);
     assert.equal(generic.recommendations[0].actionable, false);
     assert.deepEqual(await counts(), beforeAdvice);
     await request(`/plants/${plantId}/care-plan`, "POST", { items: [{ type: "WATERING", scheduledDate: "2026-12-01", reason: "Вигаданий інтервал", eligibilityVersion: "fake" }] }, 400);
-    const date = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const todayParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(part => [part.type, part.value]));
+    const date = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
+    const tomorrow = new Date(Date.parse(`${date}T00:00:00.000Z`) + 86400000).toISOString().slice(0, 10);
     const input = type => ({ plantId, type, scheduledDate: date, priority: "MEDIUM", notes: "Тест" });
     await request("/tasks", "POST", input("PRUNING"), 400);
     const watering = await request("/tasks", "POST", input("WATERING"), 201);
@@ -95,16 +96,16 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.ok((await request("/dashboard")).upcomingTasks.some(task => task.plantId === plantId));
     await request("/statistics");
     await request("/reports", "POST", { periodStart: date, periodEnd: tomorrow }, 201);
-    const historyAdvice = await request("/recommendations", "POST", { plantId }, 201);
+    const historyAdvice = await request("/recommendations", "POST", { plantId, weatherScenario: "RAIN_TOMORROW" }, 201);
     assert.match(historyAdvice.recommendations[0].explanation, /Останній виконаний полив/);
     assert.doesNotMatch(historyAdvice.recommendations[0].explanation, /інтервал виду —/);
     // Exposed custom plants use generic weather rules; confirming applies only a current context.
     const outside = await request("/plants", "POST", { ...base, name: "Невідома надворі", environmentType: "OUTDOOR", weatherLocationId: location.id }, 201);
-    const weatherInfo = await request("/recommendations", "POST", { plantId: outside.id }, 201);
+    const weatherInfo = await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: "RAIN_TOMORROW" }, 201);
     assert.equal(weatherInfo.weather.location, "Львів тест");
     assert.equal(weatherInfo.weather.latitude, 49.84);
     assert.equal(weatherInfo.weather.longitude, 24.03);
-    assert.equal(weatherInfo.warning, weatherInfo.weather.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані");
+    assert.equal(weatherInfo.warning, "Демонстраційні погодні дані");
     // Deterministic development-only scenario: an outdoor watering task tomorrow sees 10.3 mm,
     // then the next day is dry. Generation must not mutate the task; confirmation applies it.
     const afterTomorrow = new Date(Date.parse(`${tomorrow}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
@@ -159,10 +160,36 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.equal(persistedRecommendation.appliedAt, appliedRecommendation.appliedAt);
     // Reversed custom-category edits invalidate saved advice even when activity sets coincide.
     await request(`/tasks/${outdoorTask.id}`, "PATCH", { scheduledDate: tomorrow });
+    const staleMove = (await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: scenario }, 201)).recommendations.find(rec => rec.relatedTaskId === outdoorTask.id && rec.type === "WEATHER_RESCHEDULE");
+    assert.ok(staleMove?.actionable);
+    await request(`/tasks/${outdoorTask.id}`, "PATCH", { scheduledDate: afterTomorrow });
+    const staleMoveView = (await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === staleMove.id);
+    assert.equal(staleMoveView.actionable, false);
+    assert.equal(staleMoveView.refreshable, true);
+    assert.match(staleMoveView.staleReason, /Завдання вже перенесено/);
+    const refreshed = await request(`/recommendations/${staleMove.id}/refresh`, "POST", {}, 200);
+    assert.ok(refreshed.recommendations.every(rec => rec.type !== "WEATHER_RESCHEDULE"));
+    assert.equal((await request(`/tasks?plantId=${outside.id}`)).find(item => item.id === outdoorTask.id).scheduledDate, afterTomorrow);
+    assert.equal((await request("/reminders")).find(item => item.taskId === outdoorTask.id).reminderDate, afterTomorrow);
+    const superseded = (await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === staleMove.id);
+    assert.ok(superseded.supersededAt);
+    assert.equal(superseded.refreshable, false);
+    await request(`/recommendations/${staleMove.id}/refresh`, "POST", {}, 409);
+    await request(`/tasks/${outdoorTask.id}`, "PATCH", { scheduledDate: tomorrow });
     const beforeCategory = (await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: scenario }, 201)).recommendations.find(rec => rec.relatedTaskId === outdoorTask.id && rec.suggestedDate);
+    const legacySeed = (await client.query(`INSERT INTO flora_recommendations(plant_id,generated_at,type,text,priority,related_task_id,explanation,original_date,suggested_date,weather_json)
+      VALUES($1,NOW(),'WEATHER_RESCHEDULE','стара порада','HIGH',$2,'застарілий демонстраційний запис',$3,$4,'{}') RETURNING id`,
+      [outside.id, outdoorTask.id, tomorrow, afterTomorrow])).rows[0];
+    const legacyView = (await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === legacySeed.id);
+    assert.equal(legacyView.actionable, false);
+    assert.equal(legacyView.refreshable, true);
+    assert.match(legacyView.staleReason, /без повного знімка плану/);
+    const legacyRefresh = await request(`/recommendations/${legacySeed.id}/refresh`, "POST", { weatherScenario: scenario }, 200);
+    assert.equal(legacyRefresh.recommendations[0].id, beforeCategory.id);
+    assert.equal((await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === legacySeed.id).refreshable, false);
     await request(`/plants/${outside.id}`, "PATCH", { category: "VEGETABLE" });
     await request(`/plants/${outside.id}`, "PATCH", { category: "HERB" });
-    await request(`/recommendations/${beforeCategory.id}/apply`, "POST", {}, 400);
+    await request(`/recommendations/${beforeCategory.id}/apply`, "POST", {}, 409);
     // The same rain does not move indoor care.
     const inside = await request("/plants", "POST", { ...base, name: "Невідома кімнатна", environmentType: "INDOOR" }, 201);
     const indoorTask = await request("/tasks", "POST", { ...input("WATERING"), plantId: inside.id, scheduledDate: tomorrow }, 201);
@@ -171,18 +198,36 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.equal((await request(`/tasks?plantId=${inside.id}`)).find(task => task.id === indoorTask.id).scheduledDate, tomorrow);
     // The resolver follows the updated default immediately; the UI invalidates this same dashboard query on change.
     await request(`/locations/${location.id}`, "PATCH", { isDefault: true });
-    const changedDefaultWeather = (await request("/dashboard")).weather;
+    const changedDefaultWeather = (await request("/dashboard?weatherScenario=RAIN_TOMORROW")).weather;
     assert.equal(changedDefaultWeather.location, "Львів тест");
     assert.equal(changedDefaultWeather.latitude, 49.84);
     assert.equal(changedDefaultWeather.longitude, 24.03);
-    const changedDefaultAdvice = await request("/recommendations", "POST", { plantId: defaultWeatherPlant.id }, 201);
+    const changedDefaultAdvice = await request("/recommendations", "POST", { plantId: defaultWeatherPlant.id, weatherScenario: "RAIN_TOMORROW" }, 201);
     assert.equal(changedDefaultAdvice.weather.location, "Львів тест");
     assert.equal(changedDefaultAdvice.weather.latitude, 49.84);
     assert.equal(changedDefaultAdvice.weather.longitude, 24.03);
     assert.equal(defaultLocation.isDefault, true);
     // Indoor/greenhouse recommendations never reschedule on outside rain.
     await request(`/plants/${outside.id}`, "PATCH", { environmentType: "GREENHOUSE" });
-    assert.ok((await request("/recommendations", "POST", { plantId: outside.id }, 201)).recommendations.every(rec => rec.type !== "WEATHER_RESCHEDULE"));
+    assert.ok((await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: "RAIN_TOMORROW" }, 201)).recommendations.every(rec => rec.type !== "WEATHER_RESCHEDULE"));
+    // A failed live provider never falls back to mock data or changes the existing task.
+    const unavailablePlant = await request("/plants", "POST", { ...base, name: "Без прогнозу", environmentType: "OUTDOOR", weatherLocationId: location.id }, 201);
+    const unavailableTask = await request("/tasks", "POST", { ...input("WATERING"), plantId: unavailablePlant.id, scheduledDate: tomorrow }, 201);
+    await client.query("UPDATE flora_saved_locations SET latitude = 999 WHERE id = $1", [location.id]);
+    const unavailableAdvice = await request("/recommendations", "POST", { plantId: unavailablePlant.id, weatherScenario: scenario }, 201);
+    const unavailableMove = unavailableAdvice.recommendations.find(rec => rec.relatedTaskId === unavailableTask.id && rec.type === "WEATHER_RESCHEDULE");
+    assert.ok(unavailableMove?.actionable);
+    await client.query("UPDATE flora_recommendations SET weather_json = '{}' WHERE id = $1", [unavailableMove.id]);
+    const recommendationsBeforeFailure = (await client.query("SELECT count(*)::int AS n FROM flora_recommendations")).rows[0].n;
+    const noForecast = await request("/recommendations", "POST", { plantId: unavailablePlant.id }, 503);
+    assert.doesNotMatch(noForecast.error, /Демонстраційні погодні дані/);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_recommendations")).rows[0].n, recommendationsBeforeFailure);
+    const failedApply = await request(`/recommendations/${unavailableMove.id}/apply`, "POST", {}, 503);
+    assert.match(failedApply.error, /Завдання не змінено/);
+    assert.equal((await request(`/tasks?plantId=${unavailablePlant.id}`)).find(item => item.id === unavailableTask.id).scheduledDate, tomorrow);
+    assert.equal((await request("/reminders")).find(item => item.taskId === unavailableTask.id).reminderDate, tomorrow);
+    assert.equal((await request("/dashboard")).weather, null);
+    await client.query("UPDATE flora_saved_locations SET latitude = $1 WHERE id = $2", [location.latitude, location.id]);
     const noSpeciesCount = (await request("/species")).length;
     plant = await request(`/plants/${plantId}`, "PATCH", { name: "  Нова назва  " });
     assert.equal(plant.name, "Нова назва");

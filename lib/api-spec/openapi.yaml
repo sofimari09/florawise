@@ -260,6 +260,13 @@ paths:
       operationId: getDashboard
       tags: [dashboard]
       summary: Get dashboard overview
+      parameters:
+        - name: weatherScenario
+          in: query
+          schema:
+            type: string
+            enum: [RAIN_TOMORROW]
+          description: Development-only deterministic forecast fixture.
       responses:
         "200":
           description: Dashboard overview
@@ -559,6 +566,13 @@ paths:
       operationId: getWeather
       tags: [weather]
       summary: Get seven day forecast
+      parameters:
+        - name: weatherScenario
+          in: query
+          schema:
+            type: string
+            enum: [RAIN_TOMORROW]
+          description: Development-only deterministic forecast fixture.
       responses:
         "200":
           description: Forecast
@@ -620,6 +634,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CareTask"
+  /recommendations/{id}/refresh:
+    post:
+      operationId: refreshRecommendation
+      tags: [recommendations]
+      summary: Refresh a stale weather recommendation using the current forecast
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecommendationRefreshInput"
+      responses:
+        "200":
+          description: Updated recommendation or explanation that no new rescheduling advice is needed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecommendationResult"
+        "409":
+          description: Task or recommendation is no longer refreshable
+        "503":
+          description: Current weather provider is unavailable; old recommendation remains unchanged
   /history:
     get:
       operationId: listCareHistory
@@ -1104,11 +1142,13 @@ components:
         applied: { type: boolean }
         appliedAt: { type: [string, "null"], format: date-time }
         actionable: { type: boolean }
+        refreshable: { type: boolean }
         staleReason: { type: [string, "null"] }
+        supersededAt: { type: [string, "null"], format: date-time }
         careType: { type: [string, "null"] }
         weather:
           $ref: "#/components/schemas/WeatherForecast"
-      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, appliedAt, careType, weather]
+      required: [id, plantId, plantName, generatedAt, type, text, priority, relatedTaskId, explanation, originalDate, suggestedDate, applied, appliedAt, actionable, refreshable, staleReason, supersededAt, careType, weather]
     RecommendationInput:
       type: object
       properties:
@@ -1118,6 +1158,13 @@ components:
           enum: [RAIN_TOMORROW]
           description: Development-only deterministic rain fixture; rejected outside development.
       required: [plantId]
+    RecommendationRefreshInput:
+      type: object
+      properties:
+        weatherScenario:
+          type: string
+          enum: [RAIN_TOMORROW]
+          description: Development-only deterministic rain fixture; rejected outside development.
     RecommendationResult:
       type: object
       properties:
@@ -1146,7 +1193,9 @@ components:
         completedTasks: { type: integer }
         highPriorityTasks: { type: integer }
         weather:
-          $ref: "#/components/schemas/WeatherResponse"
+          anyOf:
+            - $ref: "#/components/schemas/WeatherResponse"
+            - type: "null"
         upcomingTasks:
           type: array
           items:

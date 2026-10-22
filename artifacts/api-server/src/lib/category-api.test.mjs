@@ -67,7 +67,8 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     assert.ok(blackcurrantPlan.some(item => item.type === "WATERING"
       && /Інтервал за джерелом — 7 днів/.test(item.reason)
       && /Нова рослина, контейнер або тривала посуха/.test(item.reason)));
-    const today = new Date().toISOString().slice(0, 10);
+    const todayParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(part => [part.type, part.value]));
+    const today = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
     const previousWatering = await request("/tasks", "POST", {
       plantId: blackcurrantPlant.id, type: "WATERING", scheduledDate: today, priority: "LOW", notes: "",
     }, 201);
@@ -76,7 +77,7 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     const nextWatering = await request("/tasks", "POST", {
       plantId: blackcurrantPlant.id, type: "WATERING", scheduledDate: today, priority: "LOW", notes: "",
     }, 201);
-    const recommendationResult = await request("/recommendations", "POST", { plantId: blackcurrantPlant.id }, 201);
+    const recommendationResult = await request("/recommendations", "POST", { plantId: blackcurrantPlant.id, weatherScenario: "RAIN_TOMORROW" }, 201);
     const wateringAdvice = recommendationResult.recommendations.find(item => item.relatedTaskId === nextWatering.id);
     assert.ok(wateringAdvice, "the saved task receives a generated care recommendation");
     assert.ok(["HIGH", "URGENT"].includes(wateringAdvice.priority));
@@ -191,7 +192,7 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     assert.equal(rec.actionable, false);
     assert.match(rec.staleReason, /Застосовність/);
     const beforeAdvice = await counts();
-    await request(`/recommendations/${saved.id}/apply`, "POST", {}, 400);
+    await request(`/recommendations/${saved.id}/apply`, "POST", {}, 409);
     assert.deepEqual(await counts(), beforeAdvice);
     assert.equal((await client.query("SELECT scheduled_date::text FROM flora_tasks WHERE id=$1", [watering.id])).rows[0].scheduled_date, date);
     // A fresh saved eligible recommendation is actionable, then becomes stale after a same-set refinement edit.
@@ -203,9 +204,11 @@ test("category API enforces current eligibility, safe history, stale previews/ad
     const [good] = (await client.query(`INSERT INTO flora_recommendations(plant_id,type,text,priority,related_task_id,explanation,original_date,suggested_date,eligibility_version,care_type)
       VALUES($1,'WEATHER_RESCHEDULE','перенесення','HIGH',$2,'тест',$3,$4,$5,'WATERING') RETURNING id`,
       [herb.id, herbWater.id, date, tomorrow, herbPreview[0].eligibilityVersion])).rows;
-    assert.equal((await request(`/recommendations?plantId=${herb.id}`)).find(rec => rec.id === good.id).actionable, true);
-    await request(`/recommendations/${good.id}/apply`, "POST", {});
-    assert.equal((await request(`/tasks?plantId=${herb.id}&type=WATERING`))[0].scheduledDate, tomorrow);
+    const indoorWeatherAdvice = (await request(`/recommendations?plantId=${herb.id}`)).find(rec => rec.id === good.id);
+    assert.equal(indoorWeatherAdvice.actionable, false);
+    assert.match(indoorWeatherAdvice.staleReason, /Зовнішній прогноз/);
+    await request(`/recommendations/${good.id}/apply`, "POST", {}, 409);
+    assert.equal((await request(`/tasks?plantId=${herb.id}&type=WATERING`))[0].scheduledDate, date);
   } finally {
     if (child) {
       child.kill("SIGTERM"); const forced = setTimeout(() => child.kill("SIGKILL"), 2000);

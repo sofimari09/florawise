@@ -536,9 +536,12 @@ export interface Recommendation {
   applied: boolean;
   /** @nullable */
   appliedAt: string | null;
-  actionable?: boolean;
+  actionable: boolean;
+  refreshable: boolean;
   /** @nullable */
-  staleReason?: string | null;
+  staleReason: string | null;
+  /** @nullable */
+  supersededAt: string | null;
   /** @nullable */
   careType: string | null;
   weather: WeatherForecast;
@@ -642,6 +645,21 @@ export interface RecommendationInput {
   weatherScenario?: RecommendationInputWeatherScenario;
 }
 
+/**
+ * Development-only deterministic rain fixture; rejected outside development.
+ */
+export type RecommendationRefreshInputWeatherScenario = typeof RecommendationRefreshInputWeatherScenario[keyof typeof RecommendationRefreshInputWeatherScenario];
+
+
+export const RecommendationRefreshInputWeatherScenario = {
+  RAIN_TOMORROW: 'RAIN_TOMORROW',
+} as const;
+
+export interface RecommendationRefreshInput {
+  /** Development-only deterministic rain fixture; rejected outside development. */
+  weatherScenario?: RecommendationRefreshInputWeatherScenario;
+}
+
 export interface RecommendationResult {
   recommendations: Recommendation[];
   weather: WeatherResponse;
@@ -655,7 +673,7 @@ export interface Dashboard {
   overdueTasks: number;
   completedTasks: number;
   highPriorityTasks: number;
-  weather: WeatherResponse;
+  weather: WeatherResponse | null;
   upcomingTasks: CareTask[];
   latestRecommendations: Recommendation[];
   reminders: Reminder[];
@@ -707,6 +725,20 @@ export type SearchLocationsParams = {
 q: string;
 };
 
+export type GetDashboardParams = {
+/**
+ * Development-only deterministic forecast fixture.
+ */
+weatherScenario?: GetDashboardWeatherScenario;
+};
+
+export type GetDashboardWeatherScenario = typeof GetDashboardWeatherScenario[keyof typeof GetDashboardWeatherScenario];
+
+
+export const GetDashboardWeatherScenario = {
+  RAIN_TOMORROW: 'RAIN_TOMORROW',
+} as const;
+
 export type ListSpeciesParams = {
 /**
  * @nullable
@@ -752,6 +784,20 @@ status?: string | null;
  */
 plantId?: number | null;
 };
+
+export type GetWeatherParams = {
+/**
+ * Development-only deterministic forecast fixture.
+ */
+weatherScenario?: GetWeatherWeatherScenario;
+};
+
+export type GetWeatherWeatherScenario = typeof GetWeatherWeatherScenario[keyof typeof GetWeatherWeatherScenario];
+
+
+export const GetWeatherWeatherScenario = {
+  RAIN_TOMORROW: 'RAIN_TOMORROW',
+} as const;
 
 export type ListRecommendationsParams = {
 /**

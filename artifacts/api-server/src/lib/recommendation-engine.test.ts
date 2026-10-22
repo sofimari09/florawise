@@ -8,6 +8,12 @@ import { carePlan } from "./care-eligibility";
 import { todayInKyiv } from "./date";
 
 const date = (offset = 0) => new Date(Date.parse(`${todayInKyiv()}T00:00:00.000Z`) + offset * 86400000).toISOString().slice(0, 10);
+
+test("today comparisons follow Kyiv civil dates across UTC midnight and seasonal offsets", () => {
+  assert.equal(todayInKyiv(new Date("2026-10-21T21:30:00.000Z")), "2026-10-22");
+  assert.equal(todayInKyiv(new Date("2026-10-22T21:30:00.000Z")), "2026-10-23");
+  assert.equal(todayInKyiv(new Date("2026-01-01T22:30:00.000Z")), "2026-01-02");
+});
 const species = { id: 1, name: "Тестовий вид", category: "INDOOR_DECORATIVE", applicableCareTypes: null, careRevision: 0, optimalTempMin: "18", optimalTempMax: "28", wateringFrequencyDays: 7, careRecommendations: "Перевірте ґрунт.", generalCareRecommendations: null } as PlantSpecies;
 const task = (overrides: Partial<CareTask> = {}): CareTask => ({ id: 1, plantId: 1, type: "WATERING", scheduledDate: date(), status: "PLANNED", priority: "MEDIUM", notes: "", createdAt: new Date(), postponementCount: 0, ...overrides });
 const forecast = [{ date: date(), dateTime: `${date()}T12:00`, temperature: 22, precipitation: 10, humidity: 60, windSpeed: 3, condition: "Дощ", conditionCode: 61 }, { date: date(1), dateTime: `${date(1)}T12:00`, temperature: 22, precipitation: 0, humidity: 55, windSpeed: 2, condition: "Ясно", conditionCode: 0 }];

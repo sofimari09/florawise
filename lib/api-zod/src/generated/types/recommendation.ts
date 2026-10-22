@@ -25,9 +25,12 @@ export interface Recommendation {
   applied: boolean;
   /** @nullable */
   appliedAt: Date | null;
-  actionable?: boolean;
+  actionable: boolean;
+  refreshable: boolean;
   /** @nullable */
-  staleReason?: string | null;
+  staleReason: string | null;
+  /** @nullable */
+  supersededAt: Date | null;
   /** @nullable */
   careType: string | null;
   weather: WeatherForecast;

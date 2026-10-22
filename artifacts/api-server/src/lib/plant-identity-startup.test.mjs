@@ -62,9 +62,20 @@ test("API startup provisions fresh schema, safely upgrades legacy data, and pres
     await startup(schema); // Empty-schema provisioning, migration, seed, listen, and API read.
     const tables = (await client.query("SELECT tablename FROM pg_tables WHERE schemaname=$1", [schema])).rows;
     assert.equal(tables.length, 16); // 15 current model tables plus the migration ledger.
-    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations WHERE version IN ('plant-personal-name', 'custom-plant-identity', 'recommendation-applied-at')")).rows[0].n, 3);
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM flora_schema_migrations WHERE version IN ('plant-personal-name', 'custom-plant-identity', 'recommendation-applied-at', 'recommendation-superseded-at', 'demo-tomato-outdoor-environment-v2')")).rows[0].n, 5);
     assert.ok((await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='flora_recommendations' AND column_name='applied_at'", [schema])).rows.length === 1);
+    assert.ok((await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='flora_recommendations' AND column_name='superseded_at'", [schema])).rows.length === 1);
+    await client.query("UPDATE flora_plants SET environment_type='INDOOR' WHERE name='Томати на грядці' AND location='Сад'");
+    await client.query(`UPDATE flora_plant_places pp SET environment_type='INDOOR'
+      FROM flora_plants p WHERE p.place_id=pp.id AND p.name='Томати на грядці' AND p.location='Сад'`);
+    await client.query("DELETE FROM flora_schema_migrations WHERE version='demo-tomato-outdoor-environment-v2'");
+    await startup(schema); // Existing demo rows are corrected once without reseeding user data.
+    const tomatoEnvironment = (await client.query(`SELECT p.environment_type AS plant_environment, pp.environment_type AS place_environment
+      FROM flora_plants p JOIN flora_plant_places pp ON pp.id=p.place_id
+      WHERE p.name='Томати на грядці' AND p.location='Сад'`)).rows[0];
+    assert.deepEqual(tomatoEnvironment, { plant_environment: "OUTDOOR", place_environment: "OUTDOOR" });
     const before = (await client.query("SELECT to_jsonb(p) - 'personal_name' AS row FROM flora_plants p ORDER BY id")).rows;
+    assert.equal((await client.query("SELECT environment_type FROM flora_plants WHERE name='Томати на грядці'")).rows[0].environment_type, "OUTDOOR");
     const tasksBefore = (await client.query("SELECT * FROM flora_tasks ORDER BY id")).rows;
     // Simulate the pre-alias schema ONLY inside this disposable test schema.
     await client.query("ALTER TABLE flora_plants DROP CONSTRAINT flora_plants_identity_valid");
