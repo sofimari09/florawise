@@ -33,6 +33,7 @@ import { SpeciesDetails } from "@/components/species-knowledge";
 import { SpeciesEditor } from "@/components/species-editor";
 import { envLabel, careTypeLabel, CategoryFilter, errMsg } from "@/components/fw-ui";
 import { TaskCreateForm } from "@/components/task-create-form";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CARE_TYPES, CATEGORY_LABELS, type CareType, type PlantCategory, isCategory } from "@workspace/plant-care";
 
 const queryClient = new QueryClient();
@@ -93,6 +94,11 @@ const clerkAppearance = {
 const fmt = (date?: string | null) => date ? new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "short" }).format(new Date(date)) : "—";
 const fmtLong = (date?: string | null) => date ? new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "long", year: "numeric" }).format(new Date(date)) : "—";
 const fmtDayMonth = (date?: string | null) => date ? new Intl.DateTimeFormat("uk-UA", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${date.slice(0, 10)}T00:00:00.000Z`)) : "—";
+const shiftCalendarDate = (value: string, days: number) => {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
 const todayLabel = new Intl.DateTimeFormat("uk-UA", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
@@ -283,7 +289,7 @@ function Empty({ title, description, action }: { title: string; description: str
 }
 function TaskRow({ task, onComplete, onDelete, onPostpone }: { task: CareTask; onComplete: () => void; onDelete?: () => void; onPostpone?: () => void }) {
   const overdue = task.isOverdue || task.status === "OVERDUE";
-  return <div className="group flex items-center gap-3 border-b border-border/70 py-4 last:border-0"><button aria-label={`виконати ${task.plantName}`} data-testid={`button-complete-task-${task.id}`} onClick={onComplete} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"><Check size={15} /></button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>{taskLabel[task.type] || task.type}</p>{overdue && <Badge tone="danger">Прострочено</Badge>}{task.priority && task.priority !== "low" && <Badge tone={task.priority.toLowerCase() === "high" ? "warn" : "neutral"}>{priorityLabel[task.priority] || task.priority}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{task.plantName} · {fmt(task.scheduledDate)}</p></div>{onPostpone && <IconButton label="перенести завдання" onClick={onPostpone} className="opacity-0 group-hover:opacity-100"><ChevronRight size={15} /></IconButton>}{onDelete && <IconButton label="видалити завдання" onClick={onDelete} className="opacity-0 group-hover:opacity-100"><Trash2 size={15} /></IconButton>}</div>;
+  return <div className="group flex flex-wrap items-center gap-3 border-b border-border/70 py-4 last:border-0"><button aria-label={`виконати ${task.plantName}`} data-testid={`button-complete-task-${task.id}`} onClick={onComplete} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"><Check size={15} /></button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>{taskLabel[task.type] || task.type}</p>{overdue && <Badge tone="danger">Прострочено</Badge>}{task.priority && task.priority !== "low" && <Badge tone={task.priority.toLowerCase() === "high" ? "warn" : "neutral"}>{priorityLabel[task.priority] || task.priority}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{task.plantName} · {fmt(task.scheduledDate)}</p></div>{onPostpone && <Button variant="ghost" testId={`button-postpone-task-${task.id}`} aria-label={`Перенести ${taskLabel[task.type] || "завдання"} на наступний день`} onClick={onPostpone} className="ml-11 basis-[calc(100%-2.75rem)] justify-start whitespace-nowrap px-2 text-xs sm:ml-0 sm:basis-auto"><ChevronRight size={15} />Перенести на день пізніше</Button>}{onDelete && <IconButton label="видалити завдання" onClick={onDelete} className="opacity-0 group-hover:opacity-100"><Trash2 size={15} /></IconButton>}</div>;
 }
 
 function Landing() {
@@ -499,7 +505,9 @@ function RecommendationCard({ recommendation: r, compact = false, embedded = fal
         {r.originalDate && <span>{r.applied ? "Було" : "За планом"}: {fmtDayMonth(r.originalDate)}</span>}
         {r.suggestedDate
           ? <span className="font-semibold text-primary">{r.applied ? "Нова дата" : earlier ? "Пропозиція (раніше)" : "Пропозиція"}: {fmtDayMonth(r.suggestedDate)}</span>
-          : <span>Графік не змінено</span>}
+          : r.type === "WEATHER_WARNING"
+            ? <span>Дату не запропоновано: потрібна ручна перевірка</span>
+            : <span>Графік не змінено</span>}
       </div>}
       {!weatherAdvice && r.relatedTaskId !== null && r.originalDate && <p className="mt-2 rounded-xl bg-muted/50 px-3 py-2 text-xs">Завдання: {careName} · Заплановано: {fmtDayMonth(r.originalDate)} · Графік не змінено</p>}
       {r.staleReason && <p role="status" className="mt-2 text-xs text-destructive">{r.staleReason}</p>}
@@ -519,7 +527,7 @@ function RecommendationCard({ recommendation: r, compact = false, embedded = fal
       </details>}
       {!compact && <>
         {onRefresh && r.refreshable && <Button variant="soft" disabled={refreshing} testId={`button-refresh-recommendation-${r.id}`} onClick={onRefresh} className="mt-4">{refreshing ? "Оновлюємо…" : "Оновити рекомендацію"} <ArrowRight size={15} /></Button>}
-        {onApply && r.actionable && !r.applied && <Button variant="soft" disabled={applying} testId={`button-apply-recommendation-${r.id}`} onClick={onApply} className="mt-4">Застосувати зміну <ArrowRight size={15} /></Button>}
+        {onApply && r.actionable && !r.applied && <Button variant="soft" disabled={applying} testId={`button-apply-recommendation-${r.id}`} onClick={onApply} className="mt-4">{earlier ? "Змінити дату на ранішу" : "Перенести завдання"} <ArrowRight size={15} /></Button>}
       </>}
     </div>
   </div></div>;
@@ -636,11 +644,29 @@ function CalendarPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [postponingTask, setPostponingTask] = useState<CareTask | null>(null);
+  const [postponeError, setPostponeError] = useState("");
   const tasks = useListTasks({ type: type || undefined, status: status || undefined, plantId: plantId ? Number(plantId) : undefined, from: from || undefined, to: to || undefined });
   const plants = useListPlants();
   const complete = useCompleteTask(); const del = useDeleteTask(); const update = useUpdateTask();
   const refresh = () => q.invalidateQueries();
   const fail = (error: unknown) => setError(errMsg(error, "Не вдалося змінити завдання."));
+  const newScheduledDate = postponingTask ? shiftCalendarDate(postponingTask.scheduledDate, 1) : "";
+  const confirmManualPostpone = () => {
+    if (!postponingTask || update.isPending) return;
+    const task = postponingTask;
+    const nextDate = shiftCalendarDate(task.scheduledDate, 1);
+    setPostponeError("");
+    update.mutate({ id: task.id, data: { scheduledDate: nextDate, status: "POSTPONED" } }, {
+      onSuccess: async () => {
+        setPostponingTask(null);
+        setNotice(`Завдання перенесено з ${fmtDayMonth(task.scheduledDate)} на ${fmtDayMonth(nextDate)}.`);
+        await refresh();
+      },
+      onError: failure => setPostponeError(errMsg(failure, "Не вдалося перенести завдання. Спробуйте ще раз.")),
+    });
+  };
   const control = "rounded-xl border border-input bg-card px-3 py-2 text-sm";
   return <Shell><PageHead eyebrow="Ваш ритм" title="Календар догляду" description="Плануйте застосовні дії та переглядайте всю історію догляду." action={<Button onClick={() => setShow(!show)}><Plus size={17} /> Нове завдання</Button>} />
     {show && <Panel className="mb-6 p-6"><h2 className="font-serif text-2xl">Запланувати догляд</h2><TaskCreateForm onDone={() => setShow(false)} /></Panel>}
@@ -652,18 +678,42 @@ function CalendarPage() {
       <label className="text-sm">Від <input aria-label="Дата від" type="date" value={from} onChange={e => setFrom(e.target.value)} className={control} /></label>
       <label className="text-sm">До <input aria-label="Дата до" type="date" value={to} onChange={e => setTo(e.target.value)} className={control} /></label>
     </div>
-    {error && <p role="alert" className="mb-4 text-destructive">{error}</p>}
+     {error && <p role="alert" className="mb-4 text-destructive">{error}</p>}
+     {notice && <p role="status" className="mb-4 rounded-xl bg-primary/10 p-3 text-sm font-medium text-primary">{notice}</p>}
     <QueryState loading={tasks.isLoading} error={!!tasks.error} onRetry={() => tasks.refetch()}>
       {view === "month" ? <MonthGrid tasks={tasks.data ?? []} /> : <Panel className="p-6"><h2 className="font-serif text-2xl">Завдання догляду</h2>
         {tasks.data?.length ? tasks.data.map(task => <TaskRow key={task.id} task={task}
           onComplete={() => complete.mutate({ id: task.id, data: {} }, { onSuccess: refresh, onError: fail })}
-          onPostpone={["PLANNED", "POSTPONED"].includes(task.status) && plants.data?.find(plant => plant.id === task.plantId)?.allowedCareTypes?.includes(task.type as CareType) ? () => {
-            if (window.confirm("Перенести це завдання на один день?")) update.mutate({ id: task.id, data: { scheduledDate: new Date(Date.parse(task.scheduledDate) + 86400000).toISOString().slice(0, 10), status: "POSTPONED" } }, { onSuccess: refresh, onError: fail });
-          } : undefined}
+           onPostpone={["PLANNED", "POSTPONED"].includes(task.status) && plants.data?.find(plant => plant.id === task.plantId)?.allowedCareTypes?.includes(task.type as CareType) ? () => {
+             setError("");
+             setNotice("");
+             setPostponeError("");
+             setPostponingTask(task);
+           } : undefined}
           onDelete={["PLANNED", "POSTPONED"].includes(task.status) ? () => { if (window.confirm("Скасувати це завдання?")) del.mutate({ id: task.id }, { onSuccess: refresh, onError: fail }); } : undefined}
         />) : <Empty title="Завдань не знайдено" description="Змініть фільтри або додайте застосовний догляд." />}
       </Panel>}
     </QueryState>
+     <Dialog open={!!postponingTask} onOpenChange={open => { if (!open && !update.isPending) { setPostponingTask(null); setPostponeError(""); } }}>
+       <DialogContent data-testid="dialog-manual-postpone">
+         <DialogHeader className="text-left">
+           <DialogTitle className="font-serif text-2xl">Ручне перенесення</DialogTitle>
+           <DialogDescription>Це ваша зміна плану, а не погодна рекомендація FloraWise.</DialogDescription>
+         </DialogHeader>
+         {postponingTask && <div className="space-y-3 rounded-xl bg-muted/60 p-4 text-sm">
+           <p><span className="text-muted-foreground">Рослина:</span> <strong>{postponingTask.plantName}</strong></p>
+           <p><span className="text-muted-foreground">Завдання:</span> <strong>{taskLabel[postponingTask.type] || "Догляд"}</strong></p>
+           <p><span className="text-muted-foreground">Поточна дата:</span> <strong>{fmtDayMonth(postponingTask.scheduledDate)}</strong></p>
+           <p><span className="text-muted-foreground">Нова дата:</span> <strong className="text-primary">{fmtDayMonth(newScheduledDate)}</strong></p>
+         </div>}
+         <p className="text-xs leading-5 text-muted-foreground">Завдання та пов’язане нагадування буде перенесено на один календарний день. Погодні умови не змінюють це ручне рішення.</p>
+         {postponeError && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{postponeError}</p>}
+         <DialogFooter>
+           <Button variant="ghost" disabled={update.isPending} onClick={() => setPostponingTask(null)}>Залишити дату</Button>
+           <Button disabled={!postponingTask || update.isPending} testId="button-confirm-manual-postpone" onClick={confirmManualPostpone}>{update.isPending ? "Переносимо…" : "Підтвердити перенесення"}</Button>
+         </DialogFooter>
+       </DialogContent>
+     </Dialog>
   </Shell>;
 }
 function MonthGrid({ tasks }: { tasks: CareTask[] }) { const days = Array.from({ length: 31 }, (_, i) => i + 1); return <Panel className="p-4 md:p-6"><div className="mb-4 grid grid-cols-7 gap-1 text-center font-mono text-[10px] uppercase text-muted-foreground">{["Пн","Вт","Ср","Чт","Пт","Сб","Нд"].map(d => <span key={d} className="py-2">{d}</span>)}</div><div className="grid grid-cols-7 gap-1">{days.map(d => { const count = tasks.filter(t => new Date(t.scheduledDate).getDate() === d).length; return <div key={d} className={`min-h-16 rounded-xl border p-2 text-sm ${d === 12 ? "border-primary bg-primary/10" : "border-border/60 bg-background"}`}><span className="font-mono text-xs">{d}</span>{count > 0 && <span className="mt-2 block rounded-md bg-accent/50 px-1 py-0.5 text-center text-[10px] font-semibold">{count} {count === 1 ? "дія" : "дії"}</span>}</div>; })}</div></Panel>; }
@@ -675,6 +725,8 @@ function RecommendationsPage() {
   const [plantId, setPlantId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [recommendationToApply, setRecommendationToApply] = useState<Recommendation | null>(null);
+  const [applyError, setApplyError] = useState("");
   const [checking, setChecking] = useState(false);
   const [rainScenarioEnabled, setRainScenarioEnabled] = useState(false);
   const recs = useListRecommendations({ plantId: plantId ? Number(plantId) : undefined });
@@ -755,9 +807,14 @@ function RecommendationsPage() {
   };
   const applyAdvice = (recommendation: Recommendation) => {
     if (!recommendation.actionable || recommendation.relatedTaskId == null || !recommendation.originalDate || !recommendation.suggestedDate || apply.isPending) return;
-    const changeVerb = recommendation.suggestedDate < recommendation.originalDate ? "Виконати раніше" : "Перенести";
-    const reason = recommendationWeatherReason(recommendation) || "Прогноз вказує на погодне обмеження.";
-    if (!window.confirm(`${changeVerb} завдання з ${fmtDayMonth(recommendation.originalDate)} на ${fmtDayMonth(recommendation.suggestedDate)}?\n\nРослина: ${recommendation.plantName}\nДогляд: ${taskLabel[recommendation.careType || ""] || "Догляд"}\nПричина: ${reason}`)) return;
+    setApplyError("");
+    setRecommendationToApply(recommendation);
+  };
+  const confirmWeatherChange = () => {
+    const recommendation = recommendationToApply;
+    if (!recommendation?.actionable || recommendation.relatedTaskId == null || !recommendation.originalDate || !recommendation.suggestedDate || apply.isPending) return;
+    const originalDate = recommendation.originalDate;
+    const suggestedDate = recommendation.suggestedDate;
     setError("");
     setSuccess("");
     apply.mutate({ id: recommendation.id }, {
@@ -771,9 +828,12 @@ function RecommendationsPage() {
           q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }),
           q.invalidateQueries({ queryKey: getGetStatisticsQueryKey() }),
         ]);
-        setSuccess(`Завдання перенесено з ${fmtDayMonth(recommendation.originalDate)} на ${fmtDayMonth(recommendation.suggestedDate)}.`);
+        setRecommendationToApply(null);
+        setSuccess(suggestedDate < originalDate
+          ? `Завдання заплановано раніше: з ${fmtDayMonth(originalDate)} на ${fmtDayMonth(suggestedDate)}.`
+          : `Завдання перенесено з ${fmtDayMonth(originalDate)} на ${fmtDayMonth(suggestedDate)}.`);
       },
-      onError: failure => { setError(errMsg(failure, "Не вдалося застосувати пораду")); recs.refetch(); },
+      onError: failure => { setApplyError(errMsg(failure, "Не вдалося застосувати погодну рекомендацію.")); recs.refetch(); },
     });
   };
   return <Shell>
@@ -814,6 +874,26 @@ function RecommendationsPage() {
          </details>}
        </div>
     </QueryState>
+     <Dialog open={!!recommendationToApply} onOpenChange={open => { if (!open && !apply.isPending) { setRecommendationToApply(null); setApplyError(""); } }}>
+       <DialogContent data-testid="dialog-weather-reschedule">
+         <DialogHeader className="text-left">
+           <DialogTitle className="font-serif text-2xl">Підтвердити погодну зміну</DialogTitle>
+           <DialogDescription>Це рекомендація FloraWise за прогнозом. Дату буде змінено лише після підтвердження.</DialogDescription>
+         </DialogHeader>
+         {recommendationToApply && <div className="space-y-3 rounded-xl bg-muted/60 p-4 text-sm">
+           <p><span className="text-muted-foreground">Рослина:</span> <strong>{recommendationToApply.plantName}</strong></p>
+           <p><span className="text-muted-foreground">Завдання:</span> <strong>{taskLabel[recommendationToApply.careType || ""] || "Догляд"}</strong></p>
+           <p><span className="text-muted-foreground">Поточна дата:</span> <strong>{fmtDayMonth(recommendationToApply.originalDate)}</strong></p>
+           <p><span className="text-muted-foreground">Запропонована дата:</span> <strong className="text-primary">{fmtDayMonth(recommendationToApply.suggestedDate)}</strong></p>
+           <p className="border-t border-border/70 pt-2 text-muted-foreground">{recommendationWeatherReason(recommendationToApply) || "Прогноз вказує на погодне обмеження."}</p>
+         </div>}
+         {applyError && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{applyError}</p>}
+         <DialogFooter>
+           <Button variant="ghost" disabled={apply.isPending} onClick={() => setRecommendationToApply(null)}>Скасувати</Button>
+           <Button disabled={!recommendationToApply || apply.isPending} testId="button-confirm-weather-reschedule" onClick={confirmWeatherChange}>{apply.isPending ? "Зберігаємо…" : recommendationToApply?.suggestedDate && recommendationToApply.originalDate && recommendationToApply.suggestedDate < recommendationToApply.originalDate ? "Підтвердити ранішу дату" : "Перенести завдання"}</Button>
+         </DialogFooter>
+       </DialogContent>
+     </Dialog>
   </Shell>;
 }
 
