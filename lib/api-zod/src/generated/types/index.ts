@@ -74,4 +74,5 @@ export * from './taskUpdateStatus';
 export * from './user';
 export * from './userRole';
 export * from './weatherForecast';
+export * from './weatherHour';
 export * from './weatherResponse';

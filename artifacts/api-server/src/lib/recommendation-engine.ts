@@ -8,7 +8,9 @@ export type RecommendationDraft = {
   type: string; text: string; priority: string; explanation: string;
   relatedTaskId: number | null; originalDate: string | null; suggestedDate: string | null; weather: WeatherDay;
 };
-export const RULE_PARAMETERS = { significantRainMm: 8, safeSprayingWindMps: 8, overdueUrgentDays: 5, hotTemperatureDelta: 5 };
+// Screening triggers are not universal agronomic/product safety limits.
+// Only WATERING/PRUNING retain the pre-existing 8 mm category postponement rule.
+export const RULE_PARAMETERS = { significantRainMm: 8, wateringRainCheckMm: 1, safeSprayingWindMps: 8, overdueUrgentDays: 5, hotTemperatureDelta: 5 };
 const exposed = (environment: string) => environment === "OUTDOOR";
 const weatherRelevant = (environment: string) => ["BALCONY", "OUTDOOR"].includes(environment);
 const labels: Record<string, string> = CARE_LABELS;
@@ -27,6 +29,7 @@ const maxForecastWind = (weather: WeatherDay) =>
 const maxForecastGust = (weather: WeatherDay) =>
   numeric(weather.maxWindGusts) ?? (weather.hourly?.length ? Math.max(...weather.hourly.map(hour => hour.windGusts)) : maxForecastWind(weather));
 const textForCare = (species: CareContext, type: string) => {
+  if (species.id === null) return "";
   const values: Record<string, string | null | undefined> = {
     WATERING: species.wateringRecommendations,
     FERTILIZING: species.fertilizingRecommendations,
@@ -39,13 +42,17 @@ const textForCare = (species: CareContext, type: string) => {
   return values[type] ?? "";
 };
 const minimumTemperatureFromKnowledge = (species: CareContext) => {
+  if (species.id === null) return null;
   const text = species.sowingPlantingRecommendations ?? "";
-  const match = text.match(/(?:нічн\w*|температур\w*)[^.\n]{0,35}[>≥]\s*(-?\d+(?:[.,]\d+)?)\s*°?\s*C/i);
+  const match = text.match(/(?:нічн\S*|температур\S*)[^.\n]{0,35}[>≥]\s*(-?\d+(?:[.,]\d+)?)\s*°?\s*C/i);
   return match ? Number(match[1].replace(",", ".")) : null;
 };
-const frostSensitiveText = (text: string) => /замороз|сильн\w*\s+холод|frost|freez/i.test(text);
+const frostSensitiveText = (text: string) => /замороз|сильн\S*\s+холод|frost|freez/i.test(text);
+const harvestBeforeCold = (species: CareContext) =>
+  /до\s+(?:сильн\S*\s+холод|(?:\S+\s+){0,3}замороз)|before[^.;]{0,40}(?:frost|freez)/i.test(textForCare(species, "HARVEST"));
 const explicitlySprayTask = (notes: string) => /обприск|спрей|spray|фунгіцид|інсектицид/i.test(notes);
 const explicitlyMechanicalTask = (notes: string) => /механіч|вручну|ручн\w*\s+(?:зібрати|видалити|зняти)|видалити вручну/i.test(notes);
+const explicitFertilizingMethod = (notes: string) => /під корінь|коренев|позакоренев|по лист|у ґрунт|гранул/i.test(notes);
 function thresholds(type: string, species: CareContext, rules: SpeciesCareRule[]) {
   const rule = rules.find(item => item.careType === type);
   const hasSpeciesWeatherThresholds = rule !== undefined && [
@@ -161,17 +168,16 @@ function weatherReasons(type: string, species: CareContext, weather: WeatherDay,
   if (!exposed(environment)) return [];
   const limits = thresholds(type, species, rules);
   const reasons: string[] = [];
-  if (type === "TREATMENT" && !explicitlySprayTask(taskNotes)) return [];
-  if (type === "HARVEST" && !frostSensitiveText(textForCare(species, type))) return [];
+  if (type === "TREATMENT" && (explicitlyMechanicalTask(taskNotes) || !explicitlySprayTask(taskNotes))) return [];
   const minimum = minForecastTemperature(weather);
   const maximum = maxForecastTemperature(weather);
-  if (weather.precipitation > limits.rain) reasons.push(`опади за добу ${weather.precipitation} мм > порогу ${limits.rain} мм`);
-  const wind = maxForecastWind(weather);
+  if (weather.precipitation > limits.rain) reasons.push(`опади ${weather.precipitation} мм > порогу ${limits.rain} мм (сума за календарну добу)`);
+  const wind = Math.max(maxForecastWind(weather), maxForecastGust(weather));
   if (wind > limits.wind) reasons.push(`максимальний вітер ${wind} м/с > порогу ${limits.wind} м/с`);
   if (minimum < limits.min) reasons.push(`мінімальна температура повітря ${minimum}°C < порогу ${limits.min}°C`);
   if (maximum > limits.max) reasons.push(`максимальна температура повітря ${maximum}°C > порогу ${limits.max}°C`);
   const rule = rules.find(item => item.careType === type);
-  if (type === "HARVEST" && minimum <= 0) reasons.push(`прогнозується заморозок (${minimum}°C), а рекомендації виду вимагають завершити збір до сильних холодів`);
+  if (type === "HARVEST" && minimum <= 0 && harvestBeforeCold(species)) reasons.push(`прогнозується заморозок (${minimum}°C), а рекомендації виду вимагають завершити збір до сильних холодів`);
   if (["SOWING", "PLANTING"].includes(type) && minimum <= 0 && frostSensitiveText(textForCare(species, type)) &&
     rule?.minTemperature == null && species.optimalTempMin == null && minimumTemperatureFromKnowledge(species) == null) {
     reasons.push(`прогнозується заморозок (${minimum}°C), а рекомендації виду радять висаджувати після ризику заморозків`);
@@ -182,8 +188,27 @@ function weatherReasons(type: string, species: CareContext, weather: WeatherDay,
   }
   return reasons;
 }
+function missingWeatherMetrics(type: string, species: CareContext, weather: WeatherDay, rules: SpeciesCareRule[]) {
+  const limits = thresholds(type, species, rules);
+  const hasFullHourlyDay = (weather.hourly?.length ?? 0) >= 23;
+  const needsFrostCheck = type === "HARVEST" ? harvestBeforeCold(species) :
+    ["SOWING", "PLANTING", "PRUNING"].includes(type) && frostSensitiveText(textForCare(species, type));
+  return [
+    (Number.isFinite(limits.min) || needsFrostCheck) && numeric(weather.minTemperature) === null && !hasFullHourlyDay
+      ? "мінімальна температура за добу невідома; середня температура не замінює перевірку заморозків" : "",
+    Number.isFinite(limits.max) && numeric(weather.maxTemperature) === null && !hasFullHourlyDay
+      ? "максимальна температура за добу невідома" : "",
+    Number.isFinite(limits.wind) && numeric(weather.maxWindSpeed) === null && !hasFullHourlyDay
+      ? "максимальна швидкість вітру невідома; середній вітер не підтверджує відповідність порогу" : "",
+  ].filter(Boolean);
+}
 export function isWeatherSuitable(type: string, species: CareContext, weather: WeatherDay, environment: string, rules: SpeciesCareRule[] = [], taskNotes = "") {
-  return !eligibilityError(species, type) && weatherReasons(type, species, weather, environment, species.id === null ? [] : rules, taskNotes).length === 0;
+  const applicableRules = species.id === null ? [] : rules;
+  return !eligibilityError(species, type) &&
+    (!exposed(environment) || (type === "TREATMENT" && !explicitlySprayTask(taskNotes)) ||
+      missingWeatherMetrics(type, species, weather, applicableRules).length === 0) &&
+    weatherWarnings(type, species, weather, environment, applicableRules, taskNotes).length === 0 &&
+    weatherReasons(type, species, weather, environment, applicableRules, taskNotes).length === 0;
 }
 
 function weatherWarnings(
@@ -199,7 +224,7 @@ function weatherWarnings(
   const precipitation = weather.precipitation;
   const minimum = minForecastTemperature(weather);
   const maximum = maxForecastTemperature(weather);
-  const wind = maxForecastWind(weather);
+  const wind = Math.max(maxForecastWind(weather), maxForecastGust(weather));
   const maxRain = numeric(rules.find(rule => rule.careType === type)?.rainThresholdMm);
   const maxWind = numeric(rules.find(rule => rule.careType === type)?.maxWindSpeedMps);
   const minLimit = numeric(rules.find(rule => rule.careType === type)?.minTemperature);
@@ -213,15 +238,17 @@ function weatherWarnings(
   }
 
   if (type === "WATERING") {
-    if (precipitation > 0) warnings.push(`прогноз опадів ${precipitation} мм на день догляду; перевірте вологість ґрунту, бо опади самі по собі не підтверджують достатнє зволоження`);
-    if (maximum >= 28 && precipitation < 2) warnings.push(`спекотний і сухий прогноз (${minimum}–${maximum}°C, опади ${precipitation} мм); перевірте ґрунт і за потреби полийте раніше`);
-    if (precipitation > 0) warnings.push("надійні виміряні опади за попередні 24–48 год недоступні; їх не припущено");
+    const heatThreshold = numeric(species.optimalTempMax) !== null
+      ? Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta : 35;
+    if (precipitation >= RULE_PARAMETERS.wateringRainCheckMm) warnings.push(`прогноз опадів ${precipitation} мм на день догляду; перевірте вологість ґрунту, бо опади самі по собі не підтверджують достатнє зволоження`);
+    if (maximum >= heatThreshold && precipitation < 2) warnings.push(`спекотний і сухий прогноз (${minimum}–${maximum}°C, поріг перевірки ${heatThreshold}°C, опади ${precipitation} мм); перевірте ґрунт і за потреби полийте раніше`);
+    if (precipitation >= RULE_PARAMETERS.wateringRainCheckMm) warnings.push("надійні виміряні опади за попередні 24–48 год недоступні; їх не припущено");
   } else if (type === "FERTILIZING") {
-    if (precipitation >= 8) warnings.push(`значні прогнозовані опади (${precipitation} мм) можуть спричинити змивання або стік добрива; спосіб внесення не відомий`);
+    if (precipitation >= 8) warnings.push(`значні прогнозовані опади (${precipitation} мм) можуть спричинити змивання або стік добрива; ${explicitFertilizingMethod(taskNotes) ? "звірте спосіб внесення з інструкцією добрива" : "спосіб внесення не відомий"}`);
     if (minimum <= 0 || maximum >= 35) warnings.push(`температурний стрес можливий (${minimum}–${maximum}°C); вид добрива і спосіб внесення не відомі`);
     if (maxRain !== null && precipitation > maxRain) warnings.push("поріг опадів задано правилом виду; перевірте інструкцію до конкретного добрива");
   } else if (type === "PRUNING") {
-    if (precipitation > 0 && precipitation <= RULE_PARAMETERS.significantRainMm) warnings.push(`легкі або помірні опади (${precipitation} мм); це не є автоматичною підставою для перенесення, оцініть мокроту рослини та терміновість робіт`);
+    if (precipitation >= 1 && precipitation <= RULE_PARAMETERS.significantRainMm) warnings.push(`легкі або помірні опади (${precipitation} мм); це не є автоматичною підставою для перенесення, оцініть мокроту рослини та терміновість робіт`);
     if (wind > 8 && maxWind === null) warnings.push(`сильний вітер за прогнозом (${wind} м/с); універсальний поріг для обрізування не задано`);
     if (minimum <= 0 && !frostSensitiveText(textForCare(species, type))) warnings.push(`можливий мороз (${minimum}°C), але чутливість обрізування виду до морозу не визначена`);
   } else if (type === "TRANSPLANTING") {
@@ -235,7 +262,7 @@ function weatherWarnings(
       warnings.push(`прогноз може вплинути на обприскування (опади ${precipitation} мм, вітер ${wind} м/с, ${minimum}–${maximum}°C); перевірте етикетку препарату`);
     }
   } else if (type === "HARVEST") {
-    if (minimum <= 0 && !frostSensitiveText(textForCare(species, type))) warnings.push(`можливий мороз (${minimum}°C), але чутливість урожаю до холоду не підтверджена`);
+    if (minimum <= 0 && !harvestBeforeCold(species)) warnings.push(`можливий мороз (${minimum}°C), але необхідність зібрати врожай до морозу не підтверджена`);
   } else if (type === "SOWING") {
     if (precipitation >= 8 && maxRain === null) warnings.push(`значні опади (${precipitation} мм) можуть вимити насіння; стан ґрунту за прогнозом невідомий`);
     if (minimum <= 0 && !frostSensitiveText(textForCare(species, type))) warnings.push(`можливий мороз (${minimum}°C); температурний поріг для цього посіву не задано`);
@@ -282,8 +309,22 @@ export function generateRules(
     const taskRule = rules.find(rule => rule.careType === task.type);
     const limits = thresholds(task.type, species, rules);
     const taskNotes = typeof task.notes === "string" ? task.notes : "";
-    const reasons = weather ? weatherReasons(task.type, species, weather, environment, rules, taskNotes) : [];
+    const missingMetrics = weather && exposed(environment) && (task.type !== "TREATMENT" || explicitlySprayTask(taskNotes))
+      ? missingWeatherMetrics(task.type, species, weather, rules) : [];
+    let reasons = weather && !missingMetrics.length ? weatherReasons(task.type, species, weather, environment, rules, taskNotes) : [];
     const warnings = weather ? weatherWarnings(task.type, species, weather, environment, rules, taskNotes) : [];
+    warnings.push(...missingMetrics);
+    if (task.type === "FERTILIZING" && !explicitFertilizingMethod(taskNotes) && reasons.length) {
+      warnings.push(...reasons, "спосіб внесення добрива невідомий; погодний поріг не є достатньою підставою для певної зміни дати");
+      reasons = [];
+    }
+    if (task.type === "WATERING" && exposed(environment) && task.scheduledDate > today) {
+      const previousDate = new Date(Date.parse(`${task.scheduledDate}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+      const precedingForecast = previousDate >= today ? forecast.find(day => day.date === previousDate) : undefined;
+      if (precedingForecast && precedingForecast.precipitation >= RULE_PARAMETERS.wateringRainCheckMm) {
+        warnings.push(`перед поливом, ${previousDate}, прогнозуються опади ${precedingForecast.precipitation} мм; це прогноз за попередню календарну добу, не виміряний дощ і не доказ вологості ґрунту — перевірте ґрунт перед дією`);
+      }
+    }
     let priority = task.priority;
     const priorityReasons: string[] = [];
     if (overdue > 0) {
@@ -305,14 +346,14 @@ export function generateRules(
         priorityReasons.push(`останній догляд «${labels[task.type] ?? task.type}» виконано ${lastCompleted.slice(0, 10)} (${days} дн. тому), ${careInterval.explanation}, перевищення — ${intervalOverdue} дн.${condition}`);
       }
     }
-    if (species.id !== null && task.type === "WATERING" && species.optimalTempMax !== null && weather && exposed(environment) && maxForecastTemperature(weather) >= Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta && weather.precipitation < 2) {
+    if (species.id !== null && task.type === "WATERING" && species.optimalTempMax !== null && weather && exposed(environment) && weather.temperature >= Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta && weather.precipitation < 2) {
       priority = higherPriority(priority, "HIGH");
-      priorityReasons.push(`максимальна температура ${maxForecastTemperature(weather)}°C ≥ ${Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta}°C, опади ${weather.precipitation} мм < 2 мм`);
+      priorityReasons.push(`температура ${weather.temperature}°C ≥ ${Number(species.optimalTempMax) + RULE_PARAMETERS.hotTemperatureDelta}°C, опади ${weather.precipitation} мм < 2 мм`);
     }
     const historyNote = lastCompleted
       ? `Останню дію «${labels[task.type] ?? task.type}» виконано ${lastCompleted.slice(0, 10)}.`
       : `Історії виконання дії «${labels[task.type] ?? task.type}» немає.`;
-    const context = `${species.id === null ? `Рослина поза довідником: «${species.name}».` : `Вид: «${species.name}».`} ${basis} Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}. ${limits.notes} ${taskKnowledge(species, task.type)} ${historyNote}`;
+    const context = `${species.id === null ? `Рослина поза довідником: «${species.name}».` : `Вид: «${species.name}».`} ${basis} Локація: «${location}». Середовище: ${environmentLabel}. Застосовано ${limits.source}. ${limits.notes} ${taskKnowledge(species, task.type)} ${historyNote} ${weatherRelevant(environment) ? "Час виконання не задано; оцінено календарну добу за Europe/Kyiv, а не конкретну годину. Зовнішній прогноз не вимірює стан ґрунту." : ""}`;
     if (weatherRelevant(environment) && task.scheduledDate <= today && !weather) {
       results.push({
         type: "WEATHER_WARNING",
@@ -324,7 +365,8 @@ export function generateRules(
       continue;
     }
     if (weather && reasons.length) {
-      const harvestNeedsEarlier = task.type === "HARVEST" && reasons.some(reason => /заморозок/.test(reason));
+      const harvestNeedsEarlier = task.type === "HARVEST" &&
+        (reasons.some(reason => /заморозок/.test(reason)) || minForecastTemperature(weather) < limits.min);
       const plantingNeedsEarlier = task.type === "PLANTING" && maxForecastTemperature(weather) > limits.max;
       const earlier = harvestNeedsEarlier || plantingNeedsEarlier;
       const pivotDate = overdue > 0 ? today : task.scheduledDate;

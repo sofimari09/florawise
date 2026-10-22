@@ -501,10 +501,23 @@ export interface CareHistory {
   comment: string;
 }
 
+export interface WeatherHour {
+  dateTime: string;
+  temperature: number;
+  precipitation: number;
+  humidity: number;
+  windSpeed: number;
+  windGusts: number;
+  condition: string;
+  conditionCode: number;
+}
+
 export interface WeatherForecast {
   date: string;
   dateTime: string;
   temperature: number;
+  minTemperature?: number;
+  maxTemperature?: number;
   precipitation: number;
   /**
      * @minimum 0
@@ -514,8 +527,11 @@ export interface WeatherForecast {
   precipitationProbability?: number | null;
   humidity: number;
   windSpeed: number;
+  maxWindSpeed?: number;
+  maxWindGusts?: number;
   condition: string;
   conditionCode: number;
+  hourly?: WeatherHour[];
 }
 
 export interface Recommendation {

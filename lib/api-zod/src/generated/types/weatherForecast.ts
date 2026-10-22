@@ -5,11 +5,14 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { WeatherHour } from './weatherHour';
 
 export interface WeatherForecast {
   date: string;
   dateTime: string;
   temperature: number;
+  minTemperature?: number;
+  maxTemperature?: number;
   precipitation: number;
   /**
      * @minimum 0
@@ -19,6 +22,9 @@ export interface WeatherForecast {
   precipitationProbability?: number | null;
   humidity: number;
   windSpeed: number;
+  maxWindSpeed?: number;
+  maxWindGusts?: number;
   condition: string;
   conditionCode: number;
+  hourly?: WeatherHour[];
 }

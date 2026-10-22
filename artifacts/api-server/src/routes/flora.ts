@@ -1015,10 +1015,19 @@ router.post("/recommendations", async (req, res): Promise<void> => {
     res.status(503).json({ error: "Актуальний прогноз недоступний. Рекомендацію не створено." });
     return;
   }
-  const savedRows = await Promise.all(prepared.drafts.map(draft => saveRecommendationDraft(
-    db, plant, prepared.snapshot, prepared.tasks, draft, prepared.forecast, useDevScenario,
-  )));
-  await supersedeMissingTaskRecommendations(db, plant.id, prepared.tasks, prepared.drafts);
+  const savedRows = await db.transaction(async tx => {
+    const [lockedPlant] = await tx.select().from(plantsTable).where(eq(plantsTable.id, plant.id)).for("update");
+    if (!lockedPlant || prepared.snapshot !== await careSnapshot(lockedPlant, await effectiveCare(lockedPlant, tx), tx)) {
+      return null;
+    }
+    const rows = [];
+    for (const draft of prepared.drafts) {
+      rows.push(await saveRecommendationDraft(tx, lockedPlant, prepared.snapshot, prepared.tasks, draft, prepared.forecast, useDevScenario));
+    }
+    await supersedeMissingTaskRecommendations(tx, plant.id, prepared.tasks, prepared.drafts);
+    return rows;
+  });
+  if (!savedRows) { res.status(409).json({ error: "Умови або завдання змінилися під час перевірки. Спробуйте ще раз." }); return; }
   res.status(201).json({
     recommendations: await Promise.all(savedRows.map(mapRecommendation)),
     weather: prepared.forecast,
@@ -1032,7 +1041,7 @@ router.post("/recommendations/:id/refresh", async (req, res): Promise<void> => {
   const [rec] = await db.select().from(recommendationsTable).where(eq(recommendationsTable.id, idFrom(req)));
   const { user, plant } = await getPlantForUser(req, rec?.plantId ?? -1);
   if (!rec || !plant || !user) { res.status(404).json({ error: "Рекомендацію не знайдено" }); return; }
-  if (rec.type !== "WEATHER_RESCHEDULE" || rec.relatedTaskId === null) {
+  if (!["WEATHER_RESCHEDULE", "WEATHER_WARNING"].includes(rec.type) || rec.relatedTaskId === null) {
     res.status(400).json({ error: "Оновлювати можна лише погодну рекомендацію для завдання." });
     return;
   }
@@ -1055,7 +1064,7 @@ router.post("/recommendations/:id/refresh", async (req, res): Promise<void> => {
   if (eligibilityError(currentCare, task.type)) {
     res.status(409).json({ error: "Застосовність цього виду догляду змінилася." }); return;
   }
-  if (!isWeatherExposed(await plantEnvironment(plant))) {
+  if (!isWeatherRelevant(await plantEnvironment(plant))) {
     res.status(409).json({ error: "Зовнішній прогноз не застосовується до догляду в приміщенні чи теплиці." }); return;
   }
 
@@ -1071,7 +1080,7 @@ router.post("/recommendations/:id/refresh", async (req, res): Promise<void> => {
     res.status(503).json({ error: "Актуальний прогноз недоступний. Стару рекомендацію не змінено." });
     return;
   }
-  const taskForecast = prepared.forecast.forecast.find(day => day.date === task.scheduledDate);
+  const taskForecast = prepared.forecast.forecast.find(day => day.date === (task.scheduledDate < today() ? today() : task.scheduledDate));
   const replacementDraft = taskForecast
     ? prepared.drafts.find(draft => draft.relatedTaskId === task.id && draft.type === "WEATHER_RESCHEDULE")
       ?? prepared.drafts.find(draft => draft.relatedTaskId === task.id)
@@ -1173,22 +1182,29 @@ router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
     if (!currentPlant || !currentRec || !current) return null;
     const species = await effectiveCare(currentPlant, tx);
     if (currentRec.applied || currentRec.supersededAt || !["PLANNED", "POSTPONED"].includes(current.status) ||
-      current.scheduledDate !== currentRec.originalDate || suggestedDate < today() || suggestedDate <= current.scheduledDate) return null;
+      current.scheduledDate !== currentRec.originalDate || suggestedDate < today() || suggestedDate === current.scheduledDate) return null;
     if (currentRec.eligibilityVersion !== await careSnapshot(currentPlant, species, tx) ||
       (currentRec.careType !== null && current.type !== currentRec.careType) || eligibilityError(species, current.type)) {
       throw new RecommendationConflictError("Умови, план або застосовність змінилися. Оновіть рекомендацію.");
     }
     const rules = species.id === null ? [] : await tx.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
     const environment = await plantEnvironment(currentPlant);
-    const originalWeather = forecast.forecast.find(day => day.date === current.scheduledDate);
     const suggestedWeather = forecast.forecast.find(day => day.date === suggestedDate);
-    if (!originalWeather || isWeatherSuitable(current.type, species, originalWeather, environment, rules)) {
-      throw new RecommendationConflictError("Поточний прогноз більше не підтверджує погодний ризик на початкову дату. Оновіть рекомендацію.");
+    const currentDraft = generateRules(species, [current], forecast.forecast, forecast.location, environment, null, rules)
+      .find(draft => draft.type === "WEATHER_RESCHEDULE" && draft.relatedTaskId === current.id &&
+        draft.originalDate === current.scheduledDate && draft.suggestedDate === suggestedDate);
+    if (!currentDraft) {
+      throw new RecommendationConflictError("Поточний прогноз більше не підтверджує саме цю зміну дати. Оновіть рекомендацію.");
     }
-    if (!suggestedWeather || !isWeatherSuitable(current.type, species, suggestedWeather, environment, rules)) {
+    if (!suggestedWeather || !isWeatherSuitable(current.type, species, suggestedWeather, environment, rules, current.notes ?? "")) {
       throw new RecommendationConflictError("Запропонована дата більше не відповідає погодним правилам. Оновіть рекомендацію.");
     }
-    const [updated] = await tx.update(tasksTable).set({ scheduledDate: suggestedDate, status: "POSTPONED", postponementCount: current.postponementCount + 1 }).where(eq(tasksTable.id, taskId)).returning();
+    const postponing = suggestedDate > current.scheduledDate;
+    const [updated] = await tx.update(tasksTable).set({
+      scheduledDate: suggestedDate,
+      status: postponing ? "POSTPONED" : current.status,
+      postponementCount: current.postponementCount + (postponing ? 1 : 0),
+    }).where(eq(tasksTable.id, taskId)).returning();
     await tx.update(remindersTable).set({ reminderDate: suggestedDate, status: "PENDING" }).where(eq(remindersTable.taskId, taskId));
     await tx.update(recommendationsTable).set({ applied: 1, appliedAt: new Date() }).where(eq(recommendationsTable.id, currentRec.id));
     return updated;
@@ -1266,10 +1282,10 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const mappedRecommendations = await Promise.all(recommendationRows.map(mapRecommendation));
   const currentRecommendations = mappedRecommendations.filter((item) => !item.staleReason && !item.applied && !item.supersededAt);
   const weatherProtectedTaskIds = new Set(currentRecommendations
-    .filter((item) => item.type === "WEATHER_RESCHEDULE" && item.relatedTaskId !== null)
+    .filter((item) => ["WEATHER_RESCHEDULE", "WEATHER_WARNING"].includes(item.type) && item.relatedTaskId !== null)
     .map((item) => item.relatedTaskId as number));
   const dashboardRecommendations = currentRecommendations
-    .filter((item) => item.type === "WEATHER_RESCHEDULE" || item.relatedTaskId === null || !weatherProtectedTaskIds.has(item.relatedTaskId))
+    .filter((item) => ["WEATHER_RESCHEDULE", "WEATHER_WARNING"].includes(item.type) || item.relatedTaskId === null || !weatherProtectedTaskIds.has(item.relatedTaskId))
     .slice(0, 3);
   const reminders = await db.select().from(remindersTable).where(eq(remindersTable.status, "PENDING"));
   let weather: Awaited<ReturnType<typeof weatherService.getForecast>> | null = null;

@@ -98,7 +98,7 @@ const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).
 const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
 const taskLabel: Record<string, string> = { ...careTypeLabel, ...Object.fromEntries(Object.entries(careTypeLabel).map(([key, value]) => [key.toLowerCase(), value])) };
 const statusLabel: Record<string, string> = { planned: "Заплановано", PENDING: "Очікує", COMPLETED: "Виконано", completed: "Виконано", POSTPONED: "Перенесено", CANCELLED: "Скасовано" };
-const priorityLabel: Record<string, string> = { high: "Високий", HIGH: "Високий", medium: "Середній", MEDIUM: "Середній", low: "Низький", LOW: "Низький" };
+const priorityLabel: Record<string, string> = { urgent: "Терміновий", URGENT: "Терміновий", high: "Високий", HIGH: "Високий", medium: "Середній", MEDIUM: "Середній", low: "Низький", LOW: "Низький" };
 const passwordPolicyMessage = "Пароль має містити щонайменше 8 символів, одну велику літеру, одну малу літеру, цифру та спеціальний символ.";
 const authLocalization = {
   ...ukUA,
@@ -431,7 +431,32 @@ function RecommendationCard({ recommendation: r, compact = false, embedded = fal
     : compact
       ? "border-b border-border/70 py-4 last:border-0"
       : "rounded-2xl border bg-card p-5";
-  return <div className={wrapperClass}><div className="flex items-start gap-3"><span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent/30 text-primary"><Lightbulb size={16} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2">{!embedded && <p className="text-sm font-semibold">{r.plantName}</p>}{embedded && <Badge>{r.type === "WEATHER_RESCHEDULE" ? "Погодні обмеження" : "Додаткова підказка"}</Badge>}<Badge tone={r.priority?.toLowerCase() === "high" ? "warn" : "neutral"}>{priorityLabel[r.priority] || r.priority}</Badge>{r.applied && <Badge tone="good">Зміну застосовано</Badge>}{r.supersededAt && <Badge>Оновлено</Badge>}</div><p className="mt-2 text-sm leading-6 text-muted-foreground">{r.text}</p>{r.staleReason && <p role="status" className="mt-2 text-xs text-destructive">{r.staleReason}</p>}{!compact && <><p className="mt-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Чому:</strong> {r.explanation}</p>{r.type === "WEATHER_RESCHEDULE" && <div className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-xs leading-5"><p>Завдання: {careName}</p>{r.originalDate && <p>{r.applied ? "Було заплановано" : "Поточна дата"}: {fmtDayMonth(r.originalDate)}</p>}{r.suggestedDate ? <p className="font-semibold text-primary">{r.applied ? "Перенесено на" : "Рекомендована дата"}: {fmtDayMonth(r.suggestedDate)}</p> : <p>Рекомендованої дати немає в доступному прогнозі.</p>}</div>}{onRefresh && r.refreshable && <Button variant="soft" disabled={refreshing} testId={`button-refresh-recommendation-${r.id}`} onClick={onRefresh} className="mt-4">{refreshing ? "Оновлюємо…" : "Оновити рекомендацію"} <ArrowRight size={15} /></Button>}{onApply && r.actionable && !r.applied && <Button variant="soft" disabled={applying} testId={`button-apply-recommendation-${r.id}`} onClick={onApply} className="mt-4">Перенести завдання <ArrowRight size={15} /></Button>}</>}</div></div></div>;
+  const weatherAdvice = ["WEATHER_RESCHEDULE", "WEATHER_WARNING"].includes(r.type);
+  return <div className={wrapperClass}><div className="flex items-start gap-3">
+    <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent/30 text-primary"><Lightbulb size={16} /></span>
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        {!embedded && <p className="text-sm font-semibold">{r.plantName}</p>}
+        {embedded && <Badge>{weatherAdvice ? "Погодні обмеження" : "Додаткова підказка"}</Badge>}
+        <Badge tone={["HIGH", "URGENT"].includes(r.priority) ? "warn" : "neutral"}>{priorityLabel[r.priority] || r.priority}</Badge>
+        {r.applied && <Badge tone="good">Зміну застосовано</Badge>}{r.supersededAt && <Badge>Оновлено</Badge>}
+      </div>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{r.text}</p>
+      {r.staleReason && <p role="status" className="mt-2 text-xs text-destructive">{r.staleReason}</p>}
+      {!compact && <>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Чому:</strong> {r.explanation}</p>
+        {weatherAdvice && <div className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-xs leading-5">
+          <p>Завдання: {careName}</p>
+          {r.originalDate && <p>{r.applied ? "Було заплановано" : "Поточна дата"}: {fmtDayMonth(r.originalDate)}</p>}
+          {r.suggestedDate
+            ? <p className="font-semibold text-primary">{r.applied ? "Нову дату збережено" : r.originalDate && r.suggestedDate < r.originalDate ? "Виконати раніше" : "Рекомендована дата"}: {fmtDayMonth(r.suggestedDate)}</p>
+            : <p>Дату не змінено. Перевірте умови перед виконанням.</p>}
+        </div>}
+        {onRefresh && r.refreshable && <Button variant="soft" disabled={refreshing} testId={`button-refresh-recommendation-${r.id}`} onClick={onRefresh} className="mt-4">{refreshing ? "Оновлюємо…" : "Оновити рекомендацію"} <ArrowRight size={15} /></Button>}
+        {onApply && r.actionable && !r.applied && <Button variant="soft" disabled={applying} testId={`button-apply-recommendation-${r.id}`} onClick={onApply} className="mt-4">Застосувати зміну <ArrowRight size={15} /></Button>}
+      </>}
+    </div>
+  </div></div>;
 }
 
 type RecommendationGroup = {
@@ -450,7 +475,7 @@ function groupRecommendationsByTask(recommendations: Recommendation[]): Recommen
     groups.set(key, [...(groups.get(key) ?? []), recommendation]);
   }
   return [...groups.entries()].map(([key, items]) => {
-    const ordered = [...items].sort((a, b) => Number(b.type === "WEATHER_RESCHEDULE") - Number(a.type === "WEATHER_RESCHEDULE"));
+    const ordered = [...items].sort((a, b) => Number(b.type.startsWith("WEATHER_")) - Number(a.type.startsWith("WEATHER_")));
     return {
       key,
       plantName: ordered[0].plantName,
@@ -465,8 +490,8 @@ function RecommendationGroupCard({ group, compact = false, applying = false, ref
     const recommendation = group.recommendations[0];
     return <RecommendationCard recommendation={recommendation} compact={compact} applying={applying} refreshing={refreshing} onApply={onApply ? () => onApply(recommendation) : undefined} onRefresh={onRefresh ? () => onRefresh(recommendation) : undefined} />;
   }
-  const hasWeatherRestriction = group.recommendations.some((item) => item.type === "WEATHER_RESCHEDULE");
-  const hasOrdinaryUrgency = group.recommendations.some((item) => item.type !== "WEATHER_RESCHEDULE");
+  const hasWeatherRestriction = group.recommendations.some((item) => item.type.startsWith("WEATHER_"));
+  const hasOrdinaryUrgency = group.recommendations.some((item) => !item.type.startsWith("WEATHER_"));
   const careName = group.careType ? taskLabel[group.careType] || group.careType : "догляд";
   return <article className={compact ? "border-b border-border/70 py-2 last:border-0" : "rounded-2xl border bg-card px-5"}>
     <header className={`flex items-center justify-between gap-3 ${compact ? "py-3" : "py-5"}`}>
@@ -584,6 +609,7 @@ function RecommendationsPage() {
   const [plantId, setPlantId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [checking, setChecking] = useState(false);
   const [rainScenarioEnabled, setRainScenarioEnabled] = useState(false);
   const recs = useListRecommendations({ plantId: plantId ? Number(plantId) : undefined });
   const plants = useListPlants();
@@ -597,6 +623,39 @@ function RecommendationsPage() {
     recommendation.staleReason || recommendation.applied || !!recommendation.supersededAt);
   const currentGroups = groupRecommendationsByTask(currentRecommendations);
   const previousGroups = groupRecommendationsByTask(previousRecommendations);
+  const checkRecommendations = async () => {
+    if (checking) return;
+    setChecking(true);
+    setError("");
+    setSuccess("");
+    const candidates = (plants.data ?? []).filter(plant => plant.nextTask);
+    let failed = 0;
+    let weatherAdviceCount = 0;
+    try {
+      for (let offset = 0; offset < candidates.length; offset += 4) {
+        const results = await Promise.allSettled(candidates.slice(offset, offset + 4).map(plant =>
+          generate.mutateAsync({ data: { plantId: plant.id } })));
+        for (const result of results) {
+          if (result.status === "rejected") failed += 1;
+          else weatherAdviceCount += result.value.recommendations.filter(item => item.type.startsWith("WEATHER_")).length;
+        }
+      }
+      await Promise.all([
+        q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }),
+        q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }),
+      ]);
+      setSuccess(!candidates.length
+        ? "Активних завдань для перевірки немає."
+        : weatherAdviceCount
+          ? `Перевірено рослин: ${candidates.length - failed}. Погодних рекомендацій: ${weatherAdviceCount}. Дати завдань не змінено.`
+          : failed === candidates.length
+            ? ""
+            : "Перевірку завершено. Погодних змін для активних завдань не потрібно.");
+      if (failed) setError(`Для ${failed} рослин перевірка недоступна. Їхні завдання та попередні рекомендації не змінено.`);
+    } finally {
+      setChecking(false);
+    }
+  };
   const refreshAdvice = (recommendation: Recommendation) => {
     if (!recommendation.refreshable || refresh.isPending) return;
     setError("");
@@ -623,7 +682,7 @@ function RecommendationsPage() {
   };
   const applyAdvice = (recommendation: Recommendation) => {
     if (!recommendation.actionable || recommendation.relatedTaskId == null || !recommendation.originalDate || !recommendation.suggestedDate || apply.isPending) return;
-    if (!window.confirm(`Перенести завдання з ${fmtDayMonth(recommendation.originalDate)} на ${fmtDayMonth(recommendation.suggestedDate)}?`)) return;
+    if (!window.confirm(`Перенести завдання з ${fmtDayMonth(recommendation.originalDate)} на ${fmtDayMonth(recommendation.suggestedDate)}?\n\nРослина: ${recommendation.plantName}\nДогляд: ${taskLabel[recommendation.careType || ""] || "Догляд"}\nПричина: ${recommendation.explanation}`)) return;
     setError("");
     setSuccess("");
     apply.mutate({ id: recommendation.id }, {
@@ -643,7 +702,10 @@ function RecommendationsPage() {
     });
   };
   return <Shell>
-    <PageHead eyebrow="Погода + спостереження" title="Поради" description="Не універсальні правила, а пояснені підказки для вашого дому." action={<div className="flex gap-2">
+    <PageHead eyebrow="Погода + спостереження" title="Поради" description="Пояснені підказки за прогнозом. Дати змінюються лише після підтвердження." action={<div className="flex flex-wrap gap-2">
+      <Button testId="button-check-recommendations" disabled={checking || generate.isPending || plants.isLoading} onClick={checkRecommendations}>
+        <Zap size={16} />{checking ? "Перевіряємо…" : "Перевірити рекомендації"}
+      </Button>
       <select data-testid="select-recommendation-plant" value={plantId} onChange={event => { setPlantId(event.target.value); setError(""); }} className="rounded-xl border border-input bg-card px-3 py-2.5 text-sm">
         <option value="">Усі рослини</option>{(plants.data || []).map(plant => <option key={plant.id} value={plant.id}>{plant.name}</option>)}
       </select>
@@ -653,7 +715,7 @@ function RecommendationsPage() {
          onSuccess: async () => { setSuccess(""); await Promise.all([q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }), q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }), q.invalidateQueries({ queryKey: getGetPlantQueryKey(id) })]); },
           onError: failure => setError(errMsg(failure, "Не вдалося створити пораду")),
         }); }
-      }} disabled={generate.isPending || !plants.data?.length}><Zap size={16} /> {generate.isPending ? "Аналізуємо…" : "Нова порада"}</Button>
+      }} disabled={checking || generate.isPending || !plants.data?.length}><Zap size={16} /> {generate.isPending && !checking ? "Аналізуємо…" : "Нова порада"}</Button>
     </div>} />
     {import.meta.env.DEV && <Panel className="mb-5 p-4"><label className="flex cursor-pointer items-start gap-3 text-sm"><input data-testid="toggle-rain-weather-scenario" type="checkbox" checked={rainScenarioEnabled} onChange={event => setRainScenarioEnabled(event.target.checked)} className="mt-1 accent-primary" /><span><strong>Тестовий сценарій дощу</strong><span className="mt-1 block text-xs text-muted-foreground">Завтра — 10,3 мм опадів, післязавтра — сухо. Працює лише в режимі розробки; створіть для вибраної рослини полив на завтра.</span></span></label></Panel>}
     {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}

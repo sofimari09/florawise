@@ -128,6 +128,10 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.match(move.explanation, /опади 10.3 мм > порогу 8 мм/);
     assert.match(move.explanation, /демонстраційні погодні дані/);
     assert.ok(move.eligibilityVersion);
+    const repeatedAdvice = await request("/recommendations", "POST", { plantId: outside.id, weatherScenario: scenario }, 201);
+    assert.equal(repeatedAdvice.recommendations.find(rec => rec.relatedTaskId === outdoorTask.id).id, move.id);
+    assert.equal((await request(`/recommendations?plantId=${outside.id}`))
+      .filter(rec => rec.relatedTaskId === outdoorTask.id && !rec.applied && !rec.supersededAt && !rec.staleReason).length, 1);
     await client.query(`INSERT INTO flora_recommendations(plant_id,generated_at,type,text,priority,related_task_id,explanation,care_type,eligibility_version)
       VALUES($1,NOW(),'PRIORITY','Полив має терміновий пріоритет','URGENT',$2,'Тестова звичайна терміновість','WATERING',$3)`,
       [outside.id, outdoorTask.id, move.eligibilityVersion]);
@@ -156,8 +160,39 @@ test("custom plants survive all collection/care flows, validate identities and o
     assert.equal(appliedRecommendation.originalDate, tomorrow);
     assert.equal(appliedRecommendation.suggestedDate, afterTomorrow);
     assert.ok(Number.isFinite(Date.parse(appliedRecommendation.appliedAt)));
+    // Explicit isolated species thresholds exercise the earlier-date application path.
+    const tomato = catalog.find(item => item.speciesCode === "TOMATO");
+    assert.ok(tomato);
+    await client.query(`INSERT INTO flora_species_care_rules
+      (species_id, care_type, min_temperature, max_temperature, rain_threshold_mm, max_wind_speed_mps, notes)
+      VALUES ($1, 'PLANTING', 15, 19, 20, 8, 'Детерміновані межі лише тестового сценарію')
+      ON CONFLICT (species_id, care_type) DO UPDATE SET
+        min_temperature=15,max_temperature=19,rain_threshold_mm=20,max_wind_speed_mps=8`, [tomato.id]);
+    const earlierPlant = await request("/plants", "POST", {
+      ...base, speciesId: tomato.id, category: undefined, name: "Тест ранішої дати",
+      environmentType: "OUTDOOR", weatherLocationId: location.id,
+    }, 201);
+    const earlierTask = await request("/tasks", "POST", {
+      ...input("PLANTING"), plantId: earlierPlant.id, scheduledDate: afterTomorrow,
+    }, 201);
+    const earlierReminder = (await request("/reminders")).find(item => item.taskId === earlierTask.id);
+    const earlierAdvice = (await request("/recommendations", "POST", {
+      plantId: earlierPlant.id, weatherScenario: scenario,
+    }, 201)).recommendations.find(item => item.relatedTaskId === earlierTask.id);
+    assert.equal(earlierAdvice.type, "WEATHER_RESCHEDULE");
+    assert.equal(earlierAdvice.suggestedDate, tomorrow);
+    const advanced = await request(`/recommendations/${earlierAdvice.id}/apply`, "POST", {});
+    assert.equal(advanced.id, earlierTask.id);
+    assert.equal(advanced.scheduledDate, tomorrow);
+    assert.equal(advanced.status, "PLANNED");
+    assert.equal(advanced.postponementCount, 0);
+    await request(`/recommendations/${earlierAdvice.id}/apply`, "POST", {}, 409);
     await stop();
     await start();
+    assert.equal((await request(`/tasks?plantId=${earlierPlant.id}`)).find(item => item.id === earlierTask.id).scheduledDate, tomorrow);
+    const persistedEarlierReminder = (await request("/reminders")).find(item => item.taskId === earlierTask.id);
+    assert.equal(persistedEarlierReminder.id, earlierReminder.id);
+    assert.equal(persistedEarlierReminder.reminderDate, tomorrow);
     assert.equal((await request(`/tasks?plantId=${outside.id}`)).find(task => task.id === outdoorTask.id).scheduledDate, afterTomorrow);
     assert.equal((await request("/reminders")).find(reminder => reminder.taskId === outdoorTask.id).reminderDate, afterTomorrow);
     const persistedRecommendation = (await request(`/recommendations?plantId=${outside.id}`)).find(rec => rec.id === move.id);
