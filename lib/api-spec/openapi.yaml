@@ -1104,13 +1104,33 @@ components:
         date: { type: string }
         dateTime: { type: string }
         temperature: { type: number }
+        minTemperature: { type: number }
+        maxTemperature: { type: number }
         precipitation: { type: number }
         precipitationProbability: { type: [integer, "null"], minimum: 0, maximum: 100 }
         humidity: { type: number }
         windSpeed: { type: number }
+        maxWindSpeed: { type: number }
+        maxWindGusts: { type: number }
         condition: { type: string }
         conditionCode: { type: integer }
+        hourly:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeatherHour"
       required: [date, dateTime, temperature, precipitation, humidity, windSpeed, condition, conditionCode]
+    WeatherHour:
+      type: object
+      properties:
+        dateTime: { type: string }
+        temperature: { type: number }
+        precipitation: { type: number }
+        humidity: { type: number }
+        windSpeed: { type: number }
+        windGusts: { type: number }
+        condition: { type: string }
+        conditionCode: { type: integer }
+      required: [dateTime, temperature, precipitation, humidity, windSpeed, windGusts, condition, conditionCode]
     WeatherResponse:
       type: object
       properties:

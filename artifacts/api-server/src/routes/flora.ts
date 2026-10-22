@@ -36,7 +36,8 @@ import { CareEligibilityError, assertEligible, assertTaskUpdate, carePlan } from
 const router: IRouter = Router();
 type FloraTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const today = todayInKyiv;
-const isWeatherExposed = (environment: string) => ["BALCONY", "OUTDOOR"].includes(environment);
+const isWeatherExposed = (environment: string) => environment === "OUTDOOR";
+const isWeatherRelevant = (environment: string) => ["BALCONY", "OUTDOOR"].includes(environment);
 const MAX_WEATHER_RECOMMENDATION_AGE_MS = 6 * 60 * 60 * 1000;
 const recommendationRefreshMessage = "Оновіть рекомендацію за актуальним прогнозом.";
 class WeatherUnavailableError extends Error {}
@@ -239,7 +240,8 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
   const species = plant ? await effectiveCare(plant) : null;
   const [task] = rec.relatedTaskId ? await db.select().from(tasksTable).where(eq(tasksTable.id, rec.relatedTaskId)) : [];
   const environment = plant ? await plantEnvironment(plant) : null;
-  const isWeatherRecommendation = rec.type === "WEATHER_RESCHEDULE";
+  const isWeatherRecommendation = ["WEATHER_RESCHEDULE", "WEATHER_WARNING"].includes(rec.type);
+  const isWeatherReschedule = rec.type === "WEATHER_RESCHEDULE";
   const activeTask = !!task && task.plantId === rec.plantId && ["PLANNED", "POSTPONED"].includes(task.status);
   const eligibleTask = !!species && !!task && task.plantId === rec.plantId &&
     (rec.careType === null || task.type === rec.careType) && eligibilityError(species, task.type) === null;
@@ -253,7 +255,8 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
   else if (task?.status === "CANCELLED") staleReason = "Завдання скасовано; цю пораду не можна застосувати.";
   else if (task && rec.careType !== null && task.type !== rec.careType) staleReason = "Тип догляду в завданні змінився; ця порада більше не застосовна.";
   else if (task && eligibilityError(species!, task.type)) staleReason = "Застосовність цього виду догляду змінилася.";
-  else if (isWeatherRecommendation && environment && !isWeatherExposed(environment)) staleReason = "Зовнішній прогноз не застосовується до догляду в приміщенні чи теплиці.";
+  else if (isWeatherRecommendation && environment && !isWeatherRelevant(environment)) staleReason = "Зовнішній прогноз не застосовується до догляду в приміщенні чи теплиці.";
+  else if (isWeatherReschedule && environment === "BALCONY") staleReason = "Експозиція балкона невідома; погодна рекомендація не може автоматично змінювати дату.";
   else if (isWeatherRecommendation && task && rec.originalDate !== task.scheduledDate) {
     staleReason = `Завдання вже перенесено з ${rec.originalDate ?? "невідомої дати"} на ${task.scheduledDate}. ${recommendationRefreshMessage}`;
   } else if (isWeatherRecommendation && rec.suggestedDate && rec.suggestedDate < today()) {
@@ -265,10 +268,11 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
   } else if (plant && species && rec.eligibilityVersion !== await careSnapshot(plant, species)) {
     staleReason = `Умови вирощування або план догляду змінилися. ${recommendationRefreshMessage}`;
   }
-  const actionable = isWeatherRecommendation && !staleReason && !rec.applied && activeTask &&
-    task?.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today();
+  const actionable = isWeatherReschedule && environment === "OUTDOOR" && !staleReason && !rec.applied && activeTask &&
+    task?.scheduledDate === rec.originalDate && !!rec.suggestedDate && rec.suggestedDate >= today() &&
+    rec.suggestedDate !== rec.originalDate;
   const refreshable = isWeatherRecommendation && !rec.applied && !rec.supersededAt &&
-    activeTask && eligibleTask && !!environment && isWeatherExposed(environment) && !!staleReason;
+    activeTask && eligibleTask && !!environment && isWeatherRelevant(environment) && !!staleReason;
   const storedWeather = parseStoredRecommendationWeather(rec.weatherJson);
   return {
     ...rec,
@@ -549,6 +553,17 @@ async function saveRecommendationDraft(
     eligibilityVersion: snapshot,
     careType: tasks.find(task => task.id === relatedTaskId)?.type ?? null,
   };
+  if (relatedTaskId !== null) {
+    const supersedeConditions = [
+      eq(recommendationsTable.plantId, plant.id),
+      eq(recommendationsTable.relatedTaskId, relatedTaskId),
+      eq(recommendationsTable.applied, 0),
+      isNull(recommendationsTable.supersededAt),
+      ne(recommendationsTable.id, existing?.id ?? -1),
+    ];
+    await source.update(recommendationsTable).set({ supersededAt: new Date() })
+      .where(and(...supersedeConditions));
+  }
   if (existing && existing.id !== excludeId) {
     const [updated] = await source.update(recommendationsTable).set(values)
       .where(eq(recommendationsTable.id, existing.id)).returning();
@@ -562,6 +577,28 @@ async function saveRecommendationDraft(
     supersededAt: null,
   }).returning();
   return created;
+}
+
+async function supersedeMissingTaskRecommendations(
+  source: typeof db | FloraTransaction,
+  plantId: number,
+  tasks: CareTask[],
+  drafts: RecommendationDraft[],
+) {
+  const draftTaskIds = new Set(drafts.flatMap(draft => draft.relatedTaskId === null ? [] : [draft.relatedTaskId]));
+  const analyzedTaskIds = [...new Set(tasks
+    .filter(task => ["PLANNED", "POSTPONED"].includes(task.status))
+    .map(task => task.id))];
+  for (const taskId of analyzedTaskIds) {
+    if (draftTaskIds.has(taskId)) continue;
+    await source.update(recommendationsTable).set({ supersededAt: new Date() })
+      .where(and(
+        eq(recommendationsTable.plantId, plantId),
+        eq(recommendationsTable.relatedTaskId, taskId),
+        eq(recommendationsTable.applied, 0),
+        isNull(recommendationsTable.supersededAt),
+      ));
+  }
 }
 
 const knowledgeInput = z.object({
@@ -981,6 +1018,7 @@ router.post("/recommendations", async (req, res): Promise<void> => {
   const savedRows = await Promise.all(prepared.drafts.map(draft => saveRecommendationDraft(
     db, plant, prepared.snapshot, prepared.tasks, draft, prepared.forecast, useDevScenario,
   )));
+  await supersedeMissingTaskRecommendations(db, plant.id, prepared.tasks, prepared.drafts);
   res.status(201).json({
     recommendations: await Promise.all(savedRows.map(mapRecommendation)),
     weather: prepared.forecast,

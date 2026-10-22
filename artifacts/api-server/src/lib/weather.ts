@@ -10,6 +10,22 @@ export type WeatherDay = {
   windSpeed: number;
   condition: string;
   conditionCode: number;
+  minTemperature?: number;
+  maxTemperature?: number;
+  maxWindSpeed?: number;
+  maxWindGusts?: number;
+  hourly?: WeatherHour[];
+};
+
+export type WeatherHour = {
+  dateTime: string;
+  temperature: number;
+  precipitation: number;
+  humidity: number;
+  windSpeed: number;
+  windGusts: number;
+  condition: string;
+  conditionCode: number;
 };
 
 export type WeatherResponse = {
@@ -68,6 +84,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 type OpenMeteoResponse = {
   current?: Record<string, unknown>;
   daily?: Record<string, unknown>;
+  hourly?: Record<string, unknown>;
 };
 
 export class RealWeatherService implements WeatherServiceClient {
@@ -82,7 +99,8 @@ export class RealWeatherService implements WeatherServiceClient {
     url.searchParams.set("latitude", String(location.latitude));
     url.searchParams.set("longitude", String(location.longitude));
     url.searchParams.set("current", "temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m");
-    url.searchParams.set("daily", "weather_code,temperature_2m_mean,precipitation_sum,precipitation_probability_max,relative_humidity_2m_mean,wind_speed_10m_mean");
+    url.searchParams.set("hourly", "temperature_2m,precipitation,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code");
+    url.searchParams.set("daily", "weather_code,temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,relative_humidity_2m_mean,wind_speed_10m_mean,wind_speed_10m_max,wind_gusts_10m_max");
     url.searchParams.set("forecast_days", "7");
     url.searchParams.set("timezone", "Europe/Kyiv");
     url.searchParams.set("temperature_unit", "celsius");
@@ -114,28 +132,81 @@ export class RealWeatherService implements WeatherServiceClient {
       if (!Array.isArray(value)) throw new Error("Open-Meteo response contains incomplete daily forecast");
       return value;
     };
+    const optionalArray = (value: unknown, fallback: unknown[]): unknown[] =>
+      Array.isArray(value) ? value : fallback;
     const dates = asArray(daily.time);
     const temperatures = asArray(daily.temperature_2m_mean);
+    const minimumTemperatures = optionalArray(daily.temperature_2m_min, temperatures);
+    const maximumTemperatures = optionalArray(daily.temperature_2m_max, temperatures);
     const precipitations = asArray(daily.precipitation_sum);
     const precipitationProbabilities = asArray(daily.precipitation_probability_max);
     const humidities = asArray(daily.relative_humidity_2m_mean);
     const winds = asArray(daily.wind_speed_10m_mean);
+    const maximumWinds = optionalArray(daily.wind_speed_10m_max, winds);
+    const maximumGusts = Array.isArray(daily.wind_gusts_10m_max) ? daily.wind_gusts_10m_max : [];
     const codes = asArray(daily.weather_code);
+    const hourly = body.hourly;
+    const hourlyByDate = new Map<string, WeatherHour[]>();
+    if (isRecord(hourly)) {
+      const hourlyTimes = Array.isArray(hourly.time) ? hourly.time : [];
+      const hourlyTemperatures = Array.isArray(hourly.temperature_2m) ? hourly.temperature_2m : [];
+      const hourlyPrecipitations = Array.isArray(hourly.precipitation) ? hourly.precipitation : [];
+      const hourlyHumidities = Array.isArray(hourly.relative_humidity_2m) ? hourly.relative_humidity_2m : [];
+      const hourlyWinds = Array.isArray(hourly.wind_speed_10m) ? hourly.wind_speed_10m : [];
+      const hourlyGusts = Array.isArray(hourly.wind_gusts_10m) ? hourly.wind_gusts_10m : [];
+      const hourlyCodes = Array.isArray(hourly.weather_code) ? hourly.weather_code : [];
+      for (let index = 0; index < hourlyTimes.length; index += 1) {
+        const time = hourlyTimes[index];
+        const temperature = hourlyTemperatures[index];
+        const precipitation = hourlyPrecipitations[index];
+        const humidity = hourlyHumidities[index];
+        const wind = hourlyWinds[index];
+        const gusts = hourlyGusts[index];
+        const code = hourlyCodes[index];
+        if (typeof time !== "string" || !finite(temperature) || !finite(precipitation) ||
+          !finite(humidity) || !finite(wind) || !finite(gusts) || !finite(code)) continue;
+        const hour: WeatherHour = {
+          dateTime: time,
+          temperature,
+          precipitation,
+          humidity,
+          windSpeed: wind,
+          windGusts: gusts,
+          condition: conditionForCode(code),
+          conditionCode: code,
+        };
+        const date = datePart(time);
+        hourlyByDate.set(date, [...(hourlyByDate.get(date) ?? []), hour]);
+      }
+    }
     const forecast: WeatherDay[] = [];
     for (let index = 0; index < dates.length; index += 1) {
       const date = dates[index];
       const temperature = temperatures[index];
+      const minimumTemperature = minimumTemperatures[index];
+      const maximumTemperature = maximumTemperatures[index];
       const precipitation = precipitations[index];
       const precipitationProbability = precipitationProbabilities[index];
       const humidity = humidities[index];
       const wind = winds[index];
+      const maximumWind = maximumWinds[index];
+      const maximumGust = maximumGusts[index];
       const code = codes[index];
       if (typeof date !== "string" || !finite(temperature) || !finite(precipitation) ||
         (precipitationProbability !== null && !finite(precipitationProbability)) ||
-        !finite(humidity) || !finite(wind) || !finite(code)) {
+        !finite(humidity) || !finite(wind) || !finite(code) ||
+        !finite(minimumTemperature) || !finite(maximumTemperature) || !finite(maximumWind) ||
+        (maximumGust !== undefined && !finite(maximumGust))) {
         throw new Error(`Open-Meteo forecast contains incomplete data for day ${index}`);
       }
-      forecast.push(toWeatherDay(date, temperature, precipitation, humidity, wind, code, precipitationProbability));
+      forecast.push({
+        ...toWeatherDay(date, temperature, precipitation, humidity, wind, code, precipitationProbability),
+        minTemperature: minimumTemperature,
+        maxTemperature: maximumTemperature,
+        maxWindSpeed: maximumWind,
+        ...(maximumGust === undefined ? {} : { maxWindGusts: maximumGust }),
+        ...(hourlyByDate.has(date) ? { hourly: hourlyByDate.get(date) } : {}),
+      });
     }
     if (!forecast.length) throw new Error("Open-Meteo returned an empty forecast");
 
@@ -189,5 +260,45 @@ export class MockWeatherService implements WeatherServiceClient {
   }
 }
 
+type WeatherCacheEntry = {
+  expiresAt: number;
+  promise?: Promise<WeatherResponse>;
+  value?: WeatherResponse;
+};
+
+export class CachedWeatherService implements WeatherServiceClient {
+  private readonly entries = new Map<string, WeatherCacheEntry>();
+
+  constructor(
+    private readonly provider: WeatherServiceClient,
+    private readonly ttlMs = 5 * 60 * 1000,
+    private readonly clock: () => number = Date.now,
+  ) {}
+
+  async getForecast(location: WeatherLocation): Promise<WeatherResponse> {
+    if (!finite(location.latitude) || !finite(location.longitude)) {
+      return this.provider.getForecast(location);
+    }
+    const key = `${location.latitude}|${location.longitude}|Europe/Kyiv`;
+    const now = this.clock();
+    const cached = this.entries.get(key);
+    if (cached && cached.expiresAt > now) {
+      const value = cached.value ?? await cached.promise!;
+      return { ...value, location: location.name };
+    }
+
+    const promise = this.provider.getForecast(location);
+    this.entries.set(key, { expiresAt: now + this.ttlMs, promise });
+    try {
+      const value = await promise;
+      this.entries.set(key, { expiresAt: this.clock() + this.ttlMs, value });
+      return { ...value, location: location.name };
+    } catch (error) {
+      if (this.entries.get(key)?.promise === promise) this.entries.delete(key);
+      throw error;
+    }
+  }
+}
+
 export const realWeatherService: WeatherServiceClient = new RealWeatherService();
-export const weatherService = realWeatherService;
+export const weatherService: WeatherServiceClient = new CachedWeatherService(realWeatherService);
