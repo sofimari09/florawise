@@ -204,6 +204,7 @@ export const recommendationsTable = pgTable("flora_recommendations", {
   suggestedDate: date("suggested_date", { mode: "string" }),
   applied: integer("applied").notNull().default(0),
   appliedAt: timestamp("applied_at", { withTimezone: true }),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
   weatherJson: text("weather_json").notNull().default("{}"),
   eligibilityVersion: text("eligibility_version"),
   careType: text("care_type"),

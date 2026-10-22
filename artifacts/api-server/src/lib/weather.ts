@@ -1,4 +1,4 @@
-import { logger } from "./logger";
+import { todayInKyiv } from "./date";
 
 export type WeatherDay = {
   date: string;
@@ -150,11 +150,8 @@ export class RealWeatherService implements WeatherServiceClient {
   }
 }
 
-const addDays = (date: Date, days: number) => {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next.toISOString().slice(0, 10);
-};
+const addDays = (date: string, days: number) =>
+  new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 export class MockWeatherService implements WeatherServiceClient {
   async getForecast(location: WeatherLocation): Promise<WeatherResponse> {
@@ -173,7 +170,7 @@ export class MockWeatherService implements WeatherServiceClient {
     const temperatureOffset = (hash % 7) - 3;
     const forecast = templates.map((_, index) => {
       const day = templates[(index + rotation) % templates.length];
-      const date = addDays(new Date(), index);
+      const date = addDays(todayInKyiv(), index);
       return {
         ...day,
         temperature: day.temperature + temperatureOffset,
@@ -192,22 +189,5 @@ export class MockWeatherService implements WeatherServiceClient {
   }
 }
 
-export class WeatherServiceWithFallback implements WeatherServiceClient {
-  constructor(
-    private readonly real: WeatherServiceClient,
-    private readonly fallback: WeatherServiceClient,
-  ) {}
-
-  async getForecast(location: WeatherLocation): Promise<WeatherResponse> {
-    try {
-      return await this.real.getForecast(location);
-    } catch (error) {
-      logger.warn({ error, location: location.name }, "Real weather unavailable; using demonstration weather");
-      return this.fallback.getForecast(location);
-    }
-  }
-}
-
-export const mockWeatherService: WeatherServiceClient = new MockWeatherService();
 export const realWeatherService: WeatherServiceClient = new RealWeatherService();
-export const weatherService: WeatherServiceClient = new WeatherServiceWithFallback(realWeatherService, mockWeatherService);
+export const weatherService = realWeatherService;

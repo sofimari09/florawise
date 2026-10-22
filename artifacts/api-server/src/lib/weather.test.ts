@@ -3,8 +3,6 @@ import { test } from "node:test";
 import {
   MockWeatherService,
   RealWeatherService,
-  WeatherServiceWithFallback,
-  type WeatherServiceClient,
 } from "./weather";
 
 const openMeteoFixture = {
@@ -54,11 +52,13 @@ test("Open-Meteo uses the saved coordinates and returns current plus daily weath
   assert.equal(forecast.forecast[1].date, "2026-10-12");
 });
 
-test("mock weather is clearly marked when real weather is unavailable", async () => {
-  const real: WeatherServiceClient = { getForecast: async () => { throw new Error("service unavailable"); } };
-  const service = new WeatherServiceWithFallback(real, new MockWeatherService());
-  const forecast = await service.getForecast({ name: "Забужжя", latitude: 50.4, longitude: 24.1 });
+test("real provider failure is surfaced and does not silently become mock weather", async () => {
+  const service = new RealWeatherService(async () => { throw new Error("service unavailable"); });
+  await assert.rejects(service.getForecast({ name: "Забужжя", latitude: 50.4, longitude: 24.1 }), /service unavailable/);
+});
 
+test("mock weather is available as an explicitly constructed test fixture", async () => {
+  const forecast = await new MockWeatherService().getForecast({ name: "Забужжя", latitude: 50.4, longitude: 24.1 });
   assert.equal(forecast.location, "Забужжя");
   assert.equal(forecast.isMock, true);
   assert.equal(forecast.current.conditionCode >= 0, true);
@@ -66,13 +66,9 @@ test("mock weather is clearly marked when real weather is unavailable", async ()
   assert.equal(forecast.forecast.length, 7);
 });
 
-test("missing coordinates fall back to demo data instead of failing", async () => {
-  const service = new WeatherServiceWithFallback(new RealWeatherService(async () => {
+test("missing coordinates fail clearly instead of falling back to demo data", async () => {
+  const service = new RealWeatherService(async () => {
     throw new Error("The real provider should not be called without coordinates");
-  }), new MockWeatherService());
-  const result = await service.getForecast({ name: "Ваш регіон", latitude: null, longitude: null });
-
-  assert.equal(result.isMock, true);
-  assert.equal(result.latitude, null);
-  assert.equal(result.longitude, null);
+  });
+  await assert.rejects(service.getForecast({ name: "Ваш регіон", latitude: null, longitude: null }), /coordinates are unavailable/);
 });

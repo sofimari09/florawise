@@ -2,6 +2,7 @@ import type { PlantSpecies, CareTask, SpeciesCareRule } from "@workspace/db";
 import type { WeatherDay } from "./weather";
 import { CARE_LABELS, eligibilityError, eligibilityBasis } from "@workspace/plant-care";
 import type { CareContext } from "./effective-care";
+import { todayInKyiv } from "./date";
 
 export type RecommendationDraft = {
   type: string; text: string; priority: string; explanation: string;
@@ -151,7 +152,7 @@ export function generateRules(
   if (lastWatered && !completedByType.WATERING) completedByType.WATERING = lastWatered;
   const basis = eligibilityBasis(species);
   const results: RecommendationDraft[] = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInKyiv();
   const elapsed = (date: string) => Math.max(0, Math.floor((Date.parse(today) - Date.parse(date.slice(0, 10))) / 86400000));
   const environments: Record<string, string> = { INDOOR: "приміщення", BALCONY: "балкон", OUTDOOR: "надворі", GREENHOUSE: "теплиця" };
   const environmentLabel = environments[environment] ?? environment;

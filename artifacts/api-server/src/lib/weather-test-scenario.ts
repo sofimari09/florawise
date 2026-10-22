@@ -1,11 +1,12 @@
 import type { WeatherDay, WeatherLocation, WeatherResponse } from "./weather";
+import { todayInKyiv } from "./date";
 
 export const DEV_WEATHER_SCENARIO = "RAIN_TOMORROW" as const;
 
 const addDays = (date: string, days: number) =>
   new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
-export function createRainTomorrowScenario(location: WeatherLocation, startDate = new Date().toISOString().slice(0, 10)): WeatherResponse {
+export function createRainTomorrowScenario(location: WeatherLocation, startDate = todayInKyiv()): WeatherResponse {
   const forecast: WeatherDay[] = Array.from({ length: 7 }, (_, offset) => {
     const date = addDays(startDate, offset);
     const rainy = offset === 1;

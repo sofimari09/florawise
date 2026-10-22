@@ -5,8 +5,9 @@ import { generateRules, isWeatherSuitable, RULE_PARAMETERS } from "./recommendat
 import { MockWeatherService } from "./weather";
 import { customCareContext } from "./effective-care";
 import { carePlan } from "./care-eligibility";
+import { todayInKyiv } from "./date";
 
-const date = (offset = 0) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+const date = (offset = 0) => new Date(Date.parse(`${todayInKyiv()}T00:00:00.000Z`) + offset * 86400000).toISOString().slice(0, 10);
 const species = { id: 1, name: "Тестовий вид", category: "INDOOR_DECORATIVE", applicableCareTypes: null, careRevision: 0, optimalTempMin: "18", optimalTempMax: "28", wateringFrequencyDays: 7, careRecommendations: "Перевірте ґрунт.", generalCareRecommendations: null } as PlantSpecies;
 const task = (overrides: Partial<CareTask> = {}): CareTask => ({ id: 1, plantId: 1, type: "WATERING", scheduledDate: date(), status: "PLANNED", priority: "MEDIUM", notes: "", createdAt: new Date(), postponementCount: 0, ...overrides });
 const forecast = [{ date: date(), dateTime: `${date()}T12:00`, temperature: 22, precipitation: 10, humidity: 60, windSpeed: 3, condition: "Дощ", conditionCode: 61 }, { date: date(1), dateTime: `${date(1)}T12:00`, temperature: 22, precipitation: 0, humidity: 55, windSpeed: 2, condition: "Ясно", conditionCode: 0 }];
