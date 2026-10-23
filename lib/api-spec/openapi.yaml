@@ -14,6 +14,7 @@ tags:
   - name: plants
   - name: tasks
   - name: reminders
+  - name: notifications
   - name: weather
   - name: recommendations
   - name: analytics
@@ -561,6 +562,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Reminder"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List recent in-app notifications and synchronize task reminders
+      responses:
+        "200":
+          description: Recent notifications, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationList"
+  /notifications/{id}:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationReadUpdate"
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Number of notifications updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationsReadResult"
   /weather:
     get:
       operationId: getWeather
@@ -1098,6 +1143,44 @@ components:
       properties:
         status: { type: string, enum: [PENDING, READ, DISMISSED] }
       required: [status]
+    Notification:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [UPCOMING_TASK, OVERDUE_TASK, WEATHER_WARNING, WEATHER_RESCHEDULE, WEATHER_RESCHEDULED, MANUAL_RESCHEDULED] }
+        title: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, "null"], format: date-time }
+        staleAt: { type: [string, "null"], format: date-time }
+        isRead: { type: boolean }
+        href: { type: [string, "null"] }
+        plantId: { type: [integer, "null"] }
+        plantName: { type: [string, "null"] }
+        taskId: { type: [integer, "null"] }
+        reminderId: { type: [integer, "null"] }
+        recommendationId: { type: [integer, "null"] }
+        actionLabel: { type: [string, "null"] }
+      required: [id, type, title, message, createdAt, readAt, staleAt, isRead, href, plantId, plantName, taskId, reminderId, recommendationId, actionLabel]
+    NotificationReadUpdate:
+      type: object
+      properties:
+        read: { type: boolean, enum: [true] }
+      required: [read]
+    NotificationsReadResult:
+      type: object
+      properties:
+        updated: { type: integer }
+      required: [updated]
+    NotificationList:
+      type: object
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        unreadCount: { type: integer }
+      required: [notifications, unreadCount]
     WeatherForecast:
       type: object
       properties:

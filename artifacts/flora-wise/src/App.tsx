@@ -6,18 +6,19 @@ import { ukUA } from "@clerk/localizations";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import {
-  Activity, ArrowRight, BarChart3, Bell, BookOpen, CalendarDays, Check, CheckCircle2,
-  ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Droplets, FileText,
+  Activity, ArrowRight, BarChart3, Bell, BookOpen, CalendarDays, CalendarClock, Check, CheckCircle2,
+  ChevronDown, ChevronLeft, ChevronRight, CircleAlert, CloudRain, Droplets, FileText,
   Flower2, Gauge, Leaf, Lightbulb, ListFilter, Menu, MoreHorizontal, Pencil,
   Plus, RefreshCw, Search, ShieldCheck, Sprout, Sun, Trash2, TrendingUp,
   Wind, X, Zap,
 } from "lucide-react";
 import {
   getGetCurrentUserQueryKey, getGetDashboardQueryKey, getGetPlantQueryKey,
-  getListPlantsQueryKey, getListRecommendationsQueryKey, getListRemindersQueryKey, getListReportsQueryKey,
+  getListNotificationsQueryKey, getListPlantsQueryKey, getListRecommendationsQueryKey, getListRemindersQueryKey, getListReportsQueryKey,
   getListSpeciesQueryKey, getListTasksQueryKey, getListCareHistoryQueryKey, getGetStatisticsQueryKey, useApplyRecommendation, useRefreshRecommendation, useCompleteTask, useCreatePlant,
   useCreateReport, useCreateSpecies, useCreateTask, useDeleteSpecies, useDeleteTask, useGetCurrentUser,
   useDeletePlant, useGetDashboard, useGetPlant, useGetStatistics, useGenerateRecommendation, useListCareHistory,
+  useListNotifications, useMarkAllNotificationsRead, useMarkNotificationRead,
   useListPlants, useListRecommendations, useListReminders, useListReports, useListSpecies, useListTasks,
   useUpdateCurrentUser, useUpdatePlant, useUpdateReminder, useUpdateSpecies, useUpdateTask,
 } from "@workspace/api-client-react";
@@ -278,7 +279,92 @@ function Shell({ children }: { children: ReactNode }) {
       </div>
     </aside>
     {open && <button aria-label="закрити меню" data-testid="button-close-overlay" onClick={() => setOpen(false)} className="fixed inset-0 z-30 bg-foreground/20 md:hidden" />}
-    <main className="min-h-[100dvh] md:pl-[248px]"><header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/70 bg-background/90 px-5 backdrop-blur md:px-10"><div className="flex items-center gap-3"><IconButton label="відкрити меню" onClick={() => setOpen(true)} className="md:hidden"><Menu size={20} /></IconButton><div className="hidden md:block"><p className="font-mono text-[10px] uppercase tracking-[.22em] text-muted-foreground">Особистий простір</p><p className="font-serif text-lg leading-none">Турбота без шуму</p></div></div><div className="relative flex items-center gap-2"><Link href="/dashboard" data-testid="link-header-home" className="hidden rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted sm:block">Сьогодні</Link><IconButton label="сповіщення" onClick={() => {}}><Bell size={19} /></IconButton><button type="button" aria-label="відкрити профіль" data-testid="button-header-profile" onClick={() => setProfileMenuOpen(value => !value)} className="grid h-9 w-9 place-items-center rounded-full border border-accent bg-accent/30 font-mono text-xs font-bold text-foreground hover:ring-4 hover:ring-accent/30">{initials}</button>{profileMenuOpen && <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-border bg-card p-2 shadow-xl"><div className="border-b border-border px-3 py-3"><p className="truncate text-sm font-semibold">{displayName}</p><p className="truncate text-xs text-muted-foreground">{displayEmail}</p></div><Link href="/profile" data-testid="link-header-profile-page" onClick={() => setProfileMenuOpen(false)} className="mt-1 block rounded-xl px-3 py-2.5 text-sm hover:bg-muted">Мій профіль</Link><button type="button" data-testid="button-header-signout" onClick={handleSignOut} className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10">Вийти з простору</button></div>}</div></header><div className="mx-auto max-w-[1400px] px-5 py-8 md:px-10 md:py-10">{children}</div></main>
+    <main className="min-h-[100dvh] md:pl-[248px]"><header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/70 bg-background/90 px-5 backdrop-blur md:px-10"><div className="flex items-center gap-3"><IconButton label="відкрити меню" onClick={() => setOpen(true)} className="md:hidden"><Menu size={20} /></IconButton><div className="hidden md:block"><p className="font-mono text-[10px] uppercase tracking-[.22em] text-muted-foreground">Особистий простір</p><p className="font-serif text-lg leading-none">Турбота без шуму</p></div></div><div className="relative flex items-center gap-2"><Link href="/dashboard" data-testid="link-header-home" className="hidden rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted sm:block">Сьогодні</Link><NotificationBell /><button type="button" aria-label="відкрити профіль" data-testid="button-header-profile" onClick={() => setProfileMenuOpen(value => !value)} className="grid h-9 w-9 place-items-center rounded-full border border-accent bg-accent/30 font-mono text-xs font-bold text-foreground hover:ring-4 hover:ring-accent/30">{initials}</button>{profileMenuOpen && <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-border bg-card p-2 shadow-xl"><div className="border-b border-border px-3 py-3"><p className="truncate text-sm font-semibold">{displayName}</p><p className="truncate text-xs text-muted-foreground">{displayEmail}</p></div><Link href="/profile" data-testid="link-header-profile-page" onClick={() => setProfileMenuOpen(false)} className="mt-1 block rounded-xl px-3 py-2.5 text-sm hover:bg-muted">Мій профіль</Link><button type="button" data-testid="button-header-signout" onClick={handleSignOut} className="w-full rounded-xl px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10">Вийти з простору</button></div>}</div></header><div className="mx-auto max-w-[1400px] px-5 py-8 md:px-10 md:py-10">{children}</div></main>
+  </div>;
+}
+
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const q = useQueryClient();
+  const notifications = useListNotifications({
+    query: { queryKey: getListNotificationsQueryKey(), staleTime: 20_000, refetchInterval: 60_000, refetchOnWindowFocus: true },
+  });
+  const markRead = useMarkNotificationRead();
+  const markAll = useMarkAllNotificationsRead();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const list = notifications.data?.notifications ?? [];
+  const unreadCount = notifications.data?.unreadCount ?? 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointer = (event: MouseEvent) => {
+      if (!panelRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  const refresh = () => q.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+  const notificationIcon = (type: string) => {
+    if (type === "OVERDUE_TASK") return CircleAlert;
+    if (type === "WEATHER_WARNING" || type === "WEATHER_RESCHEDULE") return CloudRain;
+    if (type === "WEATHER_RESCHEDULED") return CheckCircle2;
+    if (type === "MANUAL_RESCHEDULED") return CalendarClock;
+    return CalendarDays;
+  };
+  const timeLabel = (value: string) => new Intl.DateTimeFormat("uk-UA", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  }).format(new Date(value));
+  const markOneRead = (id: number) => {
+    markRead.mutate({ id, data: { read: true } }, { onSuccess: refresh });
+  };
+
+  return <div ref={panelRef} className="relative">
+    <button
+      type="button"
+      aria-label={unreadCount ? `Сповіщення, непрочитаних: ${unreadCount}` : "Сповіщення"}
+      aria-expanded={open}
+      aria-controls="flora-notifications-panel"
+      data-testid="button-notifications"
+      onClick={() => {
+        const next = !open;
+        setOpen(next);
+        if (next) void notifications.refetch();
+      }}
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <Bell size={19} />
+      {unreadCount > 0 && <span data-testid="badge-unread-notifications" className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 font-mono text-[9px] font-bold leading-none text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+    </button>
+    {open && <section id="flora-notifications-panel" aria-label="Сповіщення" className="absolute right-0 top-12 z-50 w-[min(25rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="font-serif text-xl">Сповіщення</h2>
+          <p className="text-xs text-muted-foreground">Непрочитані: {unreadCount}</p>
+        </div>
+        {unreadCount > 0 && <button type="button" data-testid="button-notifications-read-all" disabled={markAll.isPending} onClick={() => markAll.mutate(undefined, { onSuccess: refresh })} className="shrink-0 text-right text-xs font-semibold text-primary hover:underline disabled:opacity-50">Позначити всі як прочитані</button>}
+      </header>
+      <div className="max-h-[min(70vh,34rem)] overflow-y-auto p-2">
+        {notifications.isLoading && <p className="px-3 py-8 text-center text-sm text-muted-foreground">Завантажуємо сповіщення…</p>}
+        {notifications.isError && <div className="px-3 py-6 text-center"><p className="text-sm text-muted-foreground">Не вдалося завантажити сповіщення.</p><button type="button" onClick={() => void notifications.refetch()} className="mt-2 text-sm font-semibold text-primary">Спробувати ще раз</button></div>}
+        {!notifications.isLoading && !notifications.isError && list.length === 0 && <div className="px-3 py-8 text-center"><Bell className="mx-auto mb-2 text-muted-foreground/60" size={22} /><p className="text-sm font-medium">Нових сповіщень немає</p><p className="mt-1 text-xs text-muted-foreground">Коли з’явиться важлива подія, вона буде тут.</p></div>}
+        {list.map(item => {
+          const Icon = notificationIcon(item.type);
+          const content = <><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${item.isRead ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}><Icon size={17} /></span><span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><span className="text-sm font-semibold leading-5">{item.title}</span>{!item.isRead && <span aria-label="Непрочитане" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.message}</span><span className="mt-2 block text-[11px] text-muted-foreground">{timeLabel(item.createdAt)}{item.plantName ? ` · ${item.plantName}` : ""}</span>{item.staleAt && <span className="mt-1 block text-[11px] text-muted-foreground">Ця подія вже не актуальна.</span>}{item.href && !item.staleAt && <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary">{item.actionLabel || "Відкрити"} <ArrowRight size={13} /></span>}</span></>;
+          return <article key={item.id} data-testid={`notification-${item.id}`} className={`mb-1 flex gap-3 rounded-xl p-3 ${item.isRead ? "bg-card" : "bg-primary/[.04]"}`}>
+            {item.href && !item.staleAt
+              ? <Link href={item.href} onClick={() => { if (!item.isRead) markOneRead(item.id); setOpen(false); }} className="flex min-w-0 flex-1 gap-3 text-left">{content}</Link>
+              : <div className="flex min-w-0 flex-1 gap-3">{content}</div>}
+            {!item.isRead && <button type="button" aria-label="Позначити прочитаним" data-testid={`button-notification-read-${item.id}`} onClick={() => markOneRead(item.id)} className="self-start rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"><Check size={15} /></button>}
+          </article>;
+        })}
+      </div>
+    </section>}
   </div>;
 }
 function PageHead({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
@@ -292,7 +378,7 @@ function TaskRow({ task, onComplete, onDelete, onPostpone }: { task: CareTask; o
   const normalizedPriority = task.priority?.toUpperCase();
   const priorityText = normalizedPriority === "URGENT" ? "Терміново · виняток" : priorityLabel[task.priority] || task.priority;
   const priorityTone = normalizedPriority === "URGENT" ? "danger" : normalizedPriority === "HIGH" ? "warn" : "neutral";
-  return <div className="group flex flex-wrap items-center gap-3 border-b border-border/70 py-4 last:border-0"><button aria-label={`виконати ${task.plantName}`} data-testid={`button-complete-task-${task.id}`} onClick={onComplete} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"><Check size={15} /></button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>{taskLabel[task.type] || task.type}</p>{overdue && <Badge tone="danger">Прострочено</Badge>}{task.priority && <Badge tone={priorityTone}>{priorityText}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{task.plantName} · {fmt(task.scheduledDate)}</p></div>{onPostpone && <Button variant="ghost" testId={`button-postpone-task-${task.id}`} aria-label={`Перенести ${taskLabel[task.type] || "завдання"} на наступний день`} onClick={onPostpone} className="ml-11 basis-[calc(100%-2.75rem)] justify-start whitespace-nowrap px-2 text-xs sm:ml-0 sm:basis-auto"><ChevronRight size={15} />Перенести на день пізніше</Button>}{onDelete && <IconButton label="видалити завдання" onClick={onDelete} className="opacity-0 group-hover:opacity-100"><Trash2 size={15} /></IconButton>}</div>;
+  return <div id={`task-${task.id}`} className="group flex flex-wrap items-center gap-3 border-b border-border/70 py-4 last:border-0"><button aria-label={`виконати ${task.plantName}`} data-testid={`button-complete-task-${task.id}`} onClick={onComplete} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"><Check size={15} /></button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>{taskLabel[task.type] || task.type}</p>{overdue && <Badge tone="danger">Прострочено</Badge>}{task.priority && <Badge tone={priorityTone}>{priorityText}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{task.plantName} · {fmt(task.scheduledDate)}</p></div>{onPostpone && <Button variant="ghost" testId={`button-postpone-task-${task.id}`} aria-label={`Перенести ${taskLabel[task.type] || "завдання"} на наступний день`} onClick={onPostpone} className="ml-11 basis-[calc(100%-2.75rem)] justify-start whitespace-nowrap px-2 text-xs sm:ml-0 sm:basis-auto"><ChevronRight size={15} />Перенести на день пізніше</Button>}{onDelete && <IconButton label="видалити завдання" onClick={onDelete} className="opacity-0 group-hover:opacity-100"><Trash2 size={15} /></IconButton>}</div>;
 }
 
 function Landing() {
@@ -430,7 +516,7 @@ function DashboardPage() {
   const q = useQueryClient(); const dash = useGetDashboard(undefined, { query: { queryKey: getGetDashboardQueryKey() } }); const plants = useListPlants(); const weather = { data: dash.data?.weather ? { ...dash.data.weather, location: `${shortWeatherLocationName(dash.data.weather.location)} · ${dash.data.weather.isMock ? "Демонстраційні погодні дані" : "Актуальні погодні дані"}`, forecast: [{ ...dash.data.weather.current, temperature: roundWeatherTemperature(dash.data.weather.current.temperature), precipitation: dash.data.weather.forecast[0]?.precipitation ?? dash.data.weather.current.precipitation, precipitationProbability: dash.data.weather.forecast[0]?.precipitationProbability ?? null, windSpeed: `${dash.data.weather.current.windSpeed} м/с` }, ...dash.data.weather.forecast.slice(1)] } : null }; const complete = useCompleteTask(); const reminders = useListReminders(); const updateReminder = useUpdateReminder();
   const { displayName } = useFloraIdentity();
   const d = dash.data; const plantCount = d?.plantsCount ?? plants.data?.length ?? 0;
-  const completeTask = (id: number) => complete.mutate({ id, data: { comment: "Виконано з FloraWise" } }, { onSuccess: () => { q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }); q.invalidateQueries({ queryKey: getListTasksQueryKey() }); } });
+  const completeTask = (id: number) => complete.mutate({ id, data: { comment: "Виконано з FloraWise" } }, { onSuccess: () => { q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }); q.invalidateQueries({ queryKey: getListTasksQueryKey() }); q.invalidateQueries({ queryKey: getListNotificationsQueryKey() }); } });
   return <Shell><PageHead eyebrow={todayLabel} title={greetingFor(displayName)} description="Подивімося, що сьогодні потребує вашої уваги." action={<Link href="/plants" data-testid="link-dashboard-add" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><Plus size={17} /> Додати рослину</Link>} /><QueryState loading={dash.isLoading} error={!!dash.error} onRetry={() => dash.refetch()}><div className="grid gap-5 lg:grid-cols-[1.35fr_.65fr]"><Panel className="overflow-hidden bg-primary text-primary-foreground"><div className="flex flex-col justify-between gap-8 p-6 md:flex-row md:p-8"><div><p className="font-mono text-[10px] uppercase tracking-[.2em] opacity-70">Сьогодні у вас</p><p className="mt-3 font-serif text-5xl">{d?.todayTasks ?? 0} <span className="text-2xl opacity-70">завдань</span></p><p className="mt-2 max-w-xs text-sm leading-6 opacity-75">{d?.overdueTasks ? `Є ${d.overdueTasks} прострочених — краще почати з них.` : "Ритм стабільний. Можна приділити час деталям."}</p></div><div className="grid h-24 w-24 place-items-center rounded-full border border-primary-foreground/30 bg-primary-foreground/10"><Droplets size={27} /><span className="sr-only">Догляд</span></div></div><div className="grid grid-cols-3 border-t border-primary-foreground/15 px-6 py-4 text-sm md:px-8"><div><span className="block font-mono text-xl">{plantCount}</span><span className="opacity-65">рослин</span></div><div><span className="block font-mono text-xl">{d?.completedTasks ?? 0}</span><span className="opacity-65">виконано</span></div><div><span className="block font-mono text-xl">{d?.highPriorityTasks ?? 0}</span><span className="opacity-65">важливих</span></div></div></Panel><Panel className="p-6"><div className="flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Погода</p><p className="mt-2 font-serif text-3xl">{weather.data?.forecast?.[0]?.temperature ?? "—"}°</p><p className="mt-1 text-sm text-muted-foreground">{weather.data ? `${weather.data.location} · ${weather.data.forecast?.[0]?.condition || "—"}` : "Погодні дані тимчасово недоступні"}</p></div><Sun className="text-accent" size={28} /></div><div className="mt-6 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl bg-muted p-3"><Droplets size={15} className="mb-2 text-primary" />Вологість <strong className="float-right">{weather.data?.forecast?.[0]?.humidity ?? "—"}%</strong></div><div className="rounded-xl bg-muted p-3"><Wind size={15} className="mb-2 text-primary" />Вітер <strong className="float-right">{weather.data?.forecast?.[0]?.windSpeed ?? "—"}</strong></div><div className="col-span-2 flex items-center justify-between rounded-xl bg-muted px-3 py-2.5"><span>Опади</span><strong>{weather.data?.forecast?.[0]?.precipitationProbability ?? "—"}% · {weather.data?.forecast?.[0]?.precipitation ?? "—"} мм</strong></div></div></Panel></div><div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><Panel className="p-6"><div className="mb-2 flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Найближче</p><h2 className="mt-2 font-serif text-2xl">План догляду</h2></div><Link href="/calendar" data-testid="link-dashboard-calendar" className="text-sm font-semibold text-primary hover:underline">Весь календар</Link></div>{d?.upcomingTasks?.length ? d.upcomingTasks.slice(0, 5).map(t => <TaskRow key={t.id} task={t} onComplete={() => completeTask(t.id)} />) : <Empty title="День вільний" description="Нових завдань немає. Саме час просто подивитися на рослини." />}</Panel><Panel className="p-6"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Спостереження</p><h2 className="mt-2 font-serif text-2xl">Поради для вас</h2></div><Link href="/recommendations" data-testid="link-dashboard-recommendations" className="text-sm font-semibold text-primary"><ArrowRight size={18} /></Link></div>{d?.latestRecommendations?.length ? d.latestRecommendations.slice(0, 3).map(r => <RecommendationCard key={r.id} recommendation={r} compact />) : <div className="mt-6 rounded-xl bg-secondary/60 p-5"><Lightbulb className="text-primary" size={20} /><p className="mt-3 text-sm leading-6">Коли зберемо більше спостережень, тут з’являться персональні підказки.</p></div>}</Panel></div><Panel className="mt-5 p-6"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Не пропустити</p><h2 className="mt-2 font-serif text-2xl">Нагадування</h2></div><Bell size={19} className="text-accent" /></div>{reminders.data?.length ? <div className="mt-3 grid gap-2 md:grid-cols-2">{reminders.data.slice(0, 4).map(r => <div key={r.id} className="flex items-center gap-3 rounded-xl bg-muted p-3"><span className="grid h-8 w-8 place-items-center rounded-lg bg-card text-primary"><Bell size={15} /></span><p className="min-w-0 flex-1 text-sm"><strong>{r.plantName}</strong><span className="block truncate text-xs text-muted-foreground">{r.message}</span></p><Button variant="ghost" onClick={() => updateReminder.mutate({ id: r.id, data: { status: "READ" } }, { onSuccess: () => q.invalidateQueries({ queryKey: getListRemindersQueryKey() }) })}>Прочитано</Button></div>)}</div> : <p className="mt-4 text-sm text-muted-foreground">Нових нагадувань немає.</p>}</Panel></QueryState></Shell>;
 }
 function recommendationWeatherReason(r: Recommendation) {
@@ -489,7 +575,7 @@ function RecommendationCard({ recommendation: r, compact = false, embedded = fal
       : r.type === "GENERAL"
         ? "Загальний огляд догляду"
         : r.text;
-  return <div className={wrapperClass}><div className="flex items-start gap-3">
+  return <div id={`recommendation-${r.id}`} className={wrapperClass}><div className="flex items-start gap-3">
     <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent/30 text-primary"><Lightbulb size={16} /></span>
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -609,7 +695,7 @@ function PlantCard({ plant: p, index, onEdit, onDelete }: { plant: Plant; index:
 function PlantDetailPage() {
   const { id } = useParams<{ id: string }>(); const plantId = Number(id); const q = useQueryClient(); const { data: plant, isLoading, error, refetch } = useGetPlant(plantId, { query: { queryKey: getGetPlantQueryKey(plantId) } }); const generate = useGenerateRecommendation(); const complete = useCompleteTask(); const [planOpen, setPlanOpen] = useState(false); const [genResult, setGenResult] = useState<RecommendationResult | null>(null); const [genError, setGenError] = useState(""); const [notice, setNotice] = useState("");
   if (!plant) return <Shell><QueryState loading={isLoading} error={!!error} onRetry={() => refetch()}><Empty title="Рослину не знайдено" description="Можливо, вона була видалена або посилання застаріло." /></QueryState></Shell>;
-  return <Shell><Link href="/plants" data-testid="link-back-plants" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft size={17} /> Усі рослини</Link><PageHead eyebrow={plant.location} title={plant.name} description={plant.speciesId == null ? `Рослина поза довідником · ${isCategory(plant.category) ? CATEGORY_LABELS[plant.category] : ""}` : plant.speciesName ?? undefined} action={<div className="flex flex-wrap gap-2"><Button variant="soft" onClick={() => setPlanOpen(true)} testId="button-open-care-plan"><CalendarDays size={16} /> План догляду</Button><Button onClick={() => { generate.mutate({ data: { plantId } }, { onError: () => setGenError("Не вдалося отримати поради. Спробуйте ще раз."), onSuccess: res => { setGenError(""); setGenResult(res); setNotice(res.recommendations.length ? "Нову пораду створено" : "Нових порад немає"); q.invalidateQueries({ queryKey: getGetPlantQueryKey(plantId) }); } }); }} disabled={generate.isPending}><Zap size={16} /> {generate.isPending ? "Аналізуємо…" : "Запитати пораду"}</Button></div>} />{planOpen && <CarePlanDialog plantId={plantId} plantName={plant.name} onClose={() => setPlanOpen(false)} />}{genError && <div role="alert" className="mb-5 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{genError}</div>}{notice && <div className="mb-5 flex items-center gap-2 rounded-xl bg-primary/10 p-3 text-sm text-primary"><CheckCircle2 size={17} /> {notice}</div>}{genResult && <Panel className="mb-5 p-6" ><div data-testid="panel-generated-recommendations"><div className="flex items-start justify-between gap-3"><h2 className="font-serif text-2xl">Результат аналізу</h2><IconButton label="закрити результат" onClick={() => setGenResult(null)}><X size={16} /></IconButton></div><p className="mt-1 text-xs text-muted-foreground">Локація погоди: {genResult.weather.location}{genResult.weather.isMock ? " · орієнтовні дані" : ""}</p>{genResult.warning && <div role="status" className="mt-3 rounded-xl bg-accent/25 p-3 text-sm">{genResult.warning}</div>}{genResult.recommendations.length ? <div className="mt-3">{genResult.recommendations.map(r => <RecommendationCard key={r.id} recommendation={r} />)}</div> : <p className="mt-3 text-sm text-muted-foreground">Зараз змін у догляді не потрібно.</p>}</div></Panel>}<div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]"><Panel className="overflow-hidden"><div className="flex h-64 items-center justify-center bg-[#d9e0ce] text-primary/70">{plant.photoUrl ? <PlantPhoto src={plant.photoUrl} alt={plant.name} className="h-full w-full object-cover" /> : <Sprout size={100} strokeWidth={1} />}</div><div className="p-6"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Про рослину</p><p className="mt-3 text-sm leading-7 text-muted-foreground">{plant.speciesId == null ? <span data-testid="text-custom-plant-note">Видових даних немає. Поради базуються на категорії рослини та умовах вирощування.</span> : plant.species?.description || "Деталі виду з’являться тут після синхронізації довідника."}</p>{plant.speciesId != null && plant.species && <><div className="mt-6 grid grid-cols-2 gap-3">{plantSpeciesQuickFacts(plant.species).map(([a,b]) => <div key={a} className="rounded-xl bg-muted p-3"><p className="text-xs text-muted-foreground">{a}</p><p className="mt-1 text-sm font-semibold">{b}</p></div>)}</div>{plant.species.wateringRecommendations?.trim() && <p data-testid="text-watering-guidance" className="mt-3 rounded-xl bg-muted/60 p-3 text-sm leading-6 text-muted-foreground"><span className="font-semibold text-foreground">Порада щодо поливу: </span>{plant.species.wateringRecommendations}</p>}</>}</div></Panel><div className="space-y-5"><Panel className="p-6"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Стан</p><div className="mt-3 flex flex-wrap gap-2"><Badge tone={plant.careStatus === "OVERDUE" ? "danger" : plant.careStatus === "NO_PLAN" ? "neutral" : "good"}>{plant.careStatus === "OVERDUE" ? "Є прострочений догляд" : plant.careStatus === "NO_PLAN" ? "Плану догляду немає" : "Догляд за планом"}</Badge>{plant.hasHighPriorityTasks && <Badge tone="warn">Високий пріоритет</Badge>}<Badge>{envLabel[plant.environmentType] || plant.environmentType}</Badge></div><div className="mt-5 grid grid-cols-3 gap-4">{[["Виконано", plant.stats?.completedTasks ?? 0], ["Усього", plant.stats?.totalTasks ?? 0], ["Ритм", `${Math.round(plant.stats?.completionRate ?? 0)}%`]].map(([a,b]) => <div key={a}><p className="font-mono text-2xl text-primary">{b}</p><p className="mt-1 text-xs text-muted-foreground">{a}</p></div>)}</div></Panel><Panel className="p-6"><div className="flex items-center justify-between"><h2 className="font-serif text-2xl">Найближчий догляд</h2><Link href="/calendar" data-testid="link-detail-calendar" className="text-sm font-semibold text-primary">Календар</Link></div>{plant.upcomingTasks?.length ? plant.upcomingTasks.slice(0, 4).map(t => <TaskRow key={t.id} task={t} onComplete={() => complete.mutate({ id: t.id, data: {} }, { onSuccess: () => { setNotice("Завдання виконано"); Promise.all([getGetPlantQueryKey(plantId), getListTasksQueryKey(), getListPlantsQueryKey(), getGetDashboardQueryKey(), getListRemindersQueryKey(), getListReportsQueryKey()].map(queryKey => q.invalidateQueries({ queryKey }))); q.invalidateQueries({ queryKey: getListCareHistoryQueryKey() }); q.invalidateQueries({ queryKey: getGetStatisticsQueryKey() }); } })} />) : <p className="mt-5 text-sm text-muted-foreground">Наразі все зроблено.</p>}</Panel></div></div>{plant.speciesId != null && plant.species && <PlantKnowledge species={plant.species} />}</Shell>;
+  return <Shell><Link href="/plants" data-testid="link-back-plants" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft size={17} /> Усі рослини</Link><PageHead eyebrow={plant.location} title={plant.name} description={plant.speciesId == null ? `Рослина поза довідником · ${isCategory(plant.category) ? CATEGORY_LABELS[plant.category] : ""}` : plant.speciesName ?? undefined} action={<div className="flex flex-wrap gap-2"><Button variant="soft" onClick={() => setPlanOpen(true)} testId="button-open-care-plan"><CalendarDays size={16} /> План догляду</Button><Button onClick={() => { generate.mutate({ data: { plantId } }, { onError: () => setGenError("Не вдалося отримати поради. Спробуйте ще раз."), onSuccess: res => { setGenError(""); setGenResult(res); setNotice(res.recommendations.length ? "Нову пораду створено" : "Нових порад немає"); q.invalidateQueries({ queryKey: getGetPlantQueryKey(plantId) }); q.invalidateQueries({ queryKey: getListNotificationsQueryKey() }); } }); }} disabled={generate.isPending}><Zap size={16} /> {generate.isPending ? "Аналізуємо…" : "Запитати пораду"}</Button></div>} />{planOpen && <CarePlanDialog plantId={plantId} plantName={plant.name} onClose={() => setPlanOpen(false)} />}{genError && <div role="alert" className="mb-5 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{genError}</div>}{notice && <div className="mb-5 flex items-center gap-2 rounded-xl bg-primary/10 p-3 text-sm text-primary"><CheckCircle2 size={17} /> {notice}</div>}{genResult && <Panel className="mb-5 p-6" ><div data-testid="panel-generated-recommendations"><div className="flex items-start justify-between gap-3"><h2 className="font-serif text-2xl">Результат аналізу</h2><IconButton label="закрити результат" onClick={() => setGenResult(null)}><X size={16} /></IconButton></div><p className="mt-1 text-xs text-muted-foreground">Локація погоди: {genResult.weather.location}{genResult.weather.isMock ? " · орієнтовні дані" : ""}</p>{genResult.warning && <div role="status" className="mt-3 rounded-xl bg-accent/25 p-3 text-sm">{genResult.warning}</div>}{genResult.recommendations.length ? <div className="mt-3">{genResult.recommendations.map(r => <RecommendationCard key={r.id} recommendation={r} />)}</div> : <p className="mt-3 text-sm text-muted-foreground">Зараз змін у догляді не потрібно.</p>}</div></Panel>}<div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]"><Panel className="overflow-hidden"><div className="flex h-64 items-center justify-center bg-[#d9e0ce] text-primary/70">{plant.photoUrl ? <PlantPhoto src={plant.photoUrl} alt={plant.name} className="h-full w-full object-cover" /> : <Sprout size={100} strokeWidth={1} />}</div><div className="p-6"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Про рослину</p><p className="mt-3 text-sm leading-7 text-muted-foreground">{plant.speciesId == null ? <span data-testid="text-custom-plant-note">Видових даних немає. Поради базуються на категорії рослини та умовах вирощування.</span> : plant.species?.description || "Деталі виду з’являться тут після синхронізації довідника."}</p>{plant.speciesId != null && plant.species && <><div className="mt-6 grid grid-cols-2 gap-3">{plantSpeciesQuickFacts(plant.species).map(([a,b]) => <div key={a} className="rounded-xl bg-muted p-3"><p className="text-xs text-muted-foreground">{a}</p><p className="mt-1 text-sm font-semibold">{b}</p></div>)}</div>{plant.species.wateringRecommendations?.trim() && <p data-testid="text-watering-guidance" className="mt-3 rounded-xl bg-muted/60 p-3 text-sm leading-6 text-muted-foreground"><span className="font-semibold text-foreground">Порада щодо поливу: </span>{plant.species.wateringRecommendations}</p>}</>}</div></Panel><div className="space-y-5"><Panel className="p-6"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Стан</p><div className="mt-3 flex flex-wrap gap-2"><Badge tone={plant.careStatus === "OVERDUE" ? "danger" : plant.careStatus === "NO_PLAN" ? "neutral" : "good"}>{plant.careStatus === "OVERDUE" ? "Є прострочений догляд" : plant.careStatus === "NO_PLAN" ? "Плану догляду немає" : "Догляд за планом"}</Badge>{plant.hasHighPriorityTasks && <Badge tone="warn">Високий пріоритет</Badge>}<Badge>{envLabel[plant.environmentType] || plant.environmentType}</Badge></div><div className="mt-5 grid grid-cols-3 gap-4">{[["Виконано", plant.stats?.completedTasks ?? 0], ["Усього", plant.stats?.totalTasks ?? 0], ["Ритм", `${Math.round(plant.stats?.completionRate ?? 0)}%`]].map(([a,b]) => <div key={a}><p className="font-mono text-2xl text-primary">{b}</p><p className="mt-1 text-xs text-muted-foreground">{a}</p></div>)}</div></Panel><Panel className="p-6"><div className="flex items-center justify-between"><h2 className="font-serif text-2xl">Найближчий догляд</h2><Link href="/calendar" data-testid="link-detail-calendar" className="text-sm font-semibold text-primary">Календар</Link></div>{plant.upcomingTasks?.length ? plant.upcomingTasks.slice(0, 4).map(t => <TaskRow key={t.id} task={t} onComplete={() => complete.mutate({ id: t.id, data: {} }, { onSuccess: () => { setNotice("Завдання виконано"); Promise.all([getGetPlantQueryKey(plantId), getListTasksQueryKey(), getListPlantsQueryKey(), getGetDashboardQueryKey(), getListRemindersQueryKey(), getListReportsQueryKey(), getListNotificationsQueryKey()].map(queryKey => q.invalidateQueries({ queryKey }))); q.invalidateQueries({ queryKey: getListCareHistoryQueryKey() }); q.invalidateQueries({ queryKey: getGetStatisticsQueryKey() }); } })} />) : <p className="mt-5 text-sm text-muted-foreground">Наразі все зроблено.</p>}</Panel></div></div>{plant.speciesId != null && plant.species && <PlantKnowledge species={plant.species} />}</Shell>;
 }
 
 function plantSpeciesQuickFacts(species: PlantSpecies): Array<[string, string]> {
@@ -639,6 +725,8 @@ function PlantKnowledge({ species }: { species: PlantSpecies }) {
 }
 function CalendarPage() {
   const q = useQueryClient();
+  const deepLinkTaskId = Number(new URLSearchParams(window.location.search).get("taskId") ?? 0);
+  const handledTaskLink = useRef(0);
   const [view, setView] = useState<"list" | "month">("list");
   const [show, setShow] = useState(false);
   const [type, setType] = useState<CareType | "">("");
@@ -653,6 +741,14 @@ function CalendarPage() {
   const tasks = useListTasks({ type: type || undefined, status: status || undefined, plantId: plantId ? Number(plantId) : undefined, from: from || undefined, to: to || undefined });
   const plants = useListPlants();
   const complete = useCompleteTask(); const del = useDeleteTask(); const update = useUpdateTask();
+  useEffect(() => {
+    if (!Number.isInteger(deepLinkTaskId) || deepLinkTaskId < 1 || handledTaskLink.current === deepLinkTaskId ||
+      !tasks.data?.some(task => task.id === deepLinkTaskId)) return;
+    handledTaskLink.current = deepLinkTaskId;
+    setView("list");
+    const frame = window.requestAnimationFrame(() => document.getElementById(`task-${deepLinkTaskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [deepLinkTaskId, tasks.data]);
   const refresh = () => q.invalidateQueries();
   const fail = (error: unknown) => setError(errMsg(error, "Не вдалося змінити завдання."));
   const newScheduledDate = postponingTask ? shiftCalendarDate(postponingTask.scheduledDate, 1) : "";
@@ -725,6 +821,8 @@ function HistoryPage() { const [type, setType] = useState(""); const history = u
 
 function RecommendationsPage() {
   const q = useQueryClient();
+  const deepLinkRecommendationId = Number(new URLSearchParams(window.location.search).get("recommendationId") ?? 0);
+  const handledRecommendationLink = useRef(0);
   const [plantId, setPlantId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -737,6 +835,15 @@ function RecommendationsPage() {
   const generate = useGenerateRecommendation();
   const apply = useApplyRecommendation();
   const refresh = useRefreshRecommendation();
+  useEffect(() => {
+    if (!Number.isInteger(deepLinkRecommendationId) || deepLinkRecommendationId < 1 ||
+      handledRecommendationLink.current === deepLinkRecommendationId || recs.isLoading) return;
+    const exists = recs.data?.some(recommendation => recommendation.id === deepLinkRecommendationId);
+    if (!exists) return;
+    handledRecommendationLink.current = deepLinkRecommendationId;
+    const frame = window.requestAnimationFrame(() => document.getElementById(`recommendation-${deepLinkRecommendationId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [deepLinkRecommendationId, recs.data, recs.isLoading]);
   const allRecommendations = recs.data ?? [];
   const currentRecommendations = allRecommendations.filter((recommendation) =>
     !recommendation.staleReason && !recommendation.applied && !recommendation.supersededAt);
@@ -771,6 +878,7 @@ function RecommendationsPage() {
       await Promise.all([
         q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }),
         q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }),
+        q.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
       ]);
       setSuccess(!candidates.length
         ? "Активних завдань для перевірки немає."
@@ -797,6 +905,7 @@ function RecommendationsPage() {
           q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }),
           q.invalidateQueries({ queryKey: getGetPlantQueryKey(recommendation.plantId) }),
           q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }),
+          q.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
         ]);
         setSuccess(result.recommendations.length
           ? "Рекомендацію оновлено за актуальним прогнозом."
@@ -830,6 +939,7 @@ function RecommendationsPage() {
           q.invalidateQueries({ queryKey: getListPlantsQueryKey() }),
           q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }),
           q.invalidateQueries({ queryKey: getGetStatisticsQueryKey() }),
+          q.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
         ]);
         setRecommendationToApply(null);
         setSuccess(suggestedDate < originalDate
@@ -850,7 +960,7 @@ function RecommendationsPage() {
       <Button onClick={() => {
         const id = Number(plantId || plants.data?.[0]?.id);
         if (id) { setError(""); generate.mutate({ data: { plantId: id, ...(rainScenarioEnabled ? { weatherScenario: "RAIN_TOMORROW" as const } : {}) } }, {
-         onSuccess: async result => { setSuccess(result.recommendations.some(item => item.type.startsWith("WEATHER_")) ? "Перевірку завершено. Рекомендації щодо активних завдань наведено нижче; графік зміниться лише після підтвердження." : "Перевірку завершено. Прогноз не обґрунтовує зміну дат активних завдань."); await Promise.all([q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }), q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }), q.invalidateQueries({ queryKey: getGetPlantQueryKey(id) })]); },
+         onSuccess: async result => { setSuccess(result.recommendations.some(item => item.type.startsWith("WEATHER_")) ? "Перевірку завершено. Рекомендації щодо активних завдань наведено нижче; графік зміниться лише після підтвердження." : "Перевірку завершено. Прогноз не обґрунтовує зміну дат активних завдань."); await Promise.all([q.invalidateQueries({ queryKey: getListRecommendationsQueryKey() }), q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }), q.invalidateQueries({ queryKey: getGetPlantQueryKey(id) }), q.invalidateQueries({ queryKey: getListNotificationsQueryKey() })]); },
           onError: failure => setError(errMsg(failure, "Не вдалося створити пораду")),
         }); }
       }} disabled={checking || generate.isPending || !plants.data?.length}><Zap size={16} /> {generate.isPending && !checking ? "Аналізуємо…" : "Нова порада"}</Button>

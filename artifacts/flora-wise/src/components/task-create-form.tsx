@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCreateTask, useGetPlant, useListPlants, getGetPlantQueryKey } from "@workspace/api-client-react";
+import { useCreateTask, useGetPlant, useListPlants, getGetPlantQueryKey, getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { isCareType } from "@workspace/plant-care";
 import { Alert, Btn, careTypeLabel, errMsg, inputCls } from "./fw-ui";
 
@@ -26,7 +26,7 @@ export function TaskCreateForm({ onDone }: { onDone: () => void }) {
     if (!ready || !valid || !isCareType(form.type)) return;
     setError("");
     create.mutate({ data: { ...form, plantId: Number(form.plantId), type: form.type, priority: urgentOverride ? "URGENT" : "MEDIUM" } }, {
-      onSuccess: async () => { await q.invalidateQueries(); onDone(); },
+      onSuccess: async () => { await Promise.all([q.invalidateQueries(), q.invalidateQueries({ queryKey: getListNotificationsQueryKey() })]); onDone(); },
       onError: err => { setError(errMsg(err, "Не вдалося створити завдання.")); selected.refetch(); },
     });
   };

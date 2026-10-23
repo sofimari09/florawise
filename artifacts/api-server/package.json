@@ -18,6 +18,8 @@
     "test:categories": "esbuild src/lib/category-care.test.ts --bundle --platform=node --format=esm --external:pg --outfile=dist/category-care.test.mjs && node --test dist/category-care.test.mjs",
     "test:category-api": "node --test src/lib/category-api.test.mjs",
     "test:custom-api": "node --test src/lib/custom-plant-api.test.mjs",
+    "test:notifications-policy": "esbuild src/lib/notification-policy.test.ts --bundle --platform=node --format=esm --outfile=dist/notification-policy.test.mjs && node --test dist/notification-policy.test.mjs",
+    "test:notifications-api": "pnpm run build && node --test src/lib/notifications-api.test.mjs",
     "test:weather": "esbuild src/lib/weather.test.ts --bundle --platform=node --format=esm --external:pino --external:pino-pretty --outfile=dist/weather.test.mjs && node --test dist/weather.test.mjs",
     "demo:refresh": "pnpm run build && node dist/refresh-demo-data.mjs"
   },

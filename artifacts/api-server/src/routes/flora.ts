@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, desc, eq, gte, lte, inArray, or, isNull, max, ne } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte, inArray, or, isNull, max, ne } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { z } from "zod/v4";
 import { createHash } from "node:crypto";
@@ -19,6 +19,7 @@ import {
   speciesCareRuleSourcesTable,
   speciesKnowledgeSourcesTable,
   knowledgeSourcesTable,
+  notificationsTable,
   type PlantSpecies,
   type CareTask,
 } from "@workspace/db";
@@ -27,7 +28,7 @@ import { logger } from "../lib/logger";
 import { createRainTomorrowScenario, DEV_WEATHER_SCENARIO } from "../lib/weather-test-scenario";
 import { generateRules, isWeatherSuitable, RULE_PARAMETERS, type RecommendationDraft } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
-import { todayInKyiv } from "../lib/date";
+import { dateInKyivOffset, todayInKyiv } from "../lib/date";
 import {
   CARE_PRIORITY_HORIZONS,
   delaySensitivity,
@@ -38,6 +39,7 @@ import {
   type WeatherPrioritySignal,
 } from "../lib/care-task-priority";
 import { canAttachPhoto } from "../lib/plant-photos";
+import { isCurrentRealWeatherNotification, notificationDateLabel, notificationEventHash, taskNotificationDedupeKey, taskNotificationKind } from "../lib/notification-policy";
 import { identityInput, normalizeSearch, resolvePlantName, resolveIdentityFields } from "../lib/plant-identity";
 import { customCareContext, type CareContext } from "../lib/effective-care";
 import { CARE_TYPES, CARE_LABELS, PLANT_CATEGORIES, CATEGORY_LABELS, allowedCareTypes, applicabilityError, eligibilityError, eligibilityVersion, isCategory, isCareType } from "@workspace/plant-care";
@@ -464,6 +466,174 @@ async function mapRecommendation(rec: typeof recommendationsTable.$inferSelect) 
     staleReason,
     supersededAt: rec.supersededAt?.toISOString() ?? null,
     weather: storedWeather.weather,
+  };
+}
+
+type NotificationWrite = typeof notificationsTable.$inferInsert;
+async function writeNotification(source: typeof db | FloraTransaction, notification: NotificationWrite): Promise<void> {
+  await source.insert(notificationsTable).values(notification).onConflictDoUpdate({
+    target: [notificationsTable.userId, notificationsTable.dedupeKey],
+    set: { staleAt: null },
+  });
+}
+
+function weatherNotificationWrite(
+  userId: number,
+  recommendation: typeof recommendationsTable.$inferSelect,
+): NotificationWrite | null {
+  let storedWeather: ReturnType<typeof parseStoredRecommendationWeather>;
+  try {
+    storedWeather = parseStoredRecommendationWeather(recommendation.weatherJson);
+  } catch {
+    return null;
+  }
+  if (!isCurrentRealWeatherNotification({
+    recommendationType: recommendation.type,
+    relatedTaskId: recommendation.relatedTaskId,
+    applied: Boolean(recommendation.applied),
+    superseded: recommendation.supersededAt !== null,
+    generatedAtMs: recommendation.generatedAt.getTime(),
+    nowMs: Date.now(),
+    weatherIsMock: storedWeather.weather.isMock,
+    hasDevelopmentScenario: Boolean(storedWeather.scenario),
+    maxAgeMs: MAX_WEATHER_RECOMMENDATION_AGE_MS,
+  })) return null;
+  const signature = [
+    recommendation.type,
+    recommendation.relatedTaskId,
+    recommendation.originalDate ?? "",
+    recommendation.suggestedDate ?? "",
+    recommendation.text,
+  ].join("|");
+  const isReschedule = recommendation.type === "WEATHER_RESCHEDULE";
+  return {
+    userId,
+    type: recommendation.type,
+    title: isReschedule ? "Погодна рекомендація щодо дати" : "Попередження про погоду",
+    message: recommendation.text,
+    dedupeKey: `weather:${recommendation.id}:${notificationEventHash(signature)}`,
+    href: `/recommendations?recommendationId=${recommendation.id}`,
+    plantId: recommendation.plantId,
+    taskId: recommendation.relatedTaskId,
+    reminderId: null,
+    recommendationId: recommendation.id,
+  };
+}
+
+async function syncUserNotifications(userId: number) {
+  const plants = await db.select().from(plantsTable).where(eq(plantsTable.userId, userId));
+  const plantById = new Map(plants.map(plant => [plant.id, plant]));
+  const plantIds = [...plantById.keys()];
+  const tasks = plantIds.length
+    ? await db.select().from(tasksTable).where(inArray(tasksTable.plantId, plantIds))
+    : [];
+  const taskById = new Map(tasks.map(task => [task.id, task]));
+  const reminders = tasks.length
+    ? await db.select().from(remindersTable).where(inArray(remindersTable.taskId, tasks.map(task => task.id)))
+    : [];
+  const reminderByTask = new Map<number, (typeof reminders)[number]>();
+  for (const reminder of reminders) {
+    if (reminder.status === "PENDING" && !reminderByTask.has(reminder.taskId)) reminderByTask.set(reminder.taskId, reminder);
+  }
+
+  const todayDate = today();
+  const tomorrowDate = dateInKyivOffset(1, todayDate);
+  const activeKeys = new Set<string>();
+  const taskWrites: NotificationWrite[] = [];
+  for (const task of tasks) {
+    const reminder = reminderByTask.get(task.id);
+    const kind = taskNotificationKind({
+      status: task.status,
+      scheduledDate: task.scheduledDate,
+      reminderDate: reminder?.reminderDate,
+      today: todayDate,
+      tomorrow: tomorrowDate,
+    });
+    if (!kind) continue;
+    const key = taskNotificationDedupeKey(kind, task.id, task.scheduledDate);
+    activeKeys.add(key);
+    const plant = plantById.get(task.plantId);
+    if (!plant) continue;
+    const careName = careLabels[task.type] ?? "догляд";
+    const message = kind === "OVERDUE_TASK"
+      ? `${careName} рослини «${plant.name}» прострочено. Перевірте стан рослини та заплануйте догляд.`
+      : task.scheduledDate === todayDate
+        ? `Сьогодні потрібно виконати ${careName.toLocaleLowerCase("uk")} рослини «${plant.name}».`
+        : `Завтра заплановано ${careName.toLocaleLowerCase("uk")} рослини «${plant.name}».`;
+    taskWrites.push({
+      userId,
+      type: kind,
+      title: kind === "OVERDUE_TASK" ? "Прострочене завдання" : "Найближчий догляд",
+      message,
+      dedupeKey: key,
+      href: `/calendar?taskId=${task.id}`,
+      plantId: plant.id,
+      taskId: task.id,
+      reminderId: reminder?.id ?? null,
+      recommendationId: null,
+    });
+  }
+
+  const recommendations = plantIds.length
+    ? await db.select().from(recommendationsTable)
+      .where(and(inArray(recommendationsTable.plantId, plantIds), inArray(recommendationsTable.type, ["WEATHER_RESCHEDULE", "WEATHER_WARNING"])))
+      .orderBy(desc(recommendationsTable.generatedAt)).limit(300)
+    : [];
+  const weatherWrites: NotificationWrite[] = [];
+  for (const recommendation of recommendations) {
+    const notification = weatherNotificationWrite(userId, recommendation);
+    if (!notification) continue;
+    const mapped = await mapRecommendation(recommendation);
+    const task = recommendation.relatedTaskId === null ? null : taskById.get(recommendation.relatedTaskId);
+    const actionable = recommendation.type === "WEATHER_RESCHEDULE"
+      ? mapped.actionable
+      : !mapped.staleReason && !!task && ["PLANNED", "POSTPONED"].includes(task.status);
+    if (!actionable) continue;
+    activeKeys.add(notification.dedupeKey);
+    weatherWrites.push(notification);
+  }
+
+  await db.transaction(async tx => {
+    for (const notification of [...taskWrites, ...weatherWrites]) await writeNotification(tx, notification);
+    const existingEvents = await tx.select().from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.userId, userId),
+        inArray(notificationsTable.type, ["UPCOMING_TASK", "OVERDUE_TASK", "WEATHER_WARNING", "WEATHER_RESCHEDULE"]),
+        isNull(notificationsTable.staleAt),
+      ));
+    for (const existing of existingEvents) {
+      if (!activeKeys.has(existing.dedupeKey)) {
+        await tx.update(notificationsTable).set({ staleAt: new Date() })
+          .where(and(eq(notificationsTable.id, existing.id), eq(notificationsTable.userId, userId), isNull(notificationsTable.staleAt)));
+      }
+    }
+  });
+
+  const rows = await db.select().from(notificationsTable)
+    .where(eq(notificationsTable.userId, userId))
+    .orderBy(desc(notificationsTable.createdAt))
+    .limit(50);
+  const [{ value: unreadCount }] = await db.select({ value: count() }).from(notificationsTable)
+    .where(and(eq(notificationsTable.userId, userId), isNull(notificationsTable.readAt), isNull(notificationsTable.staleAt)));
+  return {
+    notifications: rows.map(notification => ({
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      createdAt: notification.createdAt.toISOString(),
+      readAt: notification.readAt?.toISOString() ?? null,
+      staleAt: notification.staleAt?.toISOString() ?? null,
+      isRead: notification.readAt !== null || notification.staleAt !== null,
+      href: notification.staleAt ? null : notification.href,
+      plantId: notification.plantId,
+      plantName: notification.plantId === null ? null : plantById.get(notification.plantId)?.name ?? null,
+      taskId: notification.taskId,
+      reminderId: notification.reminderId,
+      recommendationId: notification.recommendationId,
+      actionLabel: notification.staleAt ? null : ["WEATHER_WARNING", "WEATHER_RESCHEDULE"].includes(notification.type) ? "Переглянути рекомендацію" : "Відкрити календар",
+    })),
+    unreadCount,
   };
 }
 
@@ -1098,6 +1268,23 @@ router.patch("/tasks/:id", async (req, res): Promise<void> => {
     if (merged.status === "COMPLETED" && current.status !== "COMPLETED") await tx.insert(careLogsTable).values({ taskId: task.id, comment: "" });
     if (["COMPLETED", "CANCELLED"].includes(merged.status)) await tx.update(remindersTable).set({ status: "DISMISSED" }).where(eq(remindersTable.taskId, task.id));
     else if (parsed.data.scheduledDate) await tx.update(remindersTable).set({ reminderDate: parsed.data.scheduledDate }).where(eq(remindersTable.taskId, task.id));
+    if (parsed.data.scheduledDate && parsed.data.scheduledDate !== current.scheduledDate &&
+      ["PLANNED", "POSTPONED"].includes(merged.status)) {
+      const [reminder] = await tx.select().from(remindersTable).where(eq(remindersTable.taskId, task.id)).limit(1);
+      const careName = careLabels[merged.type] ?? "Догляд";
+      await writeNotification(tx, {
+        userId: plant.userId,
+        type: "MANUAL_RESCHEDULED",
+        title: "Завдання перенесено вручну",
+        message: `${careName} рослини «${target.name}» перенесено вручну з ${notificationDateLabel(current.scheduledDate)} на ${notificationDateLabel(parsed.data.scheduledDate)}.`,
+        dedupeKey: `manual-rescheduled:${task.id}:${current.scheduledDate}:${parsed.data.scheduledDate}`,
+        href: `/calendar?taskId=${task.id}`,
+        plantId: target.id,
+        taskId: task.id,
+        reminderId: reminder?.id ?? null,
+        recommendationId: null,
+      });
+    }
     return updated;
   });
   res.json(await mapTask(updated));
@@ -1152,6 +1339,44 @@ router.patch("/reminders/:id", async (req, res): Promise<void> => {
   res.json({ id: reminder.id, taskId: reminder.taskId, plantName: plant.name, taskType: task.type, reminderDate: reminder.reminderDate, status: reminder.status, message: "Оновлено" });
 });
 
+router.get("/notifications", async (req, res): Promise<void> => {
+  const user = await currentUser(req);
+  if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
+  res.json(await syncUserNotifications(user.id));
+});
+
+router.patch("/notifications/:id", async (req, res): Promise<void> => {
+  const user = await currentUser(req);
+  if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
+  const parsed = z.object({ read: z.literal(true) }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Некоректна дія зі сповіщенням" }); return; }
+  const [notification] = await db.update(notificationsTable)
+    .set({ readAt: new Date() })
+    .where(and(eq(notificationsTable.id, idFrom(req)), eq(notificationsTable.userId, user.id), isNull(notificationsTable.readAt)))
+    .returning();
+  const existing = notification ?? (await db.select().from(notificationsTable)
+    .where(and(eq(notificationsTable.id, idFrom(req)), eq(notificationsTable.userId, user.id))).limit(1))[0];
+  if (!existing) { res.status(404).json({ error: "Сповіщення не знайдено" }); return; }
+  const [plant] = existing.plantId ? await db.select({ name: plantsTable.name }).from(plantsTable).where(and(eq(plantsTable.id, existing.plantId), eq(plantsTable.userId, user.id))).limit(1) : [];
+  res.json({
+    id: existing.id, type: existing.type, title: existing.title, message: existing.message,
+    createdAt: existing.createdAt.toISOString(), readAt: existing.readAt?.toISOString() ?? null,
+    staleAt: existing.staleAt?.toISOString() ?? null, isRead: existing.readAt !== null || existing.staleAt !== null,
+    href: existing.staleAt ? null : existing.href, plantId: existing.plantId, plantName: plant?.name ?? null,
+    taskId: existing.taskId, reminderId: existing.reminderId, recommendationId: existing.recommendationId,
+    actionLabel: existing.staleAt ? null : ["WEATHER_WARNING", "WEATHER_RESCHEDULE"].includes(existing.type) ? "Переглянути рекомендацію" : "Відкрити календар",
+  });
+});
+
+router.post("/notifications/read-all", async (req, res): Promise<void> => {
+  const user = await currentUser(req);
+  if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
+  const updated = await db.update(notificationsTable).set({ readAt: new Date() })
+    .where(and(eq(notificationsTable.userId, user.id), isNull(notificationsTable.readAt), isNull(notificationsTable.staleAt)))
+    .returning({ id: notificationsTable.id });
+  res.json({ updated: updated.length });
+});
+
 router.get("/weather", async (req, res): Promise<void> => {
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
@@ -1202,7 +1427,12 @@ router.post("/recommendations", async (req, res): Promise<void> => {
     }
     const rows = [];
     for (const draft of prepared.drafts) {
-      rows.push(await saveRecommendationDraft(tx, lockedPlant, prepared.snapshot, prepared.tasks, draft, prepared.forecast, useDevScenario));
+      const saved = await saveRecommendationDraft(tx, lockedPlant, prepared.snapshot, prepared.tasks, draft, prepared.forecast, useDevScenario);
+      rows.push(saved);
+      if (!useDevScenario && !prepared.forecast.isMock) {
+        const notification = weatherNotificationWrite(user.id, saved);
+        if (notification) await writeNotification(tx, notification);
+      }
     }
     await supersedeMissingTaskRecommendations(tx, plant.id, prepared.tasks, prepared.drafts);
     return rows;
@@ -1291,6 +1521,10 @@ router.post("/recommendations/:id/refresh", async (req, res): Promise<void> => {
     const refreshed = replacementDraft
       ? await saveRecommendationDraft(tx, lockedPlant, prepared.snapshot, prepared.tasks, replacementDraft, prepared.forecast, useDevScenario, lockedRec.id)
       : null;
+    if (refreshed && !useDevScenario && !prepared.forecast.isMock) {
+      const notification = weatherNotificationWrite(user.id, refreshed);
+      if (notification) await writeNotification(tx, notification);
+    }
     await tx.update(recommendationsTable).set({ supersededAt: new Date() })
       .where(eq(recommendationsTable.id, lockedRec.id));
     return { recommendation: refreshed };
@@ -1387,6 +1621,21 @@ router.post("/recommendations/:id/apply", async (req, res): Promise<void> => {
     }).where(eq(tasksTable.id, taskId)).returning();
     await tx.update(remindersTable).set({ reminderDate: suggestedDate, status: "PENDING" }).where(eq(remindersTable.taskId, taskId));
     await tx.update(recommendationsTable).set({ applied: 1, appliedAt: new Date() }).where(eq(recommendationsTable.id, currentRec.id));
+    const [reminder] = await tx.select().from(remindersTable).where(eq(remindersTable.taskId, taskId)).limit(1);
+    const careName = careLabels[current.type] ?? "Догляд";
+    const dateChange = suggestedDate < current.scheduledDate ? "заплановано раніше" : "перенесено";
+    await writeNotification(tx, {
+      userId: user.id,
+      type: "WEATHER_RESCHEDULED",
+      title: "Погоджену зміну дати збережено",
+      message: `${careName} рослини «${currentPlant.name}» ${dateChange} з ${notificationDateLabel(current.scheduledDate)} на ${notificationDateLabel(suggestedDate)}.`,
+      dedupeKey: `weather-rescheduled:${currentRec.id}`,
+      href: `/calendar?taskId=${taskId}`,
+      plantId: currentPlant.id,
+      taskId,
+      reminderId: reminder?.id ?? null,
+      recommendationId: currentRec.id,
+    });
     return updated;
     });
   } catch (error) {

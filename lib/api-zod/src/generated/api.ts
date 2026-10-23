@@ -1391,6 +1391,69 @@ export const UpdateReminderResponse = zod.object({
 
 
 /**
+ * @summary List recent in-app notifications and synchronize task reminders
+ */
+export const ListNotificationsResponse = zod.object({
+  "notifications": zod.array(zod.object({
+  "id": zod.number().int(),
+  "type": zod.enum(['UPCOMING_TASK', 'OVERDUE_TASK', 'WEATHER_WARNING', 'WEATHER_RESCHEDULE', 'WEATHER_RESCHEDULED', 'MANUAL_RESCHEDULED']),
+  "title": zod.string(),
+  "message": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "readAt": zod.coerce.date().nullable(),
+  "staleAt": zod.coerce.date().nullable(),
+  "isRead": zod.boolean(),
+  "href": zod.string().nullable(),
+  "plantId": zod.number().int().nullable(),
+  "plantName": zod.string().nullable(),
+  "taskId": zod.number().int().nullable(),
+  "reminderId": zod.number().int().nullable(),
+  "recommendationId": zod.number().int().nullable(),
+  "actionLabel": zod.string().nullable()
+})),
+  "unreadCount": zod.number().int()
+})
+
+
+/**
+ * @summary Mark a notification as read
+ */
+export const MarkNotificationReadParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const MarkNotificationReadBody = zod.object({
+  "read": zod.literal(true)
+})
+
+export const MarkNotificationReadResponse = zod.object({
+  "id": zod.number().int(),
+  "type": zod.enum(['UPCOMING_TASK', 'OVERDUE_TASK', 'WEATHER_WARNING', 'WEATHER_RESCHEDULE', 'WEATHER_RESCHEDULED', 'MANUAL_RESCHEDULED']),
+  "title": zod.string(),
+  "message": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "readAt": zod.coerce.date().nullable(),
+  "staleAt": zod.coerce.date().nullable(),
+  "isRead": zod.boolean(),
+  "href": zod.string().nullable(),
+  "plantId": zod.number().int().nullable(),
+  "plantName": zod.string().nullable(),
+  "taskId": zod.number().int().nullable(),
+  "reminderId": zod.number().int().nullable(),
+  "recommendationId": zod.number().int().nullable(),
+  "actionLabel": zod.string().nullable()
+})
+
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const MarkAllNotificationsReadResponse = zod.object({
+  "updated": zod.number().int()
+})
+
+
+/**
  * @summary Get seven day forecast
  */
 export const GetWeatherQueryParams = zod.object({

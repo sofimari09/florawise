@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarCheck } from "lucide-react";
 import {
-  getGetDashboardQueryKey, getGetPlantQueryKey, getGetStatisticsQueryKey, getListPlantsQueryKey, getListRemindersQueryKey, getListTasksQueryKey,
+  getGetDashboardQueryKey, getGetPlantQueryKey, getGetStatisticsQueryKey, getListNotificationsQueryKey, getListPlantsQueryKey, getListRemindersQueryKey, getListTasksQueryKey,
   useConfirmCarePlan, usePreviewCarePlan, getPreviewCarePlanQueryKey,
 } from "@workspace/api-client-react";
 import type { CarePlanItem } from "@workspace/api-client-react";
@@ -33,6 +33,7 @@ export function CarePlanDialog({ plantId, plantName, onClose, onConfirmed }: { p
           q.invalidateQueries({ queryKey: getListTasksQueryKey() }), q.invalidateQueries({ queryKey: getListRemindersQueryKey() }),
           q.invalidateQueries({ queryKey: getGetStatisticsQueryKey() }), q.invalidateQueries({ queryKey: getGetDashboardQueryKey() }),
           q.invalidateQueries({ queryKey: getGetPlantQueryKey(plantId) }), q.invalidateQueries({ queryKey: getListPlantsQueryKey() }),
+          q.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
         ]);
         onConfirmed?.(); onClose();
       },

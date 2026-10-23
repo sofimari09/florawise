@@ -634,6 +634,58 @@ export interface ReminderUpdate {
   status: ReminderUpdateStatus;
 }
 
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  UPCOMING_TASK: 'UPCOMING_TASK',
+  OVERDUE_TASK: 'OVERDUE_TASK',
+  WEATHER_WARNING: 'WEATHER_WARNING',
+  WEATHER_RESCHEDULE: 'WEATHER_RESCHEDULE',
+  WEATHER_RESCHEDULED: 'WEATHER_RESCHEDULED',
+  MANUAL_RESCHEDULED: 'MANUAL_RESCHEDULED',
+} as const;
+
+export interface Notification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  message: string;
+  createdAt: string;
+  /** @nullable */
+  readAt: string | null;
+  /** @nullable */
+  staleAt: string | null;
+  isRead: boolean;
+  /** @nullable */
+  href: string | null;
+  /** @nullable */
+  plantId: number | null;
+  /** @nullable */
+  plantName: string | null;
+  /** @nullable */
+  taskId: number | null;
+  /** @nullable */
+  reminderId: number | null;
+  /** @nullable */
+  recommendationId: number | null;
+  /** @nullable */
+  actionLabel: string | null;
+}
+
+export interface NotificationReadUpdate {
+  read: true;
+}
+
+export interface NotificationsReadResult {
+  updated: number;
+}
+
+export interface NotificationList {
+  notifications: Notification[];
+  unreadCount: number;
+}
+
 export interface WeatherResponse {
   location: string;
   isMock: boolean;
