@@ -1,0 +1,172 @@
+Project FloraWiseThesis {
+  database_type: 'PostgreSQL'
+  Note: 'Спрощений огляд для магістерської роботи. Показано лише фактичні сутності та вибрані атрибути; фізичні FK збережено.'
+}
+
+Table flora_users {
+  id serial [pk]
+  clerk_user_id text [not null, unique]
+  role text [not null]
+  weather_location_name text [not null]
+  weather_latitude numeric(10,7)
+  weather_longitude numeric(11,7)
+}
+
+Table flora_plants {
+  id serial [pk]
+  user_id integer [not null]
+  species_id integer
+  place_id integer
+  weather_location_id integer
+  category text
+  name text [not null]
+  environment_type text [not null]
+}
+
+Table flora_species {
+  id serial [pk]
+  species_code text
+  name text [not null]
+  scientific_name text
+  category text [not null]
+  suitable_environment_types text[]
+}
+
+Table flora_plant_places {
+  id serial [pk]
+  user_id integer [not null]
+  name text [not null]
+  environment_type text [not null]
+}
+
+Table flora_saved_locations {
+  id serial [pk]
+  user_id integer [not null]
+  display_name text [not null]
+  latitude numeric(10,7) [not null]
+  longitude numeric(11,7) [not null]
+  is_default boolean [not null]
+}
+
+Table flora_tasks {
+  id serial [pk]
+  plant_id integer [not null]
+  type text [not null]
+  scheduled_date date [not null]
+  status text [not null]
+  priority text [not null]
+  postponement_count integer [not null]
+}
+
+Table flora_care_logs {
+  id serial [pk]
+  task_id integer [not null]
+  completed_at timestamptz [not null]
+  comment text [not null]
+}
+
+Table flora_reminders {
+  id serial [pk]
+  task_id integer [not null]
+  reminder_date date [not null]
+  status text [not null]
+}
+
+Table flora_species_care_rules {
+  id serial [pk]
+  species_id integer [not null]
+  care_type text [not null]
+  rain_threshold_mm numeric
+  max_wind_speed_mps numeric
+  min_temperature numeric
+  max_temperature numeric
+  interval_days_min integer
+  interval_days_max integer
+}
+
+Table flora_knowledge_sources {
+  id serial [pk]
+  species_id integer
+  source_code text
+  source_name text [not null]
+  organization text
+  source_url text
+  citation text
+}
+
+Table flora_species_knowledge_sources {
+  species_id integer [not null]
+  source_id integer [not null]
+  Indexes {
+    (species_id, source_id) [unique]
+  }
+}
+
+Table flora_species_care_rule_sources {
+  care_rule_id integer [not null]
+  source_id integer [not null]
+  Indexes {
+    (care_rule_id, source_id) [unique]
+  }
+}
+
+Table flora_recommendations {
+  id serial [pk]
+  plant_id integer [not null]
+  related_task_id integer
+  type text [not null]
+  original_date date
+  suggested_date date
+  applied integer [not null]
+  applied_at timestamptz
+}
+
+Table flora_notifications {
+  id serial [pk]
+  user_id integer [not null]
+  plant_id integer
+  task_id integer
+  reminder_id integer
+  recommendation_id integer
+  type text [not null]
+  title text [not null]
+  read_at timestamptz
+}
+
+Table flora_reports {
+  id serial [pk]
+  user_id integer [not null]
+  period_start date [not null]
+  period_end date [not null]
+  task_count integer [not null]
+  completed integer [not null]
+  overdue integer [not null]
+  completion_rate numeric [not null]
+}
+
+Ref: flora_users.id < flora_plant_places.user_id [delete: cascade]
+Ref: flora_users.id < flora_saved_locations.user_id [delete: cascade]
+Ref: flora_users.id < flora_plants.user_id
+Ref: flora_users.id < flora_reports.user_id [delete: cascade]
+Ref: flora_users.id < flora_notifications.user_id [delete: cascade]
+
+Ref: flora_species.id < flora_species_care_rules.species_id [delete: cascade]
+Ref: flora_species.id < flora_knowledge_sources.species_id [delete: cascade]
+Ref: flora_species.id < flora_species_knowledge_sources.species_id [delete: cascade]
+Ref: flora_knowledge_sources.id < flora_species_knowledge_sources.source_id [delete: cascade]
+Ref: flora_species_care_rules.id < flora_species_care_rule_sources.care_rule_id [delete: cascade]
+Ref: flora_knowledge_sources.id < flora_species_care_rule_sources.source_id [delete: cascade]
+
+Ref: flora_species.id < flora_plants.species_id
+Ref: flora_plant_places.id < flora_plants.place_id [delete: set null]
+Ref: flora_saved_locations.id < flora_plants.weather_location_id [delete: set null]
+Ref: flora_plants.id < flora_tasks.plant_id [delete: cascade]
+Ref: flora_tasks.id < flora_care_logs.task_id [delete: cascade]
+Ref: flora_tasks.id < flora_reminders.task_id [delete: cascade]
+Ref: flora_plants.id < flora_recommendations.plant_id [delete: cascade]
+Ref: flora_tasks.id < flora_recommendations.related_task_id [delete: set null]
+
+Ref: flora_plants.id < flora_notifications.plant_id [delete: set null]
+Ref: flora_tasks.id < flora_notifications.task_id [delete: set null]
+Ref: flora_reminders.id < flora_notifications.reminder_id [delete: set null]
+Ref: flora_recommendations.id < flora_notifications.recommendation_id [delete: set null]

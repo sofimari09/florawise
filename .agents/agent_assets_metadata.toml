@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "bmHWq5tAs_E0xYdLushSi"
+uri = "file://docs/database-diagrams/florawise-full.svg"
+type = "image"
+title = "FloraWise — повна ER-схема"
+description = "Векторна діаграма всіх 17 таблиць, 172 колонок і 23 фізичних зовнішніх ключів PostgreSQL."
+logical_id = "8b3e591f-364f-4215-ab27-c368b539e064"
+content_hash = "sha256:67f31ea3425a327c835b71c55faeac4cb3a84f618a9ad72d8ca3855d8a6503c5"
+size = 63849
+mtime_ms = 1792753966510
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:c9ef14f5-962e-4139-a613-454c2e921b20/8b3e591f-364f-4215-ab27-c368b539e064/ebc7c516-db87-47d5-a2bf-c33ea4c9c877"
+storage_version_token = "1792753991707577"
+content_type = "image/svg+xml"
+
+[[outputs]]
+id = "fvd2B_Dmsy72Tn4hiyOFX"
+uri = "file://docs/database-diagrams/florawise-thesis.svg"
+type = "image"
+title = "FloraWise — ER-схема для магістерської"
+description = "Спрощена векторна діаграма 15 основних сутностей у форматі A4, альбомна орієнтація."
+logical_id = "7a079c51-9382-4fab-b3cf-b2e1c9318def"
+content_hash = "sha256:4985226e108b565f7807d548cb22614a10833f30a1b44d2c181fc60e518f4e5b"
+size = 42243
+mtime_ms = 1792753966514
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:c9ef14f5-962e-4139-a613-454c2e921b20/7a079c51-9382-4fab-b3cf-b2e1c9318def/8cfa216e-a21e-44b6-bd25-cfea8b202656"
+storage_version_token = "1792753992346257"
+content_type = "image/svg+xml"

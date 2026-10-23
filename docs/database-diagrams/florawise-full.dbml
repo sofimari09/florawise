@@ -1,0 +1,301 @@
+Project FloraWise {
+  database_type: 'PostgreSQL'
+  Note: 'Повна фізична схема FloraWise. Джерело перевірки: Drizzle-схеми, міграції та pg_catalog (development, public).'
+}
+
+Table flora_users {
+  id serial [pk]
+  clerk_user_id text [not null, unique, name: 'flora_users_clerk_user_id_unique']
+  username text [not null]
+  email text [not null]
+  role text [not null, default: 'USER']
+  weather_location_name text [not null, default: 'Ваш регіон']
+  weather_latitude numeric(10,7)
+  weather_longitude numeric(11,7)
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table flora_plant_places {
+  id serial [pk]
+  user_id integer [not null]
+  name text [not null]
+  environment_type text [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (user_id, name, environment_type) [unique, name: 'flora_plant_places_owner_name_environment_idx']
+  }
+}
+
+Table flora_saved_locations {
+  id serial [pk]
+  user_id integer [not null]
+  display_name text [not null]
+  latitude numeric(10,7) [not null]
+  longitude numeric(11,7) [not null]
+  is_default boolean [not null, default: false]
+  last_used_at timestamptz [not null, default: `now()`]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (user_id, latitude, longitude) [unique, name: 'flora_saved_locations_owner_coordinates_idx']
+  }
+}
+
+Table flora_species {
+  id serial [pk]
+  species_code text
+  name text [not null]
+  scientific_name text
+  life_cycle text
+  category text [not null]
+  applicable_care_types text[]
+  care_revision integer [not null, default: 0]
+  suitable_environment_types text[]
+  description text [not null]
+  care_recommendations text [not null]
+  optimal_temp_min numeric
+  optimal_temp_max numeric
+  optimal_humidity integer
+  humidity_min integer
+  humidity_max integer
+  watering_frequency_days integer
+  watering_check_interval_days integer
+  target_water_mm_week_min numeric
+  target_water_mm_week_max numeric
+  light_requirements text [not null]
+  soil_recommendations text [not null]
+  watering_recommendations text [not null]
+  fertilizing_recommendations text [not null]
+  fertilizing_frequency_days integer
+  pruning_recommendations text [not null]
+  pruning_season text
+  transplanting_recommendations text [not null]
+  transplanting_frequency_months integer
+  harvesting_recommendations text
+  sowing_planting_recommendations text
+  general_care_recommendations text
+  image_url text
+
+  Indexes {
+    (species_code) [unique, name: 'flora_species_code_idx']
+  }
+
+  Note: 'CHECK flora_species_category_valid обмежує category шістьма кодами категорій.'
+}
+
+Table flora_species_care_rules {
+  id serial [pk]
+  species_id integer [not null]
+  care_type text [not null]
+  rain_threshold_mm numeric
+  max_wind_speed_mps numeric
+  min_temperature numeric
+  max_temperature numeric
+  notes text
+  rule_code text
+  trigger_description text
+  recommended_action text
+  interval_days_min integer
+  interval_days_max integer
+  target_water_mm_week_min numeric
+  target_water_mm_week_max numeric
+
+  Indexes {
+    (species_id, care_type) [unique, name: 'flora_species_care_rules_species_type_idx']
+  }
+}
+
+Table flora_knowledge_sources {
+  id serial [pk]
+  species_id integer
+  source_code text
+  source_name text [not null]
+  organization text
+  subject text
+  source_url text
+  retrieved_at timestamptz
+  notes text
+  citation text
+
+  Indexes {
+    (source_code) [unique, name: 'flora_knowledge_sources_source_code_idx']
+  }
+}
+
+Table flora_species_knowledge_sources {
+  species_id integer [not null]
+  source_id integer [not null]
+
+  Indexes {
+    (species_id, source_id) [unique, name: 'flora_species_source_links_species_source_idx']
+  }
+
+  Note: 'Фізична junction-таблиця: дві зовнішні залежності та унікальний складений індекс; окремого PK немає.'
+}
+
+Table flora_species_care_rule_sources {
+  care_rule_id integer [not null]
+  source_id integer [not null]
+
+  Indexes {
+    (care_rule_id, source_id) [unique, name: 'flora_care_rule_source_links_rule_source_idx']
+  }
+
+  Note: 'Фізична junction-таблиця: дві зовнішні залежності та унікальний складений індекс; окремого PK немає.'
+}
+
+Table flora_schema_migrations {
+  version text [pk]
+  applied_at timestamptz [not null, default: `now()`]
+}
+
+Table flora_plants {
+  id serial [pk]
+  user_id integer [not null]
+  species_id integer
+  category text
+  eligibility_revision integer [not null, default: 0]
+  name text [not null]
+  personal_name text
+  photo_url text [not null]
+  photo_object_path text
+  place_id integer
+  weather_location_id integer
+  location text [not null]
+  environment_type text [not null, default: 'INDOOR']
+  weather_location_name text
+  weather_latitude numeric(10,7)
+  weather_longitude numeric(11,7)
+  added_at timestamptz [not null, default: `now()`]
+
+  Note: 'CHECK flora_plants_identity_valid узгоджує species_id та category; legacy location/environment/weather-поля збережені.'
+}
+
+Table flora_plant_photos {
+  object_path text [pk]
+  upload_path text [not null]
+  clerk_user_id text [not null]
+  name text [not null]
+  content_type text [not null]
+  size integer [not null]
+  ready boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'clerk_user_id і шляхи зберігання не мають фізичних FK на flora_users або flora_plants.'
+}
+
+Table flora_tasks {
+  id serial [pk]
+  plant_id integer [not null]
+  type text [not null]
+  scheduled_date date [not null]
+  status text [not null, default: 'PLANNED']
+  priority text [not null, default: 'MEDIUM']
+  notes text [not null, default: '']
+  created_at timestamptz [not null, default: `now()`]
+  postponement_count integer [not null, default: 0]
+}
+
+Table flora_care_logs {
+  id serial [pk]
+  task_id integer [not null]
+  completed_at timestamptz [not null, default: `now()`]
+  comment text [not null, default: '']
+}
+
+Table flora_reminders {
+  id serial [pk]
+  task_id integer [not null]
+  reminder_date date [not null]
+  status text [not null, default: 'PENDING']
+}
+
+Table flora_recommendations {
+  id serial [pk]
+  plant_id integer [not null]
+  generated_at timestamptz [not null, default: `now()`]
+  type text [not null]
+  text text [not null]
+  priority text [not null]
+  related_task_id integer
+  explanation text [not null]
+  original_date date
+  suggested_date date
+  applied integer [not null, default: 0]
+  applied_at timestamptz
+  superseded_at timestamptz
+  weather_json text [not null, default: '{}']
+  eligibility_version text
+  care_type text
+}
+
+Table flora_reports {
+  id serial [pk]
+  user_id integer [not null]
+  period_start date [not null]
+  period_end date [not null]
+  task_count integer [not null]
+  completed integer [not null]
+  overdue integer [not null]
+  postponed integer [not null]
+  completion_rate numeric [not null]
+  frequent_category text [not null]
+  most_active_plant text [not null]
+  recommendation_summary text [not null]
+  report_details jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (user_id, period_start, period_end) [unique, name: 'flora_reports_user_period_idx']
+  }
+}
+
+Table flora_notifications {
+  id serial [pk]
+  user_id integer [not null]
+  type text [not null]
+  title text [not null]
+  message text [not null]
+  dedupe_key text [not null]
+  href text
+  plant_id integer
+  task_id integer
+  reminder_id integer
+  recommendation_id integer
+  read_at timestamptz
+  stale_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (user_id, dedupe_key) [unique, name: 'flora_notifications_owner_dedupe_idx']
+    (user_id, created_at [sort: desc]) [name: 'flora_notifications_owner_created_idx']
+  }
+}
+
+Ref: flora_users.id < flora_plant_places.user_id [delete: cascade]
+Ref: flora_users.id < flora_saved_locations.user_id [delete: cascade]
+Ref: flora_users.id < flora_plants.user_id
+Ref: flora_users.id < flora_reports.user_id [delete: cascade]
+Ref: flora_users.id < flora_notifications.user_id [delete: cascade]
+
+Ref: flora_species.id < flora_species_care_rules.species_id [delete: cascade]
+Ref: flora_species.id < flora_knowledge_sources.species_id [delete: cascade]
+Ref: flora_species.id < flora_species_knowledge_sources.species_id [delete: cascade]
+Ref: flora_knowledge_sources.id < flora_species_knowledge_sources.source_id [delete: cascade]
+Ref: flora_species_care_rules.id < flora_species_care_rule_sources.care_rule_id [delete: cascade]
+Ref: flora_knowledge_sources.id < flora_species_care_rule_sources.source_id [delete: cascade]
+
+Ref: flora_species.id < flora_plants.species_id
+Ref: flora_plant_places.id < flora_plants.place_id [delete: set null]
+Ref: flora_saved_locations.id < flora_plants.weather_location_id [delete: set null]
+Ref: flora_plants.id < flora_tasks.plant_id [delete: cascade]
+Ref: flora_tasks.id < flora_care_logs.task_id [delete: cascade]
+Ref: flora_tasks.id < flora_reminders.task_id [delete: cascade]
+Ref: flora_plants.id < flora_recommendations.plant_id [delete: cascade]
+Ref: flora_tasks.id < flora_recommendations.related_task_id [delete: set null]
+
+Ref: flora_plants.id < flora_notifications.plant_id [delete: set null]
+Ref: flora_tasks.id < flora_notifications.task_id [delete: set null]
+Ref: flora_reminders.id < flora_notifications.reminder_id [delete: set null]
+Ref: flora_recommendations.id < flora_notifications.recommendation_id [delete: set null]
