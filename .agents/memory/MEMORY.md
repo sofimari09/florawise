@@ -10,3 +10,4 @@
 - [Watering checks versus watering cadence](watering-check-interval.md) — a source's interval for checking soil conditions is not a fixed watering frequency.
 - [Weather-aware care rescheduling](weather-aware-care-rescheduling.md) — evidence-backed earlier/later dates require confirmation; unknown exposure, methods, soil, and recent rain stay unknown.
 - [React select automation](react-select-automation.md) — Chromium tests should use real keyboard input for controlled selects; direct value assignment plus synthetic change may not update React state.
+- [FloraWise report semantics](care-report-semantics.md) — inclusive scheduled-date periods; cancelled tasks are separate and excluded from completion; overdue uses the Kyiv report date.

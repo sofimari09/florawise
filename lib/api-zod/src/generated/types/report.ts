@@ -5,6 +5,7 @@
  * FloraWise plant care management API
  * OpenAPI spec version: 0.1.0
  */
+import type { ReportDetails } from './reportDetails';
 
 export interface Report {
   id: number;
@@ -14,9 +15,11 @@ export interface Report {
   completed: number;
   overdue: number;
   postponed: number;
+  cancelled: number;
   completionRate: number;
   frequentCategory: string;
   mostActivePlant: string;
   recommendationSummary: string;
+  reportDetails: ReportDetails;
   createdAt: string;
 }

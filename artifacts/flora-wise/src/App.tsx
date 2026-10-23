@@ -28,6 +28,7 @@ import NotFound from "@/pages/not-found";
 import { PlantForm } from "@/components/plant-form";
 import { PlantPhoto } from "@/components/plant-photo";
 import { roundWeatherTemperature, shortWeatherLocationName } from "@/lib/weather-display";
+import { formatCalendarDate, formatMonthTitle, getMonthCells, kyivDateKey, shiftCalendarMonth } from "@/lib/calendar-date";
 import { CarePlanDialog } from "@/components/care-plan-dialog";
 import { SavedLocationsPanel } from "@/components/saved-locations-panel";
 import { SpeciesDetails } from "@/components/species-knowledge";
@@ -101,8 +102,10 @@ const shiftCalendarDate = (value: string, days: number) => {
   return date.toISOString().slice(0, 10);
 };
 const todayLabel = new Intl.DateTimeFormat("uk-UA", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
-const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
+const reportDefaultMonth = kyivDateKey().slice(0, 7);
+const monthStart = `${reportDefaultMonth}-01`;
+const [reportDefaultYear, reportDefaultNumber] = reportDefaultMonth.split("-").map(Number);
+const monthEnd = `${reportDefaultMonth}-${String(new Date(Date.UTC(reportDefaultYear, reportDefaultNumber, 0)).getUTCDate()).padStart(2, "0")}`;
 const taskLabel: Record<string, string> = { ...careTypeLabel, ...Object.fromEntries(Object.entries(careTypeLabel).map(([key, value]) => [key.toLowerCase(), value])) };
 const statusLabel: Record<string, string> = { planned: "Заплановано", PENDING: "Очікує", COMPLETED: "Виконано", completed: "Виконано", POSTPONED: "Перенесено", CANCELLED: "Скасовано" };
 const priorityLabel: Record<string, string> = { urgent: "Терміновий", URGENT: "Терміновий", high: "Високий", HIGH: "Високий", medium: "Середній", MEDIUM: "Середній", low: "Низький", LOW: "Низький" };
@@ -373,12 +376,12 @@ function PageHead({ eyebrow, title, description, action }: { eyebrow?: string; t
 function Empty({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return <Panel className="p-12 text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary text-primary"><Sprout size={27} /></span><h3 className="mt-5 font-serif text-2xl">{title}</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>{action && <div className="mt-6">{action}</div>}</Panel>;
 }
-function TaskRow({ task, onComplete, onDelete, onPostpone }: { task: CareTask; onComplete: () => void; onDelete?: () => void; onPostpone?: () => void }) {
+function TaskRow({ task, onComplete, onDelete, onPostpone }: { task: CareTask; onComplete?: () => void; onDelete?: () => void; onPostpone?: () => void }) {
   const overdue = task.isOverdue || task.status === "OVERDUE";
   const normalizedPriority = task.priority?.toUpperCase();
   const priorityText = normalizedPriority === "URGENT" ? "Терміново · виняток" : priorityLabel[task.priority] || task.priority;
   const priorityTone = normalizedPriority === "URGENT" ? "danger" : normalizedPriority === "HIGH" ? "warn" : "neutral";
-  return <div id={`task-${task.id}`} className="group flex flex-wrap items-center gap-3 border-b border-border/70 py-4 last:border-0"><button aria-label={`виконати ${task.plantName}`} data-testid={`button-complete-task-${task.id}`} onClick={onComplete} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"><Check size={15} /></button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>{taskLabel[task.type] || task.type}</p>{overdue && <Badge tone="danger">Прострочено</Badge>}{task.priority && <Badge tone={priorityTone}>{priorityText}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{task.plantName} · {fmt(task.scheduledDate)}</p></div>{onPostpone && <Button variant="ghost" testId={`button-postpone-task-${task.id}`} aria-label={`Перенести ${taskLabel[task.type] || "завдання"} на наступний день`} onClick={onPostpone} className="ml-11 basis-[calc(100%-2.75rem)] justify-start whitespace-nowrap px-2 text-xs sm:ml-0 sm:basis-auto"><ChevronRight size={15} />Перенести на день пізніше</Button>}{onDelete && <IconButton label="видалити завдання" onClick={onDelete} className="opacity-0 group-hover:opacity-100"><Trash2 size={15} /></IconButton>}</div>;
+  return <div id={`task-${task.id}`} className="group flex flex-wrap items-center gap-3 border-b border-border/70 py-4 last:border-0">{onComplete && <button aria-label={`виконати ${task.plantName}`} data-testid={`button-complete-task-${task.id}`} onClick={onComplete} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"><Check size={15} /></button>}<div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>{taskLabel[task.type] || task.type}</p>{overdue && <Badge tone="danger">Прострочено</Badge>}{task.priority && <Badge tone={priorityTone}>{priorityText}</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{task.plantName} · {fmt(task.scheduledDate)}</p></div>{onPostpone && <Button variant="ghost" testId={`button-postpone-task-${task.id}`} aria-label={`Перенести ${taskLabel[task.type] || "завдання"} на наступний день`} onClick={onPostpone} className="ml-11 basis-[calc(100%-2.75rem)] justify-start whitespace-nowrap px-2 text-xs sm:ml-0 sm:basis-auto"><ChevronRight size={15} />Перенести на день пізніше</Button>}{onDelete && <IconButton label="видалити завдання" onClick={onDelete} className="opacity-0 group-hover:opacity-100"><Trash2 size={15} /></IconButton>}</div>;
 }
 
 function Landing() {
@@ -727,6 +730,11 @@ function CalendarPage() {
   const q = useQueryClient();
   const deepLinkTaskId = Number(new URLSearchParams(window.location.search).get("taskId") ?? 0);
   const handledTaskLink = useRef(0);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const [year, month] = kyivDateKey().split("-").map(Number);
+    return { year, month };
+  });
+  const [selectedDate, setSelectedDate] = useState(() => kyivDateKey());
   const [view, setView] = useState<"list" | "month">("list");
   const [show, setShow] = useState(false);
   const [type, setType] = useState<CareType | "">("");
@@ -751,6 +759,29 @@ function CalendarPage() {
   }, [deepLinkTaskId, tasks.data]);
   const refresh = () => q.invalidateQueries();
   const fail = (error: unknown) => setError(errMsg(error, "Не вдалося змінити завдання."));
+  const selectMonth = (delta: number) => {
+    const [, , day] = selectedDate.split("-").map(Number);
+    const next = shiftCalendarMonth(calendarMonth.year, calendarMonth.month, delta, day);
+    setCalendarMonth({ year: next.year, month: next.month });
+    setSelectedDate(next.dateKey);
+  };
+  const goToToday = () => {
+    const key = kyivDateKey();
+    const [year, month] = key.split("-").map(Number);
+    setCalendarMonth({ year, month });
+    setSelectedDate(key);
+  };
+  const requestPostpone = (task: CareTask) => {
+    setError("");
+    setNotice("");
+    setPostponeError("");
+    setPostponingTask(task);
+  };
+  const requestCancel = (task: CareTask) => {
+    if (window.confirm("Скасувати це завдання?")) {
+      del.mutate({ id: task.id }, { onSuccess: refresh, onError: fail });
+    }
+  };
   const newScheduledDate = postponingTask ? shiftCalendarDate(postponingTask.scheduledDate, 1) : "";
   const confirmManualPostpone = () => {
     if (!postponingTask || update.isPending) return;
@@ -780,16 +811,26 @@ function CalendarPage() {
      {error && <p role="alert" className="mb-4 text-destructive">{error}</p>}
      {notice && <p role="status" className="mb-4 rounded-xl bg-primary/10 p-3 text-sm font-medium text-primary">{notice}</p>}
     <QueryState loading={tasks.isLoading} error={!!tasks.error} onRetry={() => tasks.refetch()}>
-      {view === "month" ? <MonthGrid tasks={tasks.data ?? []} /> : <Panel className="p-6"><h2 className="font-serif text-2xl">Завдання догляду</h2>
+      {view === "month" ? <MonthGrid
+        tasks={tasks.data ?? []}
+        year={calendarMonth.year}
+        month={calendarMonth.month}
+        selectedDate={selectedDate}
+        todayDate={kyivDateKey()}
+        onSelectDate={setSelectedDate}
+        onPreviousMonth={() => selectMonth(-1)}
+        onNextMonth={() => selectMonth(1)}
+        onToday={goToToday}
+        onComplete={task => complete.mutate({ id: task.id, data: {} }, { onSuccess: refresh, onError: fail })}
+        onPostpone={task => {
+          if (plants.data?.find(plant => plant.id === task.plantId)?.allowedCareTypes?.includes(task.type as CareType)) requestPostpone(task);
+        }}
+        onCancel={requestCancel}
+      /> : <Panel className="p-6"><h2 className="font-serif text-2xl">Завдання догляду</h2>
         {tasks.data?.length ? tasks.data.map(task => <TaskRow key={task.id} task={task}
-          onComplete={() => complete.mutate({ id: task.id, data: {} }, { onSuccess: refresh, onError: fail })}
-           onPostpone={["PLANNED", "POSTPONED"].includes(task.status) && plants.data?.find(plant => plant.id === task.plantId)?.allowedCareTypes?.includes(task.type as CareType) ? () => {
-             setError("");
-             setNotice("");
-             setPostponeError("");
-             setPostponingTask(task);
-           } : undefined}
-          onDelete={["PLANNED", "POSTPONED"].includes(task.status) ? () => { if (window.confirm("Скасувати це завдання?")) del.mutate({ id: task.id }, { onSuccess: refresh, onError: fail }); } : undefined}
+          onComplete={["PLANNED", "POSTPONED"].includes(task.status) ? () => complete.mutate({ id: task.id, data: {} }, { onSuccess: refresh, onError: fail }) : undefined}
+           onPostpone={["PLANNED", "POSTPONED"].includes(task.status) && plants.data?.find(plant => plant.id === task.plantId)?.allowedCareTypes?.includes(task.type as CareType) ? () => requestPostpone(task) : undefined}
+          onDelete={["PLANNED", "POSTPONED"].includes(task.status) ? () => requestCancel(task) : undefined}
         />) : <Empty title="Завдань не знайдено" description="Змініть фільтри або додайте застосовний догляд." />}
       </Panel>}
     </QueryState>
@@ -815,7 +856,112 @@ function CalendarPage() {
      </Dialog>
   </Shell>;
 }
-function MonthGrid({ tasks }: { tasks: CareTask[] }) { const days = Array.from({ length: 31 }, (_, i) => i + 1); return <Panel className="p-4 md:p-6"><div className="mb-4 grid grid-cols-7 gap-1 text-center font-mono text-[10px] uppercase text-muted-foreground">{["Пн","Вт","Ср","Чт","Пт","Сб","Нд"].map(d => <span key={d} className="py-2">{d}</span>)}</div><div className="grid grid-cols-7 gap-1">{days.map(d => { const count = tasks.filter(t => new Date(t.scheduledDate).getDate() === d).length; return <div key={d} className={`min-h-16 rounded-xl border p-2 text-sm ${d === 12 ? "border-primary bg-primary/10" : "border-border/60 bg-background"}`}><span className="font-mono text-xs">{d}</span>{count > 0 && <span className="mt-2 block rounded-md bg-accent/50 px-1 py-0.5 text-center text-[10px] font-semibold">{count} {count === 1 ? "дія" : "дії"}</span>}</div>; })}</div></Panel>; }
+function MonthGrid({
+  tasks, year, month, selectedDate, todayDate, onSelectDate, onPreviousMonth, onNextMonth,
+  onToday, onComplete, onPostpone, onCancel,
+}: {
+  tasks: CareTask[];
+  year: number;
+  month: number;
+  selectedDate: string;
+  todayDate: string;
+  onSelectDate: (date: string) => void;
+  onPreviousMonth: () => void;
+  onNextMonth: () => void;
+  onToday: () => void;
+  onComplete: (task: CareTask) => void;
+  onPostpone: (task: CareTask) => void;
+  onCancel: (task: CareTask) => void;
+}) {
+  const cells = getMonthCells(year, month);
+  const selectedTasks = tasks.filter(task => task.scheduledDate === selectedDate);
+  const weekdayLabels = [
+    ["Пн", "Понеділок"], ["Вт", "Вівторок"], ["Ср", "Середа"], ["Чт", "Четвер"],
+    ["Пт", "П’ятниця"], ["Сб", "Субота"], ["Нд", "Неділя"],
+  ];
+  const statusLabel: Record<string, string> = {
+    PLANNED: "Заплановано",
+    POSTPONED: "Перенесено",
+    COMPLETED: "Виконано",
+    CANCELLED: "Скасовано",
+  };
+  const statusTone: Record<string, "neutral" | "good" | "warn" | "danger"> = {
+    PLANNED: "neutral", POSTPONED: "warn", COMPLETED: "good", CANCELLED: "danger",
+  };
+
+  return <>
+    <Panel className="p-3 sm:p-5 md:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Місячний огляд</p>
+          <h2 data-testid="text-calendar-month" className="mt-1 font-serif text-2xl sm:text-3xl">{formatMonthTitle(year, month)}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" testId="button-calendar-today" onClick={onToday}>Сьогодні</Button>
+          <IconButton label="попередній місяць" onClick={onPreviousMonth} className="border border-border"><ChevronLeft size={18} /></IconButton>
+          <IconButton label="наступний місяць" onClick={onNextMonth} className="border border-border"><ChevronRight size={18} /></IconButton>
+        </div>
+      </div>
+      <div role="grid" aria-label={`Календар догляду: ${formatMonthTitle(year, month)}`} className="grid grid-cols-7 gap-1 sm:gap-2">
+        {weekdayLabels.map(([short, full]) => <div key={full} role="columnheader" aria-label={full} className="py-2 text-center font-mono text-[9px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">{short}</div>)}
+        {cells.map((cell, index) => {
+          if (!cell.dateKey || cell.day == null) {
+            return <div key={`empty-${index}`} aria-hidden="true" className="min-h-14 rounded-lg sm:min-h-20" />;
+          }
+          const count = tasks.filter(task => task.scheduledDate === cell.dateKey).length;
+          const selected = cell.dateKey === selectedDate;
+          const today = cell.dateKey === todayDate;
+          return <button
+            key={cell.dateKey}
+            type="button"
+            role="gridcell"
+            aria-pressed={selected}
+            aria-current={today ? "date" : undefined}
+            aria-label={`${formatCalendarDate(cell.dateKey)}, завдань: ${count}`}
+            data-testid={`button-calendar-day-${cell.dateKey}`}
+            onClick={() => onSelectDate(cell.dateKey!)}
+            className={`flex min-h-14 flex-col items-center justify-start rounded-lg border p-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-20 sm:items-stretch sm:p-2 ${selected ? "border-primary bg-primary/10 ring-1 ring-primary" : today ? "border-accent bg-accent/25" : "border-border/60 bg-background hover:border-primary/50 hover:bg-muted/50"}`}
+          >
+            <span className={`grid h-7 w-7 place-items-center rounded-full font-mono text-xs sm:h-8 sm:w-8 sm:text-sm ${today ? "bg-primary text-primary-foreground" : ""}`}>{cell.day}</span>
+            <span className={`mt-1 min-h-4 text-[9px] font-semibold leading-4 sm:mt-2 sm:rounded-md sm:px-1 sm:text-[10px] ${count ? "bg-accent/50 text-foreground" : "text-muted-foreground/50"}`}>
+              {count ? <><span className="sm:hidden">{count}</span><span className="hidden sm:inline">{count} {count === 1 ? "завд." : "завд."}</span></> : "\u00a0"}
+            </span>
+          </button>;
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-primary" />Сьогодні</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-primary bg-primary/10" />Обрана дата</span>
+      </div>
+    </Panel>
+    <Panel aria-live="polite" className="mt-4 p-4 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border/70 pb-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Завдання на обрану дату</p>
+          <h3 data-testid="text-selected-calendar-date" className="mt-1 font-serif text-xl sm:text-2xl">{formatCalendarDate(selectedDate)}</h3>
+        </div>
+        <span data-testid="text-selected-calendar-task-count" className="rounded-full bg-muted px-3 py-1 text-xs font-semibold">{selectedTasks.length} {selectedTasks.length === 1 ? "завдання" : "завдань"}</span>
+      </div>
+      {selectedTasks.length ? <div className="mt-2 divide-y divide-border/70">
+        {selectedTasks.map(task => {
+          const active = ["PLANNED", "POSTPONED"].includes(task.status);
+          return <article key={task.id} data-testid={`calendar-selected-task-${task.id}`} className="py-3">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <Badge tone={statusTone[task.status] ?? "neutral"}>{statusLabel[task.status] ?? task.status}</Badge>
+              <Link href={`/plants/${task.plantId}`} data-testid={`link-calendar-task-plant-${task.id}`} className="text-xs font-semibold text-primary hover:underline">Відкрити рослину</Link>
+            </div>
+            <TaskRow
+              task={task}
+              onComplete={active ? () => onComplete(task) : undefined}
+              onPostpone={active ? () => onPostpone(task) : undefined}
+              onDelete={active ? () => onCancel(task) : undefined}
+            />
+          </article>;
+        })}
+      </div> : <p className="mt-4 text-sm text-muted-foreground">На цю дату завдань немає.</p>}
+    </Panel>
+  </>;
+}
 
 function HistoryPage() { const [type, setType] = useState(""); const history = useListCareHistory({ taskType: type || undefined }); return <Shell><PageHead eyebrow="Слід вашої турботи" title="Історія" description="Поверніться до зробленого — так добре видно справжній прогрес." /><div className="mb-6 flex gap-2"><select data-testid="select-history-type" value={type} onChange={e => setType(e.target.value)} className="rounded-xl border border-input bg-card px-4 py-2.5 text-sm"><option value="">Усі дії</option><option value="WATERING">Полив</option><option value="FERTILIZING">Підживлення</option><option value="PRUNING">Обрізка</option></select></div><QueryState loading={history.isLoading} error={!!history.error} onRetry={() => history.refetch()}>{history.data?.length ? <Panel className="divide-y divide-border/70 p-6">{history.data.map((h: CareHistory) => <div key={h.id} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"><span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><Check size={18} /></span><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{taskLabel[h.type] || h.type} · {h.plantName}</p><p className="mt-1 text-xs text-muted-foreground">{fmtLong(h.completedAt)} · Планували на {fmt(h.plannedDate)}</p>{h.comment && <p className="mt-2 text-sm text-muted-foreground">{h.comment}</p>}</div><Badge tone="good">Виконано</Badge></div>)}</Panel> : <Empty title="Історія ще чиста" description="Виконані завдання з’являться тут — це ваш особистий журнал турботи." />}</QueryState></Shell>; }
 
@@ -1028,16 +1174,173 @@ function StatisticsPage() { const stats = useGetStatistics(); return <Shell><Pag
 function StatsContent({ stats: s }: { stats: Statistics }) {
   const max = Math.max(...(s.byType || []).map(x => x.value), 1);
   const cards: Array<{ label: string; value: string | number; Icon: typeof CalendarDays }> = [
-    { label: "Всього завдань", value: s.totalPlanned, Icon: CalendarDays },
+    { label: "Завдань без скасованих", value: s.totalPlanned, Icon: CalendarDays },
     { label: "Виконано", value: s.completed, Icon: CheckCircle2 },
     { label: "Прострочено", value: s.overdue, Icon: CircleAlert },
     { label: "Ритм виконання", value: `${Math.round(s.completionRate)}%`, Icon: TrendingUp },
   ];
-  return <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(({ label, value, Icon }) => <Panel key={label} className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 font-mono text-3xl text-primary">{value}</p></div><Icon size={20} className="text-accent" /></div></Panel>)}</div><div className="mt-5 grid gap-5 lg:grid-cols-2"><Panel className="p-6"><h2 className="font-serif text-2xl">Дії за типом</h2><div className="mt-6 space-y-5">{(s.byType || []).map(x => <div key={x.label}><div className="mb-2 flex justify-between text-sm"><span>{taskLabel[x.label] || x.label}</span><span className="font-mono text-muted-foreground">{x.value}</span></div><div className="h-3 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${x.value / max * 100}%` }} /></div></div>)}</div></Panel><Panel className="p-6"><h2 className="font-serif text-2xl">По рослинах</h2><div className="mt-6 space-y-4">{(s.byPlant || []).map(x => <div key={x.label} className="flex items-center justify-between border-b border-border/70 pb-3 text-sm last:border-0"><span>{x.label}</span><span className="rounded-full bg-secondary px-3 py-1 font-mono text-xs">{x.value}</span></div>)}</div></Panel></div></>;
+  return <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(({ label, value, Icon }) => <Panel key={label} className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 font-mono text-3xl text-primary">{value}</p></div><Icon size={20} className="text-accent" /></div></Panel>)}</div><p className="mt-3 text-xs text-muted-foreground">Скасовані завдання показані окремо й не входять до загальної кількості та відсотка виконання.</p><div className="mt-5 grid gap-5 lg:grid-cols-2"><Panel className="p-6"><h2 className="font-serif text-2xl">Дії за типом</h2><div className="mt-6 space-y-5">{(s.byType || []).map(x => <div key={x.label}><div className="mb-2 flex justify-between text-sm"><span>{taskLabel[x.label] || x.label}</span><span className="font-mono text-muted-foreground">{x.value}</span></div><div className="h-3 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${x.value / max * 100}%` }} /></div></div>)}</div></Panel><Panel className="p-6"><h2 className="font-serif text-2xl">По рослинах</h2><div className="mt-6 space-y-4">{(s.byPlant || []).map(x => <div key={x.label} className="flex items-center justify-between border-b border-border/70 pb-3 text-sm last:border-0"><span>{x.label}</span><span className="rounded-full bg-secondary px-3 py-1 font-mono text-xs">{x.value}</span></div>)}</div></Panel></div></>;
 }
 
-function ReportsPage() { const q = useQueryClient(); const reports = useListReports(); const create = useCreateReport(); const [form, setForm] = useState({ periodStart: monthStart, periodEnd: monthEnd }); return <Shell><PageHead eyebrow="Підсумки сезону" title="Звіти" description="Збережені зрізи вашого догляду — для спокійного перегляду або друку." action={<Button onClick={() => create.mutate({ data: form }, { onSuccess: () => q.invalidateQueries({ queryKey: getListReportsQueryKey() }) })} disabled={create.isPending}><Plus size={17} /> {create.isPending ? "Готуємо…" : "Створити звіт"}</Button>} /><Panel className="mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-end"><label className="text-sm font-semibold">Від<input data-testid="input-report-start" type="date" value={form.periodStart} onChange={e => setForm({ ...form, periodStart: e.target.value })} className="mt-2 block rounded-xl border border-input bg-background px-3 py-2 text-sm" /></label><label className="text-sm font-semibold">До<input data-testid="input-report-end" type="date" value={form.periodEnd} onChange={e => setForm({ ...form, periodEnd: e.target.value })} className="mt-2 block rounded-xl border border-input bg-background px-3 py-2 text-sm" /></label><p className="text-xs text-muted-foreground">Новий звіт збере фактичні дані за обраний період.</p></Panel><QueryState loading={reports.isLoading} error={!!reports.error} onRetry={() => reports.refetch()}>{reports.data?.length ? <div className="space-y-4">{reports.data.map(r => <ReportCard key={r.id} report={r} />)}</div> : <Empty title="Звітів ще немає" description="Створіть перший звіт, щоб побачити повну картину догляду." />}</QueryState></Shell>; }
-function ReportCard({ report: r }: { report: Report }) { return <Panel className="p-6"><div className="flex flex-col justify-between gap-5 md:flex-row md:items-start"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">{fmt(r.periodStart)} — {fmt(r.periodEnd)}</p><h2 className="mt-2 font-serif text-2xl">Звіт про догляд</h2><p className="mt-2 text-sm text-muted-foreground">Створено {fmtLong(r.createdAt)}</p></div><Button variant="soft" onClick={() => window.print()}><FileText size={16} /> Друкувати</Button></div><div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{[["Завдань",r.taskCount],["Виконано",r.completed],["Прострочено",r.overdue],["Ритм",`${Math.round(r.completionRate)}%`]].map(([a,b]) => <div key={String(a)} className="rounded-xl bg-muted p-3"><p className="text-xs text-muted-foreground">{a}</p><p className="mt-1 font-mono text-xl text-primary">{b}</p></div>)}</div><p className="mt-5 text-sm leading-6 text-muted-foreground">{r.recommendationSummary}</p></Panel>; }
+function ReportsPage() {
+  const q = useQueryClient();
+  const reports = useListReports();
+  const create = useCreateReport();
+  const [form, setForm] = useState({ periodStart: monthStart, periodEnd: monthEnd });
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const validPeriod = Boolean(form.periodStart && form.periodEnd && form.periodStart <= form.periodEnd);
+
+  const createReport = () => {
+    if (!validPeriod || create.isPending) return;
+    setNotice("");
+    setError("");
+    create.mutate({ data: form }, {
+      onSuccess: async () => {
+        await q.invalidateQueries({ queryKey: getListReportsQueryKey() });
+        setNotice("Звіт збережено. Показники та деталі розраховано за збереженими завданнями.");
+      },
+      onError: failure => setError(errMsg(failure, "Не вдалося створити звіт. Перевірте період і спробуйте ще раз.")),
+    });
+  };
+
+  return <Shell>
+    <PageHead
+      eyebrow="Підсумки сезону"
+      title="Звіти"
+      description="Збережені звіти за вибраний період — із фактичними завданнями, підсумками та рішеннями."
+      action={<Button testId="button-create-report" onClick={createReport} disabled={create.isPending || !validPeriod}><Plus size={17} />{create.isPending ? "Готуємо…" : "Створити звіт"}</Button>}
+    />
+    <Panel className="mb-5 flex flex-col gap-4 p-5 sm:flex-row sm:items-end">
+      <label className="text-sm font-semibold">Початок періоду
+        <input data-testid="input-report-start" type="date" value={form.periodStart} onChange={event => setForm({ ...form, periodStart: event.target.value })} className="mt-2 block rounded-xl border border-input bg-background px-3 py-2 text-sm" />
+      </label>
+      <label className="text-sm font-semibold">Кінець періоду
+        <input data-testid="input-report-end" type="date" value={form.periodEnd} onChange={event => setForm({ ...form, periodEnd: event.target.value })} className="mt-2 block rounded-xl border border-input bg-background px-3 py-2 text-sm" />
+      </label>
+      <p className="max-w-xl text-xs leading-5 text-muted-foreground">Період включає обидві дати. Завдання потрапляють до звіту за запланованою календарною датою; скасовані показані окремо й не входять до відсотка виконання.</p>
+    </Panel>
+    {!validPeriod && <p role="alert" data-testid="status-report-invalid-period" className="mb-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">Вкажіть обидві дати. Початок періоду має бути не пізніше завершення.</p>}
+    {notice && <p role="status" data-testid="status-report-created" className="mb-4 rounded-xl bg-primary/10 p-3 text-sm font-medium text-primary">{notice}</p>}
+    {error && <p role="alert" className="mb-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+    <QueryState loading={reports.isLoading} error={!!reports.error} onRetry={() => reports.refetch()}>
+      {reports.data?.length
+        ? <div className="space-y-5">{reports.data.map(report => <ReportCard key={report.id} report={report} />)}</div>
+        : <Empty title="Збережених звітів ще немає" description="Оберіть період і створіть перший звіт. Його дані залишаться доступними після оновлення сторінки." />}
+    </QueryState>
+  </Shell>;
+}
+
+const reportStatusLabels: Record<string, string> = {
+  PLANNED: "Заплановано",
+  POSTPONED: "Перенесено",
+  COMPLETED: "Виконано",
+  CANCELLED: "Скасовано",
+};
+
+function ReportCard({ report: r, showPrintLink = true }: { report: Report; showPrintLink?: boolean }) {
+  const details = r.reportDetails;
+  const createdAt = new Intl.DateTimeFormat("uk-UA", {
+    dateStyle: "long", timeStyle: "short", timeZone: "Europe/Kyiv",
+  }).format(new Date(r.createdAt));
+  const metrics: Array<[string, string | number]> = [
+    ["Завдань без скасованих", r.taskCount],
+    ["Виконано", r.completed],
+    ["Прострочено", r.overdue],
+    ["Перенесено", r.postponed],
+    ["Скасовано", r.cancelled],
+    ["Виконання", `${r.completionRate}%`],
+  ];
+  const breakdowns = [
+    { title: "За типом догляду", rows: details.byType, empty: "Немає облікованих завдань." },
+    { title: "За рослинами", rows: details.byPlant, empty: "Немає облікованих завдань." },
+    { title: "За статусом", rows: details.byStatus.map(row => ({ ...row, label: reportStatusLabels[row.label] ?? row.label })), empty: "Немає завдань." },
+  ];
+
+  return <article data-testid={`card-report-${r.id}`} className="report-document rounded-2xl border border-border/80 bg-card p-5 shadow-sm md:p-7">
+    <header className="flex flex-col justify-between gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-start">
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">Період: {fmtDayMonth(r.periodStart)} — {fmtDayMonth(r.periodEnd)}</p>
+        <h2 className="mt-2 font-serif text-2xl sm:text-3xl">Звіт про догляд</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Створено: {createdAt}</p>
+      </div>
+      {showPrintLink && <Link href={`/reports/${r.id}/print`} data-testid={`link-print-report-${r.id}`} className="print-hide inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10">
+        <FileText size={16} />Друкувати / Зберегти PDF
+      </Link>}
+    </header>
+    <section className="report-section mt-5">
+      <h3 className="font-serif text-xl">Підсумок за період</h3>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {metrics.map(([label, value]) => <div key={label} className="rounded-xl bg-muted/70 p-3">
+          <p className="text-xs leading-5 text-muted-foreground">{label}</p>
+          <p data-testid={`text-report-metric-${r.id}-${String(label).toLowerCase().replaceAll(" ", "-")}`} className="mt-1 font-mono text-xl text-primary">{value}</p>
+        </div>)}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">Прострочене — це завдання зі статусом «Заплановано» або «Перенесено», дата якого раніше за дату створення звіту в часовому поясі Києва. Скасовані завдання не входять до загальної кількості та відсотка виконання.</p>
+    </section>
+    <section className="report-section report-task-table-section mt-6">
+      <h3 className="font-serif text-xl">Структура завдань</h3>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        {breakdowns.map(section => <div key={section.title} className="rounded-xl border border-border/70 p-4">
+          <h4 className="text-sm font-semibold">{section.title}</h4>
+          {section.rows.length
+            ? <ul className="mt-3 space-y-2">{section.rows.map(row => <li key={row.label} className="flex items-start justify-between gap-3 text-sm"><span className="min-w-0 break-words text-muted-foreground">{row.label}</span><span className="shrink-0 rounded-full bg-secondary px-2.5 py-0.5 font-mono text-xs">{row.value}</span></li>)}</ul>
+            : <p className="mt-3 text-xs text-muted-foreground">{section.empty}</p>}
+        </div>)}
+      </div>
+    </section>
+    <section className="report-section mt-6">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 className="font-serif text-xl">Завдання у вибраному періоді</h3>
+          <p className="mt-1 text-xs text-muted-foreground">За датою плану; межі періоду включені. Усього записів: {details.tasks.length}.</p>
+        </div>
+      </div>
+      {details.tasks.length ? <div className="report-table-wrap mt-3 overflow-x-auto rounded-xl border border-border/70">
+        <table className="report-table w-full min-w-[680px] border-collapse text-left text-xs">
+          <thead className="bg-muted/70 text-muted-foreground"><tr>
+            <th className="p-3 font-semibold">Дата</th><th className="p-3 font-semibold">Рослина</th><th className="p-3 font-semibold">Догляд</th><th className="p-3 font-semibold">Пріоритет</th><th className="p-3 font-semibold">Статус</th>
+          </tr></thead>
+          <tbody>{details.tasks.map(task => <tr key={task.taskId} data-testid={`row-report-task-${task.taskId}`} className="border-t border-border/60">
+            <td className="whitespace-nowrap p-3">{fmtDayMonth(task.scheduledDate)}</td>
+            <td className="max-w-48 p-3">{task.plantName}</td>
+            <td className="p-3">{taskLabel[task.careType] ?? task.careType}</td>
+            <td className="whitespace-nowrap p-3">{priorityLabel[task.priority] ?? task.priority}</td>
+            <td className="p-3"><span className="whitespace-nowrap">{reportStatusLabels[task.status] ?? task.status}</span>{task.isOverdue && <span className="ml-1 text-destructive">· Прострочено</span>}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <p className="mt-3 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">За вибраний період завдань не знайдено.</p>}
+    </section>
+    <section className="report-section mt-6 border-t border-border/70 pt-5">
+      <h3 className="font-serif text-xl">Погодні перенесення</h3>
+      {details.weatherReschedules.length
+        ? <ul className="mt-3 space-y-2">{details.weatherReschedules.map(item => <li key={item.recommendationId} data-testid={`row-report-weather-${item.recommendationId}`} className="rounded-xl bg-muted/50 p-3 text-sm">
+          <span className="font-semibold">{item.plantName}:</span> з {fmtDayMonth(item.originalDate)} на {fmtDayMonth(item.suggestedDate)}.
+          <span className="ml-1 text-xs text-muted-foreground">Підтверджено {new Intl.DateTimeFormat("uk-UA", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Kyiv" }).format(new Date(item.appliedAt))}.</span>
+        </li>)}</ul>
+        : <p className="mt-2 text-sm text-muted-foreground">{r.recommendationSummary}</p>}
+    </section>
+  </article>;
+}
+
+function ReportPrintPage() {
+  const { reportId: rawReportId } = useParams<{ reportId: string }>();
+  const reportId = Number(rawReportId);
+  const reports = useListReports();
+  const report = reports.data?.find(item => item.id === reportId);
+  return <main className="report-print-page min-h-screen bg-muted/30 px-4 py-6 sm:px-8">
+    <div className="report-print-frame mx-auto max-w-5xl">
+      <div className="print-hide mb-5 flex flex-wrap items-center justify-between gap-3">
+        <Link href="/reports" data-testid="link-back-reports" className="text-sm font-semibold text-primary hover:underline">Повернутися до звітів</Link>
+        <Button testId="button-print-report" onClick={() => window.print()}><FileText size={16} />Друкувати / Зберегти PDF</Button>
+      </div>
+      {reports.isLoading && <Panel className="p-6 text-sm text-muted-foreground">Завантажуємо збережений звіт…</Panel>}
+      {reports.isError && <div role="alert"><Panel className="p-6 text-sm text-destructive">Не вдалося завантажити звіт.</Panel></div>}
+      {!reports.isLoading && !reports.isError && !report && <Panel className="p-6"><h1 className="font-serif text-2xl">Звіт не знайдено</h1><p className="mt-2 text-sm text-muted-foreground">Перевірте, чи збережений звіт ще доступний.</p></Panel>}
+      {report && <ReportCard report={report} showPrintLink={false} />}
+    </div>
+  </main>;
+}
 
 function AdminPage() {
   const q = useQueryClient();
@@ -1073,6 +1376,7 @@ function Router() {
     <Route path="/recommendations" component={RecommendationsPage} />
     <Route path="/directory" component={DirectoryPage} />
     <Route path="/statistics" component={StatisticsPage} />
+    <Route path="/reports/:reportId/print" component={ReportPrintPage} />
     <Route path="/reports" component={ReportsPage} />
     <Route path="/admin" component={AdminPage} />
     <Route component={NotFound} />

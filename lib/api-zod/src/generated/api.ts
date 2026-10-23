@@ -1926,10 +1926,43 @@ export const ListReportsResponseItem = zod.object({
   "completed": zod.number().int(),
   "overdue": zod.number().int(),
   "postponed": zod.number().int(),
+  "cancelled": zod.number().int(),
   "completionRate": zod.number(),
   "frequentCategory": zod.string(),
   "mostActivePlant": zod.string(),
   "recommendationSummary": zod.string(),
+  "reportDetails": zod.object({
+  "cancelled": zod.number().int(),
+  "byType": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number().int()
+})),
+  "byPlant": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number().int()
+})),
+  "byStatus": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number().int()
+})),
+  "tasks": zod.array(zod.object({
+  "taskId": zod.number().int(),
+  "plantId": zod.number().int(),
+  "plantName": zod.string(),
+  "careType": zod.string(),
+  "scheduledDate": zod.coerce.date(),
+  "priority": zod.string(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean()
+})),
+  "weatherReschedules": zod.array(zod.object({
+  "recommendationId": zod.number().int(),
+  "plantName": zod.string(),
+  "originalDate": zod.coerce.date(),
+  "suggestedDate": zod.coerce.date(),
+  "appliedAt": zod.coerce.date()
+}))
+}),
   "createdAt": zod.string()
 })
 export const ListReportsResponse = zod.array(ListReportsResponseItem)
@@ -1951,10 +1984,43 @@ export const CreateReportResponse = zod.object({
   "completed": zod.number().int(),
   "overdue": zod.number().int(),
   "postponed": zod.number().int(),
+  "cancelled": zod.number().int(),
   "completionRate": zod.number(),
   "frequentCategory": zod.string(),
   "mostActivePlant": zod.string(),
   "recommendationSummary": zod.string(),
+  "reportDetails": zod.object({
+  "cancelled": zod.number().int(),
+  "byType": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number().int()
+})),
+  "byPlant": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number().int()
+})),
+  "byStatus": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.number().int()
+})),
+  "tasks": zod.array(zod.object({
+  "taskId": zod.number().int(),
+  "plantId": zod.number().int(),
+  "plantName": zod.string(),
+  "careType": zod.string(),
+  "scheduledDate": zod.coerce.date(),
+  "priority": zod.string(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean()
+})),
+  "weatherReschedules": zod.array(zod.object({
+  "recommendationId": zod.number().int(),
+  "plantName": zod.string(),
+  "originalDate": zod.coerce.date(),
+  "suggestedDate": zod.coerce.date(),
+  "appliedAt": zod.coerce.date()
+}))
+}),
   "createdAt": zod.string()
 })
 

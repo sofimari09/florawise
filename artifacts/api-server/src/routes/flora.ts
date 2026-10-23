@@ -23,6 +23,7 @@ import {
   type PlantSpecies,
   type CareTask,
 } from "@workspace/db";
+import { CreateReportResponse, ListReportsResponse } from "@workspace/api-zod";
 import { weatherService } from "../lib/weather";
 import { logger } from "../lib/logger";
 import { createRainTomorrowScenario, DEV_WEATHER_SCENARIO } from "../lib/weather-test-scenario";
@@ -39,6 +40,7 @@ import {
   type WeatherPrioritySignal,
 } from "../lib/care-task-priority";
 import { canAttachPhoto } from "../lib/plant-photos";
+import { calculateCareReport } from "../lib/care-report";
 import { isCurrentRealWeatherNotification, notificationDateLabel, notificationEventHash, taskNotificationDedupeKey, taskNotificationKind } from "../lib/notification-policy";
 import { identityInput, normalizeSearch, resolvePlantName, resolveIdentityFields } from "../lib/plant-identity";
 import { customCareContext, type CareContext } from "../lib/effective-care";
@@ -1664,24 +1666,64 @@ async function statisticsForUser(req: Request) {
   const plants = await db.select({ id: plantsTable.id }).from(plantsTable).where(eq(plantsTable.userId, user.id));
   const plantIds = new Set(plants.map((item) => item.id));
   const tasks = (await db.select().from(tasksTable)).filter((task) => plantIds.has(task.plantId));
+  const countedTasks = tasks.filter((task) => task.status !== "CANCELLED");
   const byType = new Map<string, number>();
   const byPlant = new Map<number, number>();
   const overTime = new Map<string, number>();
-  tasks.forEach((task) => { byType.set(task.type, (byType.get(task.type) ?? 0) + 1); byPlant.set(task.plantId, (byPlant.get(task.plantId) ?? 0) + 1); overTime.set(task.scheduledDate, (overTime.get(task.scheduledDate) ?? 0) + 1); });
-  const completed = tasks.filter((task) => task.status === "COMPLETED").length;
-  return { tasks, completed, overdue: tasks.filter((task) => ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate < today()).length, postponed: tasks.filter((task) => task.status === "POSTPONED").length, cancelled: tasks.filter((task) => task.status === "CANCELLED").length, byType: [...byType].map(([label, value]) => ({ label, value })), byPlant: await Promise.all([...byPlant].map(async ([plantId, value]) => { const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plantId)); return { label: plant?.name ?? "Рослина", value }; })), overTime: [...overTime].sort(([a], [b]) => a.localeCompare(b)).map(([label, value]) => ({ label, value })) };
+  countedTasks.forEach((task) => { byType.set(task.type, (byType.get(task.type) ?? 0) + 1); byPlant.set(task.plantId, (byPlant.get(task.plantId) ?? 0) + 1); overTime.set(task.scheduledDate, (overTime.get(task.scheduledDate) ?? 0) + 1); });
+  const completed = countedTasks.filter((task) => task.status === "COMPLETED").length;
+  return { tasks, countedTasks, completed, overdue: tasks.filter((task) => ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate < today()).length, postponed: countedTasks.filter((task) => task.status === "POSTPONED").length, cancelled: tasks.filter((task) => task.status === "CANCELLED").length, byType: [...byType].map(([label, value]) => ({ label, value })), byPlant: await Promise.all([...byPlant].map(async ([plantId, value]) => { const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, plantId)); return { label: plant?.name ?? "Рослина", value }; })), overTime: [...overTime].sort(([a], [b]) => a.localeCompare(b)).map(([label, value]) => ({ label, value })) };
 }
 
 router.get("/statistics", async (req, res): Promise<void> => {
   const stats = await statisticsForUser(req);
   if (!stats) { res.status(401).json({ error: "Необхідно увійти" }); return; }
-  res.json({ totalPlanned: stats.tasks.filter((task) => task.status !== "CANCELLED").length, completed: stats.completed, overdue: stats.overdue, postponed: stats.postponed, cancelled: stats.cancelled, completionRate: stats.tasks.length ? Math.round((stats.completed / stats.tasks.filter((task) => task.status !== "CANCELLED").length) * 100) : 0, byType: stats.byType, byPlant: stats.byPlant, overTime: stats.overTime });
+  res.json({ totalPlanned: stats.countedTasks.length, completed: stats.completed, overdue: stats.overdue, postponed: stats.postponed, cancelled: stats.cancelled, completionRate: stats.countedTasks.length ? Math.round((stats.completed / stats.countedTasks.length) * 100) : 0, byType: stats.byType, byPlant: stats.byPlant, overTime: stats.overTime });
 });
+
+async function reportRecordsForUser(userId: number) {
+  const plants = await db.select().from(plantsTable).where(eq(plantsTable.userId, userId));
+  const plantIds = plants.map(plant => plant.id);
+  const tasks = plantIds.length
+    ? await db.select().from(tasksTable).where(inArray(tasksTable.plantId, plantIds))
+    : [];
+  const recommendations = plantIds.length
+    ? await db.select().from(recommendationsTable).where(inArray(recommendationsTable.plantId, plantIds))
+    : [];
+  return { plants, tasks, recommendations };
+}
 
 router.get("/reports", async (req, res): Promise<void> => {
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Необхідно увійти" }); return; }
-  res.json(await db.select().from(reportsTable).where(eq(reportsTable.userId, user.id)).orderBy(desc(reportsTable.createdAt)));
+  const [savedReports, records] = await Promise.all([
+    db.select().from(reportsTable).where(eq(reportsTable.userId, user.id)).orderBy(desc(reportsTable.createdAt)),
+    reportRecordsForUser(user.id),
+  ]);
+  const reports = savedReports.map(saved => {
+    const calculation = saved.reportDetails
+      ? null
+      : calculateCareReport({
+          ...records,
+          periodStart: saved.periodStart,
+          periodEnd: saved.periodEnd,
+          createdAt: saved.createdAt,
+        });
+    const reportDetails = saved.reportDetails ?? calculation!.reportDetails;
+    const metrics = calculation?.metrics ?? {
+      taskCount: saved.taskCount,
+      completed: saved.completed,
+      overdue: saved.overdue,
+      postponed: saved.postponed,
+      cancelled: reportDetails.cancelled,
+      completionRate: Number(saved.completionRate),
+      frequentCategory: saved.frequentCategory,
+      mostActivePlant: saved.mostActivePlant,
+      recommendationSummary: saved.recommendationSummary,
+    };
+    return { ...saved, ...metrics, reportDetails, createdAt: saved.createdAt.toISOString() };
+  });
+  res.json(ListReportsResponse.parse(reports));
 });
 
 router.post("/reports", async (req, res): Promise<void> => {
@@ -1689,11 +1731,49 @@ router.post("/reports", async (req, res): Promise<void> => {
   const periodEnd = dates.safeParse(req.body?.periodEnd);
   const user = await currentUser(req);
   if (!user || !periodStart.success || !periodEnd.success || periodStart.data > periodEnd.data) { res.status(400).json({ error: "Некоректний період звіту" }); return; }
-  const stats = await statisticsForUser(req);
-  if (!stats) { res.status(401).json({ error: "Необхідно увійти" }); return; }
-  const inPeriod = stats.tasks.filter((task) => task.scheduledDate >= periodStart.data && task.scheduledDate <= periodEnd.data);
-  const [report] = await db.insert(reportsTable).values({ userId: user.id, periodStart: periodStart.data, periodEnd: periodEnd.data, taskCount: inPeriod.length, completed: inPeriod.filter((task) => task.status === "COMPLETED").length, overdue: inPeriod.filter((task) => ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate < today()).length, postponed: inPeriod.filter((task) => task.status === "POSTPONED").length, completionRate: String(inPeriod.length ? Math.round((inPeriod.filter((task) => task.status === "COMPLETED").length / inPeriod.length) * 100) : 0), frequentCategory: "Догляд", mostActivePlant: "Ваші рослини", recommendationSummary: "Звіт сформовано на основі збережених рекомендацій і завдань." }).onConflictDoUpdate({ target: [reportsTable.userId, reportsTable.periodStart, reportsTable.periodEnd], set: { taskCount: inPeriod.length, completed: inPeriod.filter((task) => task.status === "COMPLETED").length } }).returning();
-  res.status(201).json({ ...report, completionRate: Number(report.completionRate) });
+  const records = await reportRecordsForUser(user.id);
+  const createdAt = new Date();
+  const { reportDetails, metrics } = calculateCareReport({
+    ...records,
+    periodStart: periodStart.data,
+    periodEnd: periodEnd.data,
+    createdAt,
+  });
+  const [report] = await db.insert(reportsTable).values({
+    userId: user.id,
+    periodStart: periodStart.data,
+    periodEnd: periodEnd.data,
+    taskCount: metrics.taskCount,
+    completed: metrics.completed,
+    overdue: metrics.overdue,
+    postponed: metrics.postponed,
+    completionRate: String(metrics.completionRate),
+    frequentCategory: metrics.frequentCategory,
+    mostActivePlant: metrics.mostActivePlant,
+    recommendationSummary: metrics.recommendationSummary,
+    reportDetails,
+    createdAt,
+  }).onConflictDoUpdate({
+    target: [reportsTable.userId, reportsTable.periodStart, reportsTable.periodEnd],
+    set: {
+      taskCount: metrics.taskCount,
+      completed: metrics.completed,
+      overdue: metrics.overdue,
+      postponed: metrics.postponed,
+      completionRate: String(metrics.completionRate),
+      frequentCategory: metrics.frequentCategory,
+      mostActivePlant: metrics.mostActivePlant,
+      recommendationSummary: metrics.recommendationSummary,
+      reportDetails,
+      createdAt,
+    },
+  }).returning();
+  res.status(201).json(CreateReportResponse.parse({
+    ...report,
+    cancelled: metrics.cancelled,
+    completionRate: metrics.completionRate,
+    createdAt: report.createdAt.toISOString(),
+  }));
 });
 
 router.get("/dashboard", async (req, res): Promise<void> => {

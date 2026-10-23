@@ -1,4 +1,4 @@
-import { boolean, check, date, integer, numeric, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, check, date, integer, jsonb, numeric, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -223,10 +223,35 @@ export const reportsTable = pgTable("flora_reports", {
   frequentCategory: text("frequent_category").notNull(),
   mostActivePlant: text("most_active_plant").notNull(),
   recommendationSummary: text("recommendation_summary").notNull(),
+  reportDetails: jsonb("report_details").$type<ReportDetailsSnapshot>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   periodIdx: uniqueIndex("flora_reports_user_period_idx").on(table.userId, table.periodStart, table.periodEnd),
 }));
+
+export interface ReportDetailsSnapshot {
+  cancelled: number;
+  byType: Array<{ label: string; value: number }>;
+  byPlant: Array<{ label: string; value: number }>;
+  byStatus: Array<{ label: string; value: number }>;
+  tasks: Array<{
+    taskId: number;
+    plantId: number;
+    plantName: string;
+    careType: string;
+    scheduledDate: string;
+    priority: string;
+    status: string;
+    isOverdue: boolean;
+  }>;
+  weatherReschedules: Array<{
+    recommendationId: number;
+    plantName: string;
+    originalDate: string;
+    suggestedDate: string;
+    appliedAt: string;
+  }>;
+}
 
 export const insertSpeciesSchema = createInsertSchema(speciesTable).omit({ id: true });
 export const insertPlantSchema = createInsertSchema(plantsTable).omit({ id: true, addedAt: true });

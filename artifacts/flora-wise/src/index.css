@@ -476,3 +476,94 @@ select:not([multiple]) {
 .fw-skeleton { background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--card)) 50%, hsl(var(--muted)) 75%); background-size: 200% 100%; animation: fw-shimmer 1.3s infinite; }
 @keyframes fw-shimmer { to { background-position: -200% 0; } }
 .fw-ring { box-shadow: 0 0 0 5px hsl(var(--accent) / .16); }
+
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    min-height: 0 !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  body {
+    color: #1e2922 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-print-page {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .report-print-frame {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  .report-document {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #1e2922 !important;
+  }
+
+  .report-section:not(.report-task-table-section) {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .report-task-table-section {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .report-table-wrap {
+    overflow: visible !important;
+  }
+
+  .report-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    font-size: 9pt !important;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 6pt 5pt !important;
+    overflow-wrap: anywhere;
+  }
+
+  .report-table thead {
+    display: table-header-group;
+  }
+
+  .report-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-document h2,
+  .report-document h3,
+  .report-document h4 {
+    color: #17231b !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}

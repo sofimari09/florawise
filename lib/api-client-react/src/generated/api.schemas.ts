@@ -764,6 +764,34 @@ export interface Statistics {
   overTime: CountItem[];
 }
 
+export interface ReportTaskDetail {
+  taskId: number;
+  plantId: number;
+  plantName: string;
+  careType: string;
+  scheduledDate: string;
+  priority: string;
+  status: string;
+  isOverdue: boolean;
+}
+
+export interface ReportWeatherReschedule {
+  recommendationId: number;
+  plantName: string;
+  originalDate: string;
+  suggestedDate: string;
+  appliedAt: string;
+}
+
+export interface ReportDetails {
+  cancelled: number;
+  byType: CountItem[];
+  byPlant: CountItem[];
+  byStatus: CountItem[];
+  tasks: ReportTaskDetail[];
+  weatherReschedules: ReportWeatherReschedule[];
+}
+
 export interface Report {
   id: number;
   periodStart: string;
@@ -772,10 +800,12 @@ export interface Report {
   completed: number;
   overdue: number;
   postponed: number;
+  cancelled: number;
   completionRate: number;
   frequentCategory: string;
   mostActivePlant: string;
   recommendationSummary: string;
+  reportDetails: ReportDetails;
   createdAt: string;
 }
 

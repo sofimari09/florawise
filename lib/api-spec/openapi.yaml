@@ -1350,12 +1350,56 @@ components:
         completed: { type: integer }
         overdue: { type: integer }
         postponed: { type: integer }
+        cancelled: { type: integer }
         completionRate: { type: number }
         frequentCategory: { type: string }
         mostActivePlant: { type: string }
         recommendationSummary: { type: string }
+        reportDetails:
+          $ref: "#/components/schemas/ReportDetails"
         createdAt: { type: string }
-      required: [id, periodStart, periodEnd, taskCount, completed, overdue, postponed, completionRate, frequentCategory, mostActivePlant, recommendationSummary, createdAt]
+      required: [id, periodStart, periodEnd, taskCount, completed, overdue, postponed, cancelled, completionRate, frequentCategory, mostActivePlant, recommendationSummary, reportDetails, createdAt]
+    ReportTaskDetail:
+      type: object
+      properties:
+        taskId: { type: integer }
+        plantId: { type: integer }
+        plantName: { type: string }
+        careType: { type: string }
+        scheduledDate: { type: string, format: date }
+        priority: { type: string }
+        status: { type: string }
+        isOverdue: { type: boolean }
+      required: [taskId, plantId, plantName, careType, scheduledDate, priority, status, isOverdue]
+    ReportWeatherReschedule:
+      type: object
+      properties:
+        recommendationId: { type: integer }
+        plantName: { type: string }
+        originalDate: { type: string, format: date }
+        suggestedDate: { type: string, format: date }
+        appliedAt: { type: string, format: date-time }
+      required: [recommendationId, plantName, originalDate, suggestedDate, appliedAt]
+    ReportDetails:
+      type: object
+      properties:
+        cancelled: { type: integer }
+        byType:
+          type: array
+          items: { $ref: "#/components/schemas/CountItem" }
+        byPlant:
+          type: array
+          items: { $ref: "#/components/schemas/CountItem" }
+        byStatus:
+          type: array
+          items: { $ref: "#/components/schemas/CountItem" }
+        tasks:
+          type: array
+          items: { $ref: "#/components/schemas/ReportTaskDetail" }
+        weatherReschedules:
+          type: array
+          items: { $ref: "#/components/schemas/ReportWeatherReschedule" }
+      required: [cancelled, byType, byPlant, byStatus, tasks, weatherReschedules]
     ReportInput:
       type: object
       properties:
