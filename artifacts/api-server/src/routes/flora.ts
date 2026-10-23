@@ -23,10 +23,20 @@ import {
   type CareTask,
 } from "@workspace/db";
 import { weatherService } from "../lib/weather";
+import { logger } from "../lib/logger";
 import { createRainTomorrowScenario, DEV_WEATHER_SCENARIO } from "../lib/weather-test-scenario";
-import { generateRules, isWeatherSuitable, type RecommendationDraft } from "../lib/recommendation-engine";
+import { generateRules, isWeatherSuitable, RULE_PARAMETERS, type RecommendationDraft } from "../lib/recommendation-engine";
 import { resolveSavedWeatherLocation, plantEnvironment } from "../lib/weather-location";
 import { todayInKyiv } from "../lib/date";
+import {
+  CARE_PRIORITY_HORIZONS,
+  delaySensitivity,
+  temporalUrgency,
+  weatherSignalForPriority,
+  weatherUrgency,
+  weightedPriority,
+  type WeatherPrioritySignal,
+} from "../lib/care-task-priority";
 import { canAttachPhoto } from "../lib/plant-photos";
 import { identityInput, normalizeSearch, resolvePlantName, resolveIdentityFields } from "../lib/plant-identity";
 import { customCareContext, type CareContext } from "../lib/effective-care";
@@ -178,6 +188,7 @@ async function mapPlant(plant: typeof plantsTable.$inferSelect) {
   const species = await linkedSpecies(plant);
   const context = species ?? customCareContext(plant);
   const tasks = await db.select().from(tasksTable).where(and(eq(tasksTable.plantId, plant.id), inArray(tasksTable.status, ["PLANNED", "POSTPONED"]))).orderBy(tasksTable.scheduledDate);
+  const mappedTasks = await mapTasks(tasks, [plant]);
   const [place] = plant.placeId ? await db.select().from(plantPlacesTable).where(and(eq(plantPlacesTable.id, plant.placeId), eq(plantPlacesTable.userId, plant.userId))) : [];
   const [location] = plant.weatherLocationId ? await db.select().from(savedLocationsTable).where(and(eq(savedLocationsTable.id, plant.weatherLocationId), eq(savedLocationsTable.userId, plant.userId))) : [];
   const next = tasks[0];
@@ -198,7 +209,7 @@ async function mapPlant(plant: typeof plantsTable.$inferSelect) {
     nextTask: next?.scheduledDate ?? null,
     nextTaskType: next?.type ?? null,
     careStatus: next?.scheduledDate && next.scheduledDate < today() ? "OVERDUE" : next ? "PLANNED" : "NO_PLAN",
-    hasHighPriorityTasks: tasks.some(task => ["HIGH", "URGENT"].includes(task.priority)),
+    hasHighPriorityTasks: mappedTasks.some(task => ["HIGH", "URGENT"].includes(task.priority)),
   };
 }
 
@@ -214,13 +225,182 @@ function mapUser(user: typeof usersTable.$inferSelect) {
   };
 }
 
-async function mapTask(task: CareTask) {
-  const [plant] = await db.select().from(plantsTable).where(eq(plantsTable.id, task.plantId));
+type TaskPriorityContext = {
+  species: CareContext;
+  rules: (typeof speciesCareRulesTable.$inferSelect)[];
+  environment: string;
+  forecast: Awaited<ReturnType<typeof weatherService.getForecast>> | null;
+  locationName: string;
+  lastCompletedByType: Record<string, string>;
+};
+
+const isActiveCareTask = (task: CareTask) => ["PLANNED", "POSTPONED"].includes(task.status);
+
+function daysUntilTask(task: CareTask): number {
+  const due = Date.parse(`${task.scheduledDate}T00:00:00.000Z`);
+  const current = Date.parse(`${today()}T00:00:00.000Z`);
+  return Math.round((due - current) / 86_400_000);
+}
+
+function intervalDaysForSensitivity(
+  type: string,
+  species: CareContext,
+  rules: TaskPriorityContext["rules"],
+): number | null {
+  // The catalog has no direct delay-sensitivity measure. A verified care cadence
+  // is only a transparent model proxy; missing or condition-triggered cadence is neutral.
+  const rule = rules.find((item) => item.careType === type);
+  const ruleInterval = rule?.intervalDaysMax ?? rule?.intervalDaysMin ?? null;
+  if (rule?.triggerDescription?.trim()) return null;
+  if (ruleInterval !== null && Number.isFinite(ruleInterval) && ruleInterval > 0) return ruleInterval;
+  if (species.id === null) return null;
+  if (type === "WATERING") return species.wateringFrequencyDays;
+  if (type === "FERTILIZING") return species.fertilizingFrequencyDays;
+  if (type === "TRANSPLANTING" && species.transplantingFrequencyMonths !== null) {
+    return species.transplantingFrequencyMonths * 30;
+  }
+  // wateringCheckIntervalDays is intentionally excluded: it is a soil-check interval,
+  // not evidence of a fixed watering cadence or delay sensitivity.
+  return null;
+}
+
+async function loadTaskPriorityContext(plant: typeof plantsTable.$inferSelect): Promise<TaskPriorityContext> {
+  const [species, users, environment, completedCare] = await Promise.all([
+    effectiveCare(plant),
+    db.select().from(usersTable).where(eq(usersTable.id, plant.userId)).limit(1),
+    plantEnvironment(plant),
+    db.select({ type: tasksTable.type, completedAt: max(careLogsTable.completedAt) })
+      .from(careLogsTable)
+      .innerJoin(tasksTable, eq(careLogsTable.taskId, tasksTable.id))
+      .where(and(eq(tasksTable.plantId, plant.id), eq(tasksTable.status, "COMPLETED")))
+      .groupBy(tasksTable.type),
+  ]);
+  const rules = species.id === null
+    ? []
+    : await db.select().from(speciesCareRulesTable).where(eq(speciesCareRulesTable.speciesId, species.id));
+  const lastCompletedByType: Record<string, string> = {};
+  for (const action of completedCare) {
+    if (action.completedAt) lastCompletedByType[action.type] = todayInKyiv(action.completedAt);
+  }
+
+  let forecast: TaskPriorityContext["forecast"] = null;
+  let locationName = plant.weatherLocationName ?? "Ваш регіон";
+  if (isWeatherExposed(environment) && users[0]) {
+    try {
+      const location = await resolveSavedWeatherLocation(users[0], plant);
+      locationName = location.name;
+      const result = await weatherService.getForecast(location);
+      // Demonstration data is not evidence for a live task priority.
+      if (!result.isMock) forecast = result;
+    } catch (error) {
+      logger.warn({ error, plantId: plant.id, locationName }, "Погоду для пріоритету догляду не отримано; використаємо фактори D/S");
+    }
+  }
+
+  return { species, rules, environment, forecast, locationName, lastCompletedByType };
+}
+
+function calculateTaskPriority(task: CareTask, context: TaskPriorityContext): CareTask["priority"] {
+  const daysUntilDue = daysUntilTask(task);
+  const overdueDays = Math.max(0, -daysUntilDue);
+  const temporal = temporalUrgency(daysUntilDue, CARE_PRIORITY_HORIZONS.temporalDays);
+  const sensitivity = delaySensitivity(
+    intervalDaysForSensitivity(task.type, context.species, context.rules),
+    CARE_PRIORITY_HORIZONS.sensitivityDays,
+  );
+
+  let weatherSignal: WeatherPrioritySignal = null;
+  let forecastAvailableForTask = false;
+  let engineEmergencyOverride = false;
+  if (isWeatherExposed(context.environment) && context.forecast) {
+    const forecastDate = task.scheduledDate < today() ? today() : task.scheduledDate;
+    if (context.forecast.forecast.some((day) => day.date === forecastDate)) {
+      forecastAvailableForTask = true;
+      const drafts = generateRules(
+        context.species,
+        [task],
+        context.forecast.forecast,
+        context.locationName,
+        context.environment,
+        context.lastCompletedByType.WATERING ?? null,
+        context.rules,
+        context.lastCompletedByType,
+      ).filter((draft) => draft.relatedTaskId === task.id);
+      if (drafts.some((draft) => draft.type === "WEATHER_RESCHEDULE")) weatherSignal = "RESCHEDULE";
+      else if (drafts.some((draft) => draft.type === "WEATHER_WARNING")) weatherSignal = "WARNING";
+      else weatherSignal = "CLEAR";
+      engineEmergencyOverride = drafts.some((draft) => draft.priority === "URGENT");
+    }
+  }
+
+  const emergencyOverride =
+    task.priority === "URGENT" ||
+    overdueDays >= RULE_PARAMETERS.overdueUrgentDays ||
+    engineEmergencyOverride;
+  return weightedPriority(
+    {
+      temporal,
+      sensitivity,
+      weather: weatherUrgency(weatherSignalForPriority(context.environment, forecastAvailableForTask, weatherSignal)),
+    },
+    undefined,
+    emergencyOverride,
+  ).priority;
+}
+
+async function mapTaskWithContext(
+  task: CareTask,
+  plant: typeof plantsTable.$inferSelect | undefined,
+  context?: TaskPriorityContext,
+) {
+  let priority = task.priority;
+  if (isActiveCareTask(task)) {
+    const overdueDays = Math.max(0, -daysUntilTask(task));
+    if (task.priority === "URGENT" || overdueDays >= RULE_PARAMETERS.overdueUrgentDays) {
+      priority = "URGENT";
+    } else if (plant) {
+      priority = calculateTaskPriority(task, context ?? await loadTaskPriorityContext(plant));
+    }
+  }
   return {
     ...task,
+    priority,
     plantName: plant?.name ?? "Рослина",
     isOverdue: ["PLANNED", "POSTPONED"].includes(task.status) && task.scheduledDate < today(),
   };
+}
+
+async function mapTask(task: CareTask, knownPlant?: typeof plantsTable.$inferSelect) {
+  const [plant] = knownPlant
+    ? [knownPlant]
+    : await db.select().from(plantsTable).where(eq(plantsTable.id, task.plantId));
+  return mapTaskWithContext(task, plant);
+}
+
+async function mapTasks(
+  tasks: CareTask[],
+  knownPlants: (typeof plantsTable.$inferSelect)[] = [],
+) {
+  const plantsById = new Map(knownPlants.map((plant) => [plant.id, plant]));
+  const missingPlantIds = [...new Set(tasks.map((task) => task.plantId))]
+    .filter((plantId) => !plantsById.has(plantId));
+  if (missingPlantIds.length) {
+    const fetchedPlants = await db.select().from(plantsTable).where(inArray(plantsTable.id, missingPlantIds));
+    for (const plant of fetchedPlants) plantsById.set(plant.id, plant);
+  }
+
+  const contexts = new Map<number, Promise<TaskPriorityContext>>();
+  return Promise.all(tasks.map(async (task) => {
+    const plant = plantsById.get(task.plantId);
+    const active = isActiveCareTask(task);
+    const daysOverdue = Math.max(0, -daysUntilTask(task));
+    const needsContext = active && plant && task.priority !== "URGENT" && daysOverdue < RULE_PARAMETERS.overdueUrgentDays;
+    if (needsContext && plant && !contexts.has(plant.id)) {
+      contexts.set(plant.id, loadTaskPriorityContext(plant));
+    }
+    const context = needsContext && plant ? await contexts.get(plant.id) : undefined;
+    return mapTaskWithContext(task, plant, context);
+  }));
 }
 
 const devScenarioKey = "__floraWiseDevWeatherScenario";
@@ -792,7 +972,7 @@ router.get("/plants/:id", async (req, res): Promise<void> => {
     return { id: log.id, taskId: log.taskId, plantId: plant.id, plantName: plant.name, type: task?.type ?? "OTHER", plannedDate: task?.scheduledDate ?? "", completedAt: log.completedAt.toISOString(), comment: log.comment };
   }));
   const mapped = await mapPlant(plant);
-  res.json({ ...mapped, species: species ? await mapSpecies(species) : null, upcomingTasks: await Promise.all(tasks.filter((task) => task.status !== "COMPLETED" && task.status !== "CANCELLED").map(mapTask)), history, recommendations: await Promise.all(recommendations.map(mapRecommendation)), stats: { totalTasks: tasks.length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, completionRate: tasks.length ? Math.round((tasks.filter((task) => task.status === "COMPLETED").length / tasks.length) * 100) : 0, lastWatered: history.find((item) => item.type === "WATERING")?.completedAt ?? null } });
+  res.json({ ...mapped, species: species ? await mapSpecies(species) : null, upcomingTasks: await mapTasks(tasks.filter((task) => task.status !== "COMPLETED" && task.status !== "CANCELLED"), [plant]), history, recommendations: await Promise.all(recommendations.map(mapRecommendation)), stats: { totalTasks: tasks.length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, completionRate: tasks.length ? Math.round((tasks.filter((task) => task.status === "COMPLETED").length / tasks.length) * 100) : 0, lastWatered: history.find((item) => item.type === "WATERING")?.completedAt ?? null } });
 });
 
 router.patch("/plants/:id", async (req, res): Promise<void> => {
@@ -860,7 +1040,7 @@ router.post("/plants/:id/care-plan", async (req, res) => {
     await tx.insert(remindersTable).values(tasks.map(task => ({ taskId: task.id, reminderDate: task.scheduledDate, status: "PENDING" })));
     return tasks;
   });
-  res.status(201).json(await Promise.all(created.map(mapTask)));
+  res.status(201).json(await mapTasks(created, [plant]));
 });
 
 router.delete("/plants/:id", async (req, res): Promise<void> => {
@@ -880,7 +1060,7 @@ router.get("/tasks", async (req, res): Promise<void> => {
   const to = stringParam(req.query.to);
   const status = stringParam(req.query.status);
   const plantId = Number(req.query.plantId);
-  const result = await Promise.all(rows.filter((task) => plantIds.has(task.plantId) && (!req.query.type || task.type === req.query.type) && (!from || task.scheduledDate >= from) && (!to || task.scheduledDate <= to) && (!status || task.status === status) && (!Number.isFinite(plantId) || task.plantId === plantId)).map(mapTask));
+  const result = await mapTasks(rows.filter((task) => plantIds.has(task.plantId) && (!req.query.type || task.type === req.query.type) && (!from || task.scheduledDate >= from) && (!to || task.scheduledDate <= to) && (!status || task.status === status) && (!Number.isFinite(plantId) || task.plantId === plantId)));
   res.json(result);
 });
 
@@ -1276,7 +1456,8 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const plantIds = new Set(plants.map((plant) => plant.id));
   const tasks = (await db.select().from(tasksTable)).filter((task) => plantIds.has(task.plantId));
   const activeTasks = tasks.filter(task => ["PLANNED", "POSTPONED"].includes(task.status));
-  const mappedTasks = await Promise.all(activeTasks.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)).slice(0, 8).map(mapTask));
+  const mappedActiveTasks = await mapTasks(activeTasks.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)), plants);
+  const mappedTasks = mappedActiveTasks.slice(0, 8);
   const recommendationRows = (await db.select().from(recommendationsTable).orderBy(desc(recommendationsTable.generatedAt)))
     .filter((item) => plantIds.has(item.plantId));
   const mappedRecommendations = await Promise.all(recommendationRows.map(mapRecommendation));
@@ -1298,7 +1479,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
     req.log.warn({ error, userId: user.id }, "Актуальний прогноз погоди тимчасово недоступний");
   }
   const taskMap = new Map(tasks.map((task) => [task.id, task]));
-  res.json({ plantsCount: plants.length, todayTasks: activeTasks.filter((task) => task.scheduledDate === today()).length, overdueTasks: activeTasks.filter((task) => task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: activeTasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority)).length, weather, upcomingTasks: mappedTasks, latestRecommendations: dashboardRecommendations, reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1) && ["PLANNED", "POSTPONED"].includes(taskMap.get(item.taskId)?.status ?? "")).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "OTHER", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
+  res.json({ plantsCount: plants.length, todayTasks: activeTasks.filter((task) => task.scheduledDate === today()).length, overdueTasks: activeTasks.filter((task) => task.scheduledDate < today()).length, completedTasks: tasks.filter((task) => task.status === "COMPLETED").length, highPriorityTasks: mappedActiveTasks.filter((task) => ["HIGH", "URGENT"].includes(task.priority)).length, weather, upcomingTasks: mappedTasks, latestRecommendations: dashboardRecommendations, reminders: reminders.filter((item) => plantIds.has(taskMap.get(item.taskId)?.plantId ?? -1) && ["PLANNED", "POSTPONED"].includes(taskMap.get(item.taskId)?.status ?? "")).slice(0, 5).map((item) => ({ id: item.id, taskId: item.taskId, plantName: plants.find((plant) => plant.id === taskMap.get(item.taskId)?.plantId)?.name ?? "Рослина", taskType: taskMap.get(item.taskId)?.type ?? "OTHER", reminderDate: item.reminderDate, status: item.status, message: `Нагадування на ${item.reminderDate}` })) });
 });
 
 router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

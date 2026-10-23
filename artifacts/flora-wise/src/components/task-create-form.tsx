@@ -8,7 +8,8 @@ export function TaskCreateForm({ onDone }: { onDone: () => void }) {
   const q = useQueryClient();
   const plants = useListPlants();
   const create = useCreateTask();
-  const [form, setForm] = useState({ plantId: "", type: "", scheduledDate: new Date().toISOString().slice(0, 10), priority: "MEDIUM", notes: "" });
+  const [form, setForm] = useState({ plantId: "", type: "", scheduledDate: new Date().toISOString().slice(0, 10), notes: "" });
+  const [urgentOverride, setUrgentOverride] = useState(false);
   const [error, setError] = useState("");
   const selected = useGetPlant(Number(form.plantId), { query: {
     queryKey: getGetPlantQueryKey(Number(form.plantId)), enabled: !!form.plantId, staleTime: 0, retry: false,
@@ -24,7 +25,7 @@ export function TaskCreateForm({ onDone }: { onDone: () => void }) {
     event.preventDefault();
     if (!ready || !valid || !isCareType(form.type)) return;
     setError("");
-    create.mutate({ data: { ...form, plantId: Number(form.plantId), type: form.type } }, {
+    create.mutate({ data: { ...form, plantId: Number(form.plantId), type: form.type, priority: urgentOverride ? "URGENT" : "MEDIUM" } }, {
       onSuccess: async () => { await q.invalidateQueries(); onDone(); },
       onError: err => { setError(errMsg(err, "Не вдалося створити завдання.")); selected.refetch(); },
     });
@@ -44,9 +45,15 @@ export function TaskCreateForm({ onDone }: { onDone: () => void }) {
     {selected.isError && <Alert>Не вдалося перевірити застосовність. <button type="button" onClick={() => selected.refetch()}>Повторити</button></Alert>}
     {ready && !allowed.length && <p role="status">Для цього виду немає застосовних дій догляду.</p>}
     <label>Дата<input required data-testid="input-task-date" type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} className={inputCls} /></label>
-    <label>Пріоритет<select data-testid="select-task-priority" value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} className={inputCls}>
-      <option value="LOW">Низький</option><option value="MEDIUM">Середній</option><option value="HIGH">Високий</option><option value="URGENT">Терміновий</option>
-    </select></label>
+    <div className="md:col-span-2 rounded-xl border border-border/70 bg-muted/30 p-3">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" checked={urgentOverride} onChange={e => setUrgentOverride(e.target.checked)} />
+        Термінове завдання — виняток із розрахованого пріоритету
+      </label>
+      <p className="mt-1 pl-6 text-xs leading-5 text-muted-foreground">
+        Для звичайних завдань рівень визначається автоматично за строком, інтервалом догляду та доречною для рослини погодою.
+      </p>
+    </div>
     <label className="md:col-span-2">Нотатка<input data-testid="input-task-notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className={inputCls} /></label>
     {error && <Alert>{error}</Alert>}
     <Btn type="submit" disabled={create.isPending || !ready || !valid} className="md:col-span-2">{create.isPending ? "Зберігаємо…" : "Додати до календаря"}</Btn>
